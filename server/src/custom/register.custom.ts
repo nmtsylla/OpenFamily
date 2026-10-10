@@ -17,6 +17,7 @@ import budgetAnalyticsRoutes from './routes/budgetAnalytics.custom';
 import budgetReceiptsRoutes from './routes/budgetReceipts.custom';
 import lunchboxRoutes from './routes/lunchbox.custom';
 import mediaRoutes from './routes/media.custom';
+import outingsRoutes from './routes/outings.custom';
 import weatherRoutes from './routes/weather.custom';
 
 export const registerCustomRoutes = (app: Express): void => {
@@ -43,6 +44,13 @@ export const registerCustomRoutes = (app: Express): void => {
         // user-supplied host — only the two AI calls leave the server, and they
         // go to the family's own configured provider.
         app.use('/api/lunchbox', customRateLimiter, lunchboxRoutes);
+    }
+
+    if (isCustomFeatureEnabled('outings')) {
+        // The outing planner: OpenStreetMap for the places (fixed public host),
+        // the family's own configured model for the ranking. Read-only — the
+        // chosen outing is added through upstream's /api/planning.
+        app.use('/api/outings', customRateLimiter, outingsRoutes);
     }
 
     if (isCustomFeatureEnabled('budgetReceipts')) {

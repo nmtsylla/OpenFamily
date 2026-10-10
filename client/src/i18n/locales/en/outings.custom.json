@@ -1,0 +1,75 @@
+{
+    "title": "Outing planner",
+    "subtitle": "Real places around {{city}}, chosen for the day and for who is coming.",
+    "subtitleNoCity": "Real places around you, chosen for the day and for who is coming.",
+    "party": {
+        "label": "Who is coming",
+        "family": "The whole family",
+        "kids": "With the kids",
+        "parents": "Parents only"
+    },
+    "date": {
+        "label": "Day",
+        "today": "Today",
+        "tomorrow": "Tomorrow"
+    },
+    "duration": {
+        "label": "How long",
+        "short": "An hour or two",
+        "half_day": "Half a day",
+        "full_day": "The whole day"
+    },
+    "position": {
+        "use": "Use my position",
+        "current": "Using my position",
+        "saved": "Saved city"
+    },
+    "generate": "Suggest outings",
+    "regenerate": "Other suggestions",
+    "generating": "Looking around…",
+    "weather": "{{label}} · {{min}}–{{max}} °C · {{rain}}% rain",
+    "places": {
+        "title": "Places to go",
+        "distance": "{{km}} km away",
+        "add": "Add to the planning",
+        "added": "Added to the planning",
+        "conflict": "Another entry already covers that time.",
+        "error": "Could not add this outing.",
+        "hours": "Hours: {{hours}}",
+        "fee": "Fee: {{fee}}",
+        "website": "Website"
+    },
+    "ideas": {
+        "title": "No place needed",
+        "indoor": "Indoor",
+        "outdoor": "Outdoor"
+    },
+    "categories": {
+        "playground": "Playground",
+        "park": "Park",
+        "zoo": "Zoo",
+        "aquarium": "Aquarium",
+        "museum": "Museum",
+        "theme_park": "Theme park",
+        "attraction": "Attraction",
+        "swimming": "Swimming",
+        "library": "Library",
+        "viewpoint": "Viewpoint"
+    },
+    "ai": {
+        "disabled": "No AI model is configured: the nearest places are shown, unranked.",
+        "failed": "The model did not answer: the nearest places are shown, unranked.",
+        "pending": "The model is ranking these places…"
+    },
+    "source": {
+        "osm": "Places from OpenStreetMap",
+        "unavailable": "Could not reach the places database: only the ideas below are shown."
+    },
+    "noLocation": {
+        "title": "No location yet",
+        "subtitle": "Save your city in the weather settings, or let the browser use your position.",
+        "cta": "Open the settings"
+    },
+    "empty": "Nothing to propose for this day. Try another day or a longer outing.",
+    "error": "Could not fetch outing ideas."
+}

@@ -1,0 +1,75 @@
+{
+    "title": "Planificateur de sorties",
+    "subtitle": "Des lieux réels autour de {{city}}, choisis pour la journée et pour ceux qui viennent.",
+    "subtitleNoCity": "Des lieux réels autour de vous, choisis pour la journée et pour ceux qui viennent.",
+    "party": {
+        "label": "Qui participe",
+        "family": "Toute la famille",
+        "kids": "Avec les enfants",
+        "parents": "Les parents seulement"
+    },
+    "date": {
+        "label": "Jour",
+        "today": "Aujourd'hui",
+        "tomorrow": "Demain"
+    },
+    "duration": {
+        "label": "Combien de temps",
+        "short": "Une heure ou deux",
+        "half_day": "Une demi-journée",
+        "full_day": "Toute la journée"
+    },
+    "position": {
+        "use": "Utiliser ma position",
+        "current": "Position actuelle",
+        "saved": "Ville enregistrée"
+    },
+    "generate": "Proposer des sorties",
+    "regenerate": "D'autres propositions",
+    "generating": "Recherche aux alentours…",
+    "weather": "{{label}} · {{min}}–{{max}} °C · {{rain}} % de pluie",
+    "places": {
+        "title": "Où aller",
+        "distance": "à {{km}} km",
+        "add": "Ajouter au planning",
+        "added": "Ajouté au planning",
+        "conflict": "Une autre entrée occupe déjà ce créneau.",
+        "error": "Impossible d'ajouter cette sortie.",
+        "hours": "Horaires : {{hours}}",
+        "fee": "Tarif : {{fee}}",
+        "website": "Site web"
+    },
+    "ideas": {
+        "title": "Sans lieu précis",
+        "indoor": "À l'intérieur",
+        "outdoor": "Dehors"
+    },
+    "categories": {
+        "playground": "Aire de jeux",
+        "park": "Parc",
+        "zoo": "Zoo",
+        "aquarium": "Aquarium",
+        "museum": "Musée",
+        "theme_park": "Parc d'attractions",
+        "attraction": "Site à visiter",
+        "swimming": "Piscine",
+        "library": "Bibliothèque",
+        "viewpoint": "Point de vue"
+    },
+    "ai": {
+        "disabled": "Aucun modèle IA n'est configuré : les lieux les plus proches sont affichés, sans classement.",
+        "failed": "Le modèle n'a pas répondu : les lieux les plus proches sont affichés, sans classement.",
+        "pending": "Le modèle classe ces lieux…"
+    },
+    "source": {
+        "osm": "Lieux issus d'OpenStreetMap",
+        "unavailable": "Base de lieux injoignable : seules les idées ci-dessous sont affichées."
+    },
+    "noLocation": {
+        "title": "Aucun lieu enregistré",
+        "subtitle": "Enregistrez votre ville dans les réglages météo, ou autorisez le navigateur à utiliser votre position.",
+        "cta": "Ouvrir les réglages"
+    },
+    "empty": "Rien à proposer pour cette journée. Essayez un autre jour ou une sortie plus longue.",
+    "error": "Impossible de récupérer les idées de sortie."
+}

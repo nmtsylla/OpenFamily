@@ -1,0 +1,75 @@
+{
+    "title": "Planeador de passeios",
+    "subtitle": "Lugares reais perto de {{city}}, escolhidos para o dia e para quem vem.",
+    "subtitleNoCity": "Lugares reais perto de você, escolhidos para o dia e para quem vem.",
+    "party": {
+        "label": "Quem vem",
+        "family": "A família toda",
+        "kids": "Com as crianças",
+        "parents": "Só os pais"
+    },
+    "date": {
+        "label": "Dia",
+        "today": "Hoje",
+        "tomorrow": "Amanhã"
+    },
+    "duration": {
+        "label": "Quanto tempo",
+        "short": "Uma hora ou duas",
+        "half_day": "Meio dia",
+        "full_day": "O dia todo"
+    },
+    "position": {
+        "use": "Usar minha posição",
+        "current": "A usar minha posição",
+        "saved": "Cidade salva"
+    },
+    "generate": "Sugerir passeios",
+    "regenerate": "Outras sugestões",
+    "generating": "A procurar perto…",
+    "weather": "{{label}} · {{min}}–{{max}} °C · {{rain}}% de chuva",
+    "places": {
+        "title": "Lugares para ir",
+        "distance": "A {{km}} km",
+        "add": "Adicionar ao planeamento",
+        "added": "Adicionado ao planeamento",
+        "conflict": "Já há outra entrada que cobre esse horário.",
+        "error": "Não foi possível adicionar este passeio.",
+        "hours": "Horário: {{hours}}",
+        "fee": "Preço: {{fee}}",
+        "website": "Site"
+    },
+    "ideas": {
+        "title": "Sem precisar de um lugar",
+        "indoor": "Interior",
+        "outdoor": "Exterior"
+    },
+    "categories": {
+        "playground": "Parque infantil",
+        "park": "Parque",
+        "zoo": "Jardim zoológico",
+        "aquarium": "Aquário",
+        "museum": "Museu",
+        "theme_park": "Parque de diversões",
+        "attraction": "Atração",
+        "swimming": "Piscina",
+        "library": "Biblioteca",
+        "viewpoint": "Miradouro"
+    },
+    "ai": {
+        "disabled": "Nenhum modelo de IA está configurado: são mostrados os lugares mais próximos, sem ordenação.",
+        "failed": "O modelo não respondeu: são mostrados os lugares mais próximos, sem ordenação.",
+        "pending": "O modelo está a classificar estes lugares…"
+    },
+    "source": {
+        "osm": "Lugares do OpenStreetMap",
+        "unavailable": "Não foi possível aceder à base de dados de lugares: só as ideias abaixo são mostradas."
+    },
+    "noLocation": {
+        "title": "Ainda sem localização",
+        "subtitle": "Salve sua cidade nas configurações do clima, ou deixe o navegador usar sua posição.",
+        "cta": "Abrir as configurações"
+    },
+    "empty": "Nada a propor para este dia. Tente outro dia ou um passeio mais longo.",
+    "error": "Não foi possível obter ideias de passeios."
+}

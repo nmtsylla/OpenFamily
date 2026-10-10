@@ -9,9 +9,10 @@ import {
 } from '../weather/WeatherService.custom';
 import { WeatherError } from '../weather/errors.custom';
 import { resolveTargetDay, type DayContext } from '../lib/dayContext.custom';
+import { resolveCoordinates, type ResolvedCoords } from '../lib/location.custom';
+import { loadFamilyKids, type FamilyKid } from '../lib/kids.custom';
 import { handleAiError, loadEnabledAiSettings } from '../lib/aiSettings.custom';
 import { resolvePromptLanguage } from '../lib/promptLanguage.custom';
-import { parseStringArray } from '../../lib/normalize';
 import { AiError } from '../../services/ai';
 import {
     suggestActivitiesForKids,
@@ -42,97 +43,7 @@ router.use(authMiddleware);
 
 const MAX_EXCLUDE = 20;
 
-const ageYearsFromBirthDate = (birthDate: unknown, fallback: number): number => {
-    if (!(birthDate instanceof Date) && typeof birthDate !== 'string') return fallback;
-    const d = birthDate instanceof Date ? birthDate : new Date(`${birthDate}T00:00:00`);
-    if (Number.isNaN(d.getTime())) return fallback;
-    const now = new Date();
-    let age = now.getFullYear() - d.getFullYear();
-    const before =
-        now.getMonth() < d.getMonth() ||
-        (now.getMonth() === d.getMonth() && now.getDate() < d.getDate());
-    if (before) age -= 1;
-    return Math.max(0, Math.min(120, age));
-};
-
-interface ResolvedCoords {
-    latitude: number;
-    longitude: number;
-    city: string | null;
-}
-
-/**
- * Coordinates from the session-only geolocation override if the body carries
- * one, otherwise from the member's saved city. Null when neither exists.
- */
-const resolveCoordinates = async (req: AuthRequest): Promise<ResolvedCoords | null> => {
-    const bodyLat = typeof req.body?.latitude === 'number' ? req.body.latitude : null;
-    const bodyLon = typeof req.body?.longitude === 'number' ? req.body.longitude : null;
-    if (bodyLat !== null && bodyLon !== null) {
-        return { latitude: bodyLat, longitude: bodyLon, city: null };
-    }
-
-    const userRow = await query('SELECT city, latitude, longitude FROM users WHERE id = $1', [
-        req.actualUserId,
-    ]);
-    const u = userRow.rows[0] as
-        | {
-              city: string | null;
-              latitude: string | number | null;
-              longitude: string | number | null;
-          }
-        | undefined;
-
-    if (!u || u.latitude === null || u.longitude === null) return null;
-    return {
-        latitude: Number(u.latitude),
-        longitude: Number(u.longitude),
-        city: u.city ?? null,
-    };
-};
-
-interface DashboardKid {
-    id: string;
-    name: string;
-    color: string;
-    birth_date: string | null;
-    ageYears: number;
-    /**
-     * Server-only: what the family wrote on the child's card. They feed the
-     * activity prompt, and the widget responses project them out again, so a
-     * child's medical notes never ride out to the browser on a dashboard poll.
-     */
-    notes: string | null;
-    allergies: string[];
-}
-
-/** The free-text notes, read the way the family card displays them (`notes ?? medical_notes`). */
-const pickNotes = (notes: unknown, medicalNotes: unknown): string | null => {
-    for (const value of [notes, medicalNotes]) {
-        if (typeof value === 'string' && value.trim()) return value;
-    }
-    return null;
-};
-
-/** The family's children — the only members an outfit or an idea is for. */
-const loadKids = async (userId: string): Promise<DashboardKid[]> => {
-    const result = await query(
-        `SELECT id, name, birth_date, color, notes, medical_notes, allergies
-         FROM family_members
-         WHERE user_id = $1 AND role = 'Enfant'
-         ORDER BY birth_date NULLS LAST, name ASC`,
-        [userId],
-    );
-    return (result.rows as Array<Record<string, unknown>>).map((r) => ({
-        id: String(r.id),
-        name: String(r.name),
-        color: String(r.color),
-        birth_date: r.birth_date === null || r.birth_date === undefined ? null : String(r.birth_date),
-        ageYears: ageYearsFromBirthDate(r.birth_date, 8),
-        notes: pickNotes(r.notes, r.medical_notes),
-        allergies: parseStringArray(r.allergies),
-    }));
-};
+type DashboardKid = FamilyKid;
 
 /**
  * What the app already knows about `dateKey`, to feed the activity prompt. This
@@ -258,7 +169,7 @@ const loadWidgetContext = async (req: AuthRequest, res: Response): Promise<Widge
         throw err;
     }
 
-    const allKids = await loadKids(req.userId!);
+    const allKids = await loadFamilyKids(req.userId!);
 
     return {
         coords,

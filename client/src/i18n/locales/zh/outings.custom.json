@@ -1,0 +1,75 @@
+{
+    "title": "出行计划",
+    "subtitle": "{{city}} 附近的真实地点，根据当天情况以及同行的人挑选。",
+    "subtitleNoCity": "你附近的真实地点，根据当天情况以及同行的人挑选。",
+    "party": {
+        "label": "谁一起去",
+        "family": "全家",
+        "kids": "带孩子",
+        "parents": "仅父母"
+    },
+    "date": {
+        "label": "日期",
+        "today": "今天",
+        "tomorrow": "明天"
+    },
+    "duration": {
+        "label": "时长",
+        "short": "一两个小时",
+        "half_day": "半天",
+        "full_day": "一整天"
+    },
+    "position": {
+        "use": "使用我的位置",
+        "current": "正在使用我的位置",
+        "saved": "已保存的城市"
+    },
+    "generate": "推荐出行",
+    "regenerate": "其他推荐",
+    "generating": "正在寻找……",
+    "weather": "{{label}} · {{min}}–{{max}} °C · 降雨 {{rain}}%",
+    "places": {
+        "title": "可以去的地方",
+        "distance": "距离 {{km}} 公里",
+        "add": "加入日程",
+        "added": "已加入日程",
+        "conflict": "该时段已有其他安排。",
+        "error": "无法添加此行程。",
+        "hours": "开放时间：{{hours}}",
+        "fee": "费用：{{fee}}",
+        "website": "网站"
+    },
+    "ideas": {
+        "title": "无需去特定地点",
+        "indoor": "室内",
+        "outdoor": "室外"
+    },
+    "categories": {
+        "playground": "游乐场",
+        "park": "公园",
+        "zoo": "动物园",
+        "aquarium": "水族馆",
+        "museum": "博物馆",
+        "theme_park": "主题乐园",
+        "attraction": "景点",
+        "swimming": "游泳馆",
+        "library": "图书馆",
+        "viewpoint": "观景台"
+    },
+    "ai": {
+        "disabled": "未配置 AI 模型：仅显示最近的地点，未排序。",
+        "failed": "模型未响应：仅显示最近的地点，未排序。",
+        "pending": "模型正在为这些地点排序…"
+    },
+    "source": {
+        "osm": "地点来自 OpenStreetMap",
+        "unavailable": "无法连接地点数据库：仅显示下方建议。"
+    },
+    "noLocation": {
+        "title": "尚未设置位置",
+        "subtitle": "在天气设置中保存你的城市，或允许浏览器使用你的位置。",
+        "cta": "打开设置"
+    },
+    "empty": "这一天没有可推荐的内容。换个日期或安排更长的出行试试。",
+    "error": "无法获取出行建议。"
+}
