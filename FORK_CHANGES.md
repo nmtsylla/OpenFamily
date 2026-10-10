@@ -14,10 +14,13 @@ upstream tree (that tree is kept for reference at `/home/bsylla/OpenFamily-budge
 where the same features were spread over 50 upstream files and ~9000 inserted
 lines). Here they live in `custom/` locations with a single hook per upstream file.
 
-Measured divergence of this port: **34 upstream files touched, 1224 insertions,
-19 modified lines**. Every touched upstream file carries `FORK-START/END` markers
-except the three that cannot hold comments (`.env.example`, `package-lock.json`,
-`server/package.json` — each explained below).
+Measured divergence of this port: **34 upstream files touched, 1479 insertions,
+20 modified lines** (measured 2026-10-10, `git diff --numstat upstream/main` over
+the files that exist upstream; the lunchbox port added 255 insertions and one
+modified line to the previous 1224/19). Every touched upstream file carries
+`FORK-START/END` markers except the three that cannot hold comments
+(`.env.example`, `package-lock.json`, `server/package.json` — each explained
+below).
 
 ## Custom features (new files only)
 
@@ -27,15 +30,45 @@ except the three that cannot hold comments (`.env.example`, `package-lock.json`,
 | Object storage for images (S3-compatible) | `server/src/custom/lib/{storage,media,storage-errors}.custom.ts`, `server/src/custom/middleware/media.custom.ts`, `server/src/custom/routes/media.custom.ts` | `CUSTOM_FEATURE_MEDIA_ENABLED` |
 | Receipt / bill import with line detail | `server/src/custom/routes/budgetReceipts.custom.ts`, `server/src/custom/ai/receipt.custom.ts`, `client/src/custom/components/{ReceiptImport,BudgetReceipts}.custom.tsx` | `CUSTOM_FEATURE_BUDGET_RECEIPTS_ENABLED` |
 | Budget analytics page | `server/src/custom/lib/budgetAnalytics.custom.ts`, `server/src/custom/routes/budgetAnalytics.custom.ts`, `client/src/custom/pages/BudgetAnalytics.custom.tsx` | `CUSTOM_FEATURE_BUDGET_ANALYTICS_ENABLED` |
+| Lunchboxes + weekly nutritional read (ported from KeurTonux) | `server/src/custom/lib/lunchbox.custom.ts`, `server/src/custom/lib/aiSettings.custom.ts`, `server/src/custom/lib/promptLanguage.custom.ts`, `server/src/custom/ai/{lunchbox,nutrition}.custom.ts`, `server/src/custom/routes/lunchbox.custom.ts`, `client/src/custom/pages/Lunchboxes.custom.tsx`, `client/src/custom/components/{LunchboxAiDialog,NutritionAnalysisDialog}.custom.tsx` | `CUSTOM_FEATURE_LUNCHBOX_ENABLED` |
 | Feature flags / registration point | `server/src/custom/features.custom.ts`, `server/src/custom/register.custom.ts`, `server/src/custom/middleware/rateLimit.custom.ts` | — |
 | Client hooks for custom code | `client/src/custom/{nav.custom.ts,routes.custom.tsx}` | — |
 | Deploy assets | `deploy/README.md`, `deploy/up.sh`, `docker-compose.override.yml` | — |
-| Translations | `client/src/i18n/locales/<lng>/{weather,activities,analytics,dashboard,budget,ai}.custom.json` | — |
+| Translations | `client/src/i18n/locales/<lng>/{weather,activities,analytics,dashboard,budget,ai,lunchbox}.custom.json` | — |
 
 Gating: a feature's `CUSTOM_FEATURE_*_ENABLED=false` unmounts its API routes and
 adds its module keys to `disabled_modules` in `/api/auth/me`, which hides the
 matching nav entry, page and dashboard widget through the client's existing module
-filter. Module keys: `weather`, `activities`, `budgetReceipts`, `budgetAnalytics`.
+filter. Module keys: `weather`, `activities`, `budgetReceipts`, `budgetAnalytics`,
+`lunchbox`.
+
+## Ported from KeurTonux (`tonux/KeurTonux`, local checkout `/home/bsylla/keurtonux`)
+
+The meal-planning delta is the **lunchbox** feature set: per-child daily boxes,
+their tracking, the shopping list built from them, AI ideas from the pantry, and a
+weekly nutritional read. It is the only thing ported; the household meal planner is
+KeurTonux's older sibling of upstream's and stays upstream's.
+
+**Kept from OpenFamily** (the fork does not fork these): the upstream meal planner
+(`meal_plans`, `routes/mealPlans.ts`, `pages/MealPlanning.tsx`, the Tandoor import)
+untouched; the AI stack (`services/ai` — ollama/OpenAI-compatible/Anthropic/Gemini,
+`ai_settings` + encrypted key, the `AI_*` error codes the client already maps through
+`ai:errors.*`); the `custom/` layout, the one-hook-per-upstream-file rule and the
+`CUSTOM_FEATURE_*` gating; the shopping list and its family-customizable categories;
+the `meals.custom.json`-style i18n convention (here `lunchbox.custom.json`).
+
+**Changed on the way in**, each for a reason that does not exist in KeurTonux:
+
+| KeurTonux | Here | Why |
+|---|---|---|
+| Lunchboxes as extra `meal_plans` rows discriminated by `meal_type = 'Boîte à lunch'`, with a rewritten unique index | Own table `custom_lunchboxes` (`custom/0003`) | Never alter an upstream table or its constraints; the fork already reads upstream tables read-only for the nutrition call |
+| A lunchbox row inside the MealPlanning page | Own page `/lunchboxes` + nav entry | `pages/MealPlanning.tsx` is upstream-owned; a tab there would be a large upstream diff |
+| `LUNCHBOX_TYPE = 'Boîte à lunch'` and French-only prompts (`Toutes les chaînes en français`) | No French constant anywhere in the code; prompts take the reader's language (French hand-tuned, English base + explicit directive for the other five, same pattern as the weather widgets) | The fork ships six locales; a stored French meal type would have to be translated at render time and a French-only model answer is wrong in five of them |
+| Verdict returned as `"Bon"` / `"À améliorer"` | Verdict as a locale-neutral code (`good`, `needs_improvement`) translated client-side | Same reason; the score bands stay the single source of truth (the code is derived from the score when the model invents one) |
+| Senegal-specific nutrition framing (Yassa, Thiéboudienne…) | Culture-neutral prompt | OpenFamily is not a Senegalese app; the family's own dish names arrive as data |
+| `AI` quota / `DISABLED` / `BAD_JSON` codes | `AI_*` codes of `services/ai` | Upstream has no AI quota; reusing its codes keeps one client-side error map |
+| Shopping list always `INSERT`s, so a second run adds the quantities again | Existing unchecked item with the same name is left alone | Re-running a week must be idempotent; the toast reports created vs already-there |
+| Mon–Fri cells only | Any day | An outing or a trip weekend is exactly when a box gets packed, and the AI dialog offers "outing" / "travel" locations |
 
 ## Modifications to upstream files
 
@@ -47,7 +80,7 @@ otherwise.
 | `server/src/app.ts` | `custom-routes`, `budget-custom` | One `registerCustomRoutes(app)` hook (import + call, above the upstream limiters) and one added condition so `/api/ai/extract-receipt` skips the 1 MB default JSON parser |
 | `server/src/routes/auth.ts` | `custom-features`, `media` | Adds the env-disabled custom modules to `disabled_modules`; accepts an `s3:` avatar reference |
 | `server/src/routes/userSettings.ts` | `weather`, `custom-modules` | Adds the two custom dashboard widget keys to `DASHBOARD_WIDGETS` (the list `parseDashboardPrefs` validates against — without it the widgets are silently dropped) and the custom module keys to `TOGGLEABLE_MODULES` (upstream rejects an unknown key in `PUT /api/auth/modules`, so a flag-disabled key reported through `/api/auth/me` would make the next module toggle fail with 400) |
-| `server/src/migrations/registry.ts` | `custom-migrations` | Appends the two fork migrations (`custom/0001`, `custom/0002`) |
+| `server/src/migrations/registry.ts` | `custom-migrations` | Appends the fork migrations (`custom/0001`, `custom/0002`, `custom/0003`) |
 | `server/src/index.ts` | `media` | Ensures the bucket exists at startup when storage is configured |
 | `server/src/lib/postFields.ts`, `server/src/lib/recipeImage.ts` | `media` | Keeps an `s3:` media reference intact instead of treating it as a data URL |
 | `server/src/routes/dataTransfer.ts` | `media` | Stores inline images on import and answers with JSON instead of rethrowing |
@@ -62,9 +95,9 @@ otherwise.
 | `client/src/pages/Budget.tsx` | `budget-custom` | Mounts the receipt import button and the imported-receipts section |
 | `client/src/contexts/AuthContext.tsx` | `weather` | Adds the two custom widget keys to the client's `DASHBOARD_WIDGETS` |
 | `client/src/components/app/MagicInput.tsx` | `budget-custom` | Adds the `AI_UNSUPPORTED_MEDIA` error code |
-| `client/src/demo/mockApi.ts` | `budget-custom`, `demo-prefs` | Demo handlers for receipts, receipt extraction and analytics; plus the two object-shaped endpoints upstream's demo never answers (`dashboard-prefs`, `posts/latest`), whose `ok([])` catch-all crashed the demo's default route |
+| `client/src/demo/mockApi.ts` | `budget-custom`, `demo-prefs`, `lunchbox` | Demo handlers for receipts, receipt extraction, analytics and lunchboxes; plus the two object-shaped endpoints upstream's demo never answers (`dashboard-prefs`, `posts/latest`), whose `ok([])` catch-all crashed the demo's default route |
 | `client/nginx.conf` | `media` | Dedicated `location ^~ /api/media/` block (upstream's `location /api/` line untouched) |
-| `scripts/smoke-api.sh` | `budget-custom` | Smoke calls for the custom endpoints |
+| `scripts/smoke-api.sh` | `budget-custom`, `lunchbox` | Smoke calls for the custom endpoints |
 | `.env.example` | (section) | `# --- Custom ---` section at the end of the file |
 | `DOCUMENTATION.md`, `ROADMAP.md`, `README.md`, `README.fr.md`, `README.zh-CN.md` | `docs` | Feature documentation |
 | `docker-compose.yml` | `deploy` | Custom env vars for the server service |
@@ -101,6 +134,10 @@ next migration takes `core/0007`):
 - `custom/0001-users-location` — `users.city`, `country_code`, `latitude`, `longitude`
 - `custom/0002-budget-receipts` — `budget_receipts`, `budget_receipt_items`,
   `budget_entries.receipt_id` (FK `ON DELETE CASCADE`), `UNIQUE (user_id, fingerprint)`
+- `custom/0003-lunchboxes` — `custom_lunchboxes`, `UNIQUE (user_id, family_member_id, date)`,
+  two indexes. The fork's own table on purpose: upstream's `meal_plans` has one row per
+  date+meal type and no "for whom", so adding lunchboxes there would mean altering an
+  upstream table (KeurTonux's approach) instead of adding beside it.
 
 Every statement is idempotent (`IF NOT EXISTS`), and the ids must never be renamed
 or their SQL edited: the runner records `id` + SQL checksum in

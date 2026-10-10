@@ -23,6 +23,21 @@ const ok = <T,>(data: T) => ({ success: true, data });
 // demo has no backend to keep them, so they live here for the session.
 let demoReceipts: Json[] = [];
 // FORK-END: budget-custom
+// FORK-START: lunchbox
+// Same for the lunchboxes (see the /api/lunchbox handlers below).
+let demoLunchboxes: Json[] = [];
+const lunchboxHasItems = (items: unknown): boolean =>
+    !!items &&
+    typeof items === 'object' &&
+    Object.values(items as Json).some((value) => typeof value === 'string' && value.trim().length > 0);
+const lunchboxWithMember = (box: Json) => {
+    const member = (store.familyMembers as Json[]).find((entry) => entry.id === box.family_member_id);
+    return {
+        ...box,
+        family_member: { id: box.family_member_id, name: member?.name ?? '', color: member?.color ?? '#999' },
+    };
+};
+// FORK-END: lunchbox
 const uid = () =>
     (typeof crypto !== 'undefined' && crypto.randomUUID
         ? crypto.randomUUID()
@@ -640,6 +655,132 @@ async function route(method: string, path: string, q: Record<string, string>, bo
         }
         if (method === 'DELETE') { remove('mealPlans', seg[2]); return ok({}); }
     }
+
+    // ── Lunchboxes (fork) ───────────────────────────────────────────────────────
+    // FORK-START: lunchbox
+    // The session's lunchboxes live outside the seeded store (upstream owns
+    // seed.ts), like the imported receipts. The two AI endpoints answer from the
+    // caller's own input instead of canned prose: a demo has no language, and a
+    // hardcoded sentence would be wrong in five of the six locales.
+    if (path === '/api/lunchbox' && method === 'GET') {
+        let list = demoLunchboxes;
+        if (q.start_date && q.end_date) {
+            list = list.filter((lb) => (lb.date as string) >= q.start_date && (lb.date as string) <= q.end_date);
+        }
+        return ok(list.map(lunchboxWithMember));
+    }
+    if (path === '/api/lunchbox' && method === 'POST') {
+        if (!lunchboxHasItems(body.items)) return { success: false, error: 'LUNCHBOX_EMPTY' };
+        const existing = demoLunchboxes.find(
+            (lb) => lb.family_member_id === body.family_member_id && lb.date === body.date);
+        const row: Json = existing ? { ...existing, ...body } : { id: uid(), ...body };
+        demoLunchboxes = existing
+            ? demoLunchboxes.map((lb) => (lb.id === row.id ? row : lb))
+            : [row, ...demoLunchboxes];
+        return ok(lunchboxWithMember(row));
+    }
+    if (path === '/api/lunchbox/shopping-list' && method === 'POST') {
+        const boxes = demoLunchboxes.filter(
+            (lb) => (lb.date as string) >= String(body.start_date) && (lb.date as string) <= String(body.end_date));
+        const tally = new Map<string, { label: string; count: number }>();
+        for (const box of boxes) {
+            const items = (box.items || {}) as Json;
+            for (const value of Object.values(items)) {
+                if (typeof value !== 'string' || !value.trim()) continue;
+                const key = value.trim().toLowerCase();
+                const current = tally.get(key);
+                if (current) current.count += 1;
+                else tally.set(key, { label: value.trim(), count: 1 });
+            }
+        }
+        const onList = new Set(
+            (store.shopping as Json[]).filter((s) => !s.is_checked).map((s) => String(s.name).trim().toLowerCase()));
+        let created = 0;
+        let skipped = 0;
+        for (const [key, item] of tally) {
+            if (onList.has(key)) { skipped += 1; continue; }
+            create('shopping', { user_id: 'demo', name: item.label, category: demoCategories.shopping[0], quantity: item.count, is_checked: false, notes: null });
+            created += 1;
+        }
+        return ok({ created, skipped, total_lunchboxes: boxes.length });
+    }
+    if (path === '/api/lunchbox/ai/ideas' && method === 'POST') {
+        const mains = (body.availableMains as string[]) || [];
+        const fruits = (body.availableFruits as string[]) || [];
+        const snacks = (body.availableSnacks as string[]) || [];
+        const drinks = (body.availableDrinks as string[]) || [];
+        const ideas = mains.slice(0, 3).map((main, index) => ({
+            main,
+            fruit: fruits[index % Math.max(fruits.length, 1)] ?? '',
+            snack: snacks[index % Math.max(snacks.length, 1)] ?? '',
+            drink: drinks[index % Math.max(drinks.length, 1)] ?? '',
+            reasoning: '',
+            warnings: [],
+        }));
+        return ok({ ideas, model: 'demo' });
+    }
+    if (path === '/api/lunchbox/nutrition' && method === 'POST') {
+        const labels = (store.mealPlans as Json[])
+            .filter((mp) => (mp.date as string) >= String(body.start_date) && (mp.date as string) <= String(body.end_date))
+            .map((mp) => (mp.custom_meal as string) || ((mp.recipe as Json)?.name as string) || '')
+            .filter(Boolean);
+        for (const box of demoLunchboxes) {
+            const items = Object.values((box.items || {}) as Json).filter((v) => typeof v === 'string' && v.trim());
+            if (items.length > 0) labels.push(items.join(', '));
+        }
+        if (labels.length === 0) return { success: false, error: 'NO_PLANNED_MEALS' };
+        // The server derives the verdict from the score's band; the demo must not
+        // hand a gauge and a chip that disagree (62 is not "good").
+        const score = 72;
+        return ok({
+            analysis: {
+                score,
+                verdict: score >= 80 ? 'excellent' : score >= 65 ? 'good' : score >= 45 ? 'needs_improvement' : 'unbalanced',
+                summary: labels.join(' · '),
+                strengths: [],
+                weaknesses: [],
+                missingFoodGroups: [],
+                recommendations: [],
+            },
+            mealsAnalyzed: labels.length,
+            model: 'demo',
+        });
+    }
+    if (seg[1] === 'lunchbox' && seg.length === 3) {
+        if (method === 'PUT') return ok(lunchboxWithMember({ ...(demoLunchboxes.find((lb) => lb.id === seg[2]) || {}), ...body }));
+        if (method === 'DELETE') { demoLunchboxes = demoLunchboxes.filter((lb) => lb.id !== seg[2]); return ok({}); }
+    }
+    if (seg[1] === 'lunchbox' && seg[2] === 'history' && seg[3]) {
+        return ok(demoLunchboxes
+            .filter((lb) => lb.family_member_id === seg[3])
+            .sort((a, b) => String(b.date).localeCompare(String(a.date)))
+            .slice(0, 30)
+            .map(lunchboxWithMember));
+    }
+    if (seg[1] === 'lunchbox' && seg[2] === 'stats' && seg[3]) {
+        const boxes = demoLunchboxes.filter((lb) => lb.family_member_id === seg[3]);
+        const byField: Record<string, Map<string, { label: string; count: number }>> = {
+            main: new Map(), fruit: new Map(), snack: new Map(), drink: new Map(),
+        };
+        for (const box of boxes) {
+            const items = (box.items || {}) as Json;
+            for (const field of Object.keys(byField)) {
+                const value = items[field];
+                if (typeof value !== 'string' || !value.trim()) continue;
+                const key = value.trim().toLowerCase();
+                const current = byField[field].get(key);
+                if (current) current.count += 1;
+                else byField[field].set(key, { label: value.trim(), count: 1 });
+            }
+        }
+        const ranked = (field: string) =>
+            Array.from(byField[field].values()).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+        return ok({
+            totalLunchboxes: boxes.length,
+            byField: { main: ranked('main'), fruit: ranked('fruit'), snack: ranked('snack'), drink: ranked('drink') },
+        });
+    }
+    // FORK-END: lunchbox
 
     // ── Budget ──────────────────────────────────────────────────────────────────
     if (path === '/api/budget/forecast') { const { month, year } = monthYearOf(q); return ok(budgetForecast(month, year)); }

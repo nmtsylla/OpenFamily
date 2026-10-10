@@ -163,6 +163,45 @@ analytics=$(request GET "/api/budget-analytics/overview?start=2026-03-01&end=202
 echo "$analytics" | jq -e '.data.totals | has("expenses")' >/dev/null
 # FORK-END: budget-custom
 
+# FORK-START: lunchbox
+# Lunchboxes live in their own table and router (/api/lunchbox): create one for
+# the family member, check it comes back in the week, that the stats aggregate it,
+# and that the shopping list picks its components up.
+lunchbox=$(request POST "/api/lunchbox" "{\"date\":\"2026-03-11\",\"family_member_id\":\"$FAMILY_ID\",\"items\":{\"main\":\"Sandwich\",\"fruit\":\"Pomme\",\"drink\":\"Eau\"},\"notes\":\"Sortie scolaire\"}")
+assert_success "$lunchbox"
+LUNCHBOX_ID=$(echo "$lunchbox" | jq -r '.data.id')
+
+week=$(request GET "/api/lunchbox?start_date=2026-03-09&end_date=2026-03-15")
+echo "$week" | jq -e --arg id "$LUNCHBOX_ID" '.data | any(.id == $id)' >/dev/null
+
+stats=$(request GET "/api/lunchbox/stats/$FAMILY_ID?start_date=2026-03-01&end_date=2026-03-31")
+echo "$stats" | jq -e '.data.totalLunchboxes == 1 and (.data.byField.main | length == 1)' >/dev/null
+
+shopping=$(request POST "/api/lunchbox/shopping-list" '{"start_date":"2026-03-09","end_date":"2026-03-15"}')
+echo "$shopping" | jq -e '.data.created == 3 and .data.total_lunchboxes == 1' >/dev/null
+
+# Running the week twice must not double anything: the components are already on
+# the list, so the second call reports them as skipped.
+shopping_again=$(request POST "/api/lunchbox/shopping-list" '{"start_date":"2026-03-09","end_date":"2026-03-15"}')
+echo "$shopping_again" | jq -e '.data.created == 0 and .data.skipped == 3' >/dev/null
+
+request PUT "/api/lunchbox/$LUNCHBOX_ID" '{"items":{"main":"Wrap","fruit":"Banane"}}' >/dev/null
+
+# The two AI calls need a configured model; with none they must answer the
+# machine-readable code the client translates, not a 500.
+ideas_status=$(curl -sS -o /tmp/openfamily-ideas.json -w '%{http_code}' -X POST "$API_BASE/api/lunchbox/ai/ideas" \
+  -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" \
+  -d '{"availableFruits":["Pomme"],"location":"school"}')
+if [[ "$ideas_status" != "400" ]] || ! grep -q 'AI_NOT_CONFIGURED' /tmp/openfamily-ideas.json; then
+  echo "[FAIL] POST /api/lunchbox/ai/ideas answered $ideas_status for an unconfigured model" >&2
+  cat /tmp/openfamily-ideas.json >&2
+  exit 1
+fi
+rm -f /tmp/openfamily-ideas.json
+
+request DELETE "/api/lunchbox/$LUNCHBOX_ID" >/dev/null
+# FORK-END: lunchbox
+
 echo "[11/12] Dashboard"
 request GET "/api/dashboard" >/dev/null
 

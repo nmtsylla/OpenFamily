@@ -81,6 +81,25 @@ OpenFamily centralise l'ensemble de l'organisation d'un foyer en un seul outil. 
 - Possibilité d'ajouter un repas personnalisé (hors recette)
 - Notes par repas
 
+<!-- FORK-START: docs -->
+### 🍱 Boîtes à lunch
+- **Une boîte par enfant et par jour** : plat, fruit ou légume, collation, boisson et notes —
+  un enfant = une boîte, là où le planning des repas reste commun au foyer
+- **Onglet Suivi** : les aliments les plus fréquents des 60 derniers jours, par catégorie, et
+  l'historique récent d'un enfant — utile quand on prépare toujours la même chose
+- **Liste de courses** : un clic ajoute les ingrédients de toute la semaine ; un aliment déjà
+  sur la liste n'est pas dupliqué (relancer la semaine est sans effet)
+- **Suggestions IA** : décrivez ce qu'il y a à la maison et où l'enfant mangera (école,
+  crèche, sortie, travail, voyage), l'assistant propose jusqu'à 3 boîtes à lunch ; l'âge et
+  les **allergies** de l'enfant sont des contraintes dures, et les textes arrivent dans la
+  langue de l'interface
+- **Lecture nutritionnelle de la semaine** : les repas planifiés *et* les boîtes à lunch,
+  analysés par votre modèle IA (note sur 100, points forts, points à améliorer, groupes
+  d'aliments manquants, recommandations concrètes)
+- Les deux fonctions IA réutilisent le modèle configuré dans Paramètres → Assistant IA ;
+  sans modèle configuré, la page reste pleinement utilisable
+<!-- FORK-END: docs -->
+
 ### 💰 Gestion du budget
 - Suivi des **revenus** et **dépenses** du foyer
 - **6 catégories** : Alimentation, Santé, Enfants, Maison, Loisirs, Autre
@@ -334,7 +353,8 @@ OpenFamily utilise **PostgreSQL 16** avec le schéma suivant :
 | `meal_plans` | Planning des repas (lié aux recettes) |
 | `budget_entries` | Revenus et dépenses |
 | `budget_receipts` | Reçus et factures importés (commerce, date, total, catégorie, empreinte anti-doublon) | <!-- FORK-START: docs -->
-| `budget_receipt_items` | Lignes détaillées de chaque reçu, conservées pour l'analyse | <!-- FORK-END: docs -->
+| `budget_receipt_items` | Lignes détaillées de chaque reçu, conservées pour l'analyse |
+| `custom_lunchboxes` | Boîtes à lunch, une par enfant et par jour (plat, fruit, collation, boisson) | <!-- FORK-END: docs -->
 | `budget_limits` | Limites mensuelles par catégorie |
 | `notifications` | Notifications internes |
 | `push_subscriptions` | Abonnements push (Web Push / VAPID) |
