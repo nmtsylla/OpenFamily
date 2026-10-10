@@ -1,0 +1,8 @@
+{
+  "customize": {
+    "widgets": {
+      "weather": "Weather & outfits",
+      "activities": "Things to do (screen-free)"
+    }
+  }
+}

@@ -19,7 +19,11 @@ interface User {
 }
 
 /** Dashboard widgets, in default display order (mirrors the server's list). */
-export const DASHBOARD_WIDGETS = ['stats', 'agenda', 'planning', 'quick', 'notes'] as const;
+// FORK-START: weather
+// The fork's two weather widgets are part of the list, otherwise the dashboard
+// customiser cannot store them (prefs are validated against this union).
+export const DASHBOARD_WIDGETS = ['stats', 'weather', 'activities', 'agenda', 'planning', 'quick', 'notes'] as const;
+// FORK-END: weather
 export type DashboardWidget = typeof DASHBOARD_WIDGETS[number];
 
 export interface DashboardPrefs {

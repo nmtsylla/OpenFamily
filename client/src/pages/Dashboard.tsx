@@ -14,6 +14,11 @@ import { Button } from '../components/ui/Button';
 import { Dialog } from '../components/ui';
 import { useNavigate } from 'react-router-dom';
 import FamilyNotes, { type FamilyNote } from '../components/app/FamilyNotes';
+// FORK-START: weather
+import WeatherClothingCard from '../custom/components/WeatherClothingCard.custom';
+import KidsActivitiesCard from '../custom/components/KidsActivitiesCard.custom';
+import type { GeoOverride } from '../custom/hooks/useWeather.custom';
+// FORK-END: weather
 
 interface DashboardStats {
     upcomingAppointments: number;
@@ -71,6 +76,11 @@ const Dashboard: React.FC = () => {
     const [latestPost, setLatestPost] = useState<LatestFamilyPost | null>(null);
     const [loading, setLoading] = useState(true);
     const [customizing, setCustomizing] = useState(false);
+    // FORK-START: weather
+    // Session-only geolocation fix, shared by the weather and activities cards:
+    // the "my position" button on one card moves both.
+    const [geoOverride, setGeoOverride] = useState<GeoOverride | null>(null);
+    // FORK-END: weather
     const navigate = useNavigate();
 
     const prefs = dashboardPrefs ?? DEFAULT_DASHBOARD_PREFS;
@@ -619,6 +629,10 @@ const Dashboard: React.FC = () => {
 
     const widgetLabels: Record<DashboardWidget, string> = {
         stats: t('dashboard:customize.widgets.stats'),
+        // FORK-START: weather
+        weather: t('dashboard.custom:customize.widgets.weather'),
+        activities: t('dashboard.custom:customize.widgets.activities'),
+        // FORK-END: weather
         agenda: t('dashboard:customize.widgets.agenda'),
         planning: t('dashboard:customize.widgets.planning'),
         quick: t('dashboard:customize.widgets.quick'),
@@ -628,6 +642,12 @@ const Dashboard: React.FC = () => {
     const renderWidget = (key: DashboardWidget): React.ReactNode => {
         switch (key) {
             case 'stats': return renderStats();
+            // FORK-START: weather
+            // Both cards return null when their module is off, so the widget list
+            // does not need an extra isVisible branch.
+            case 'weather': return <WeatherClothingCard key="weather" override={geoOverride} onOverrideChange={setGeoOverride} />;
+            case 'activities': return <KidsActivitiesCard key="activities" override={geoOverride} />;
+            // FORK-END: weather
             case 'agenda': return renderAgenda();
             case 'planning': return renderPlanning();
             case 'quick': return renderQuickAccess();

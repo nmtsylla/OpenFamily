@@ -6,6 +6,9 @@ import { Download, Upload, CheckCircle, AlertCircle, Loader2, Bell, BellOff, Glo
 import { Card, CardContent, Button, Input, Select } from '../components/ui';
 import { LanguageSwitcher } from '../components/ui/LanguageSwitcher';
 import RegionalPreferences from '../components/app/RegionalPreferences';
+// FORK-START: weather
+import WeatherLocation from '../custom/components/WeatherLocation.custom';
+// FORK-END: weather
 import { useNotifications } from '../hooks/useNotifications';
 import { useAuth } from '../contexts/AuthContext';
 import { isNative, getServerUrl, clearServerUrl } from '../lib/serverConfig';
@@ -295,6 +298,11 @@ const AiAssistantCard: React.FC<{ isParent: boolean }> = ({ isParent }) => {
                                 <p className="rounded-input bg-surface-2 px-3 py-2 text-micro text-muted-foreground">
                                     {t('ai:settings.privacy')}
                                 </p>
+                                {/* FORK-START: budget-custom */}
+                                <p className="rounded-input bg-surface-2 px-3 py-2 text-micro text-muted-foreground">
+                                    {t('ai.custom:settings.visionHint')}
+                                </p>
+                                {/* FORK-END: budget-custom */}
 
                                 {saveError && (
                                     <p className="flex items-center gap-1 text-micro text-destructive">
@@ -856,6 +864,11 @@ const Settings: React.FC = () => {
 
             {/* First day of the week */}
             <RegionalPreferences />
+
+            {/* FORK-START: weather */}
+            {/* City whose weather the dashboard widgets show */}
+            <WeatherLocation />
+            {/* FORK-END: weather */}
 
             {/* Server (native app only) */}
             {isNative() && (

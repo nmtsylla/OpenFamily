@@ -1,0 +1,48 @@
+{
+  "sections": {
+    "receipts": "Imported receipts"
+  },
+  "confirm": {
+    "deleteReceipt": "Delete this receipt, its lines and the entries it created?"
+  },
+  "receipt": {
+    "import": "Import a receipt",
+    "title": "Import a receipt or bill",
+    "pickHint": "Snap a receipt or attach a bill (PDF): the amounts are read, then split by category.",
+    "reviewHint": "Check the amounts and categories, untick what you don't want, then confirm.",
+    "pick": "Choose documents",
+    "filesHint": "JPEG, PNG, WebP or PDF — 5 documents maximum",
+    "analyze": "Analyze",
+    "analyzing": "Analyzing…",
+    "merchant": "Shop or supplier",
+    "merchantUnknown": "Unknown shop",
+    "date": "Date",
+    "total": "Amount",
+    "lines": "Lines ({{count}})",
+    "addLine": "Add a line",
+    "lineLabel": "Item",
+    "linesTotal": "Lines total",
+    "itemCount_one": "{{count}} line",
+    "itemCount_other": "{{count}} lines",
+    "entryCount_one": "{{count}} budget entry",
+    "entryCount_other": "{{count}} entries",
+    "noItems": "No line was kept for this document.",
+    "singleMode": "Import as one entry (the total)",
+    "singleModeHint": "The {{count}} scanned line(s) stay in the receipt's detail.",
+    "singleModeStored": "Imported as a single entry; the scanned lines are kept in the detail.",
+    "delete": "Delete this receipt",
+    "duplicate": "{{merchant}} on {{date}} was already imported — this looks like the same document.",
+    "mismatch": "Lines add up to {{lines}} against a printed total of {{total}}: the lines are what gets imported.",
+    "confirm": "Import ({{count}})",
+    "saving": "Importing…",
+    "successTitle": "Receipt imported",
+    "successDescription": "{{count}} entry(ies) added to the budget.",
+    "errors": {
+      "unsupported": "{{name}}: unsupported format or too large (JPEG, PNG, WebP or PDF, 8 MB maximum).",
+      "analyze": "The analysis failed. Try again with a sharper photo.",
+      "save": "The receipt could not be saved.",
+      "duplicate": "This receipt was already imported.",
+      "nothingSelected": "Select at least one line."
+    }
+  }
+}

@@ -9,6 +9,9 @@ import {
     X, Calendar, AlertTriangle, Lock
 } from 'lucide-react';
 import KakeiboView from './budget/KakeiboView';
+// FORK-START: budget-custom
+import { ReceiptImportButton, BudgetReceiptsSection } from '../custom/components/BudgetReceipts.custom';
+// FORK-END: budget-custom
 import {
     PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip,
     ResponsiveContainer, Legend,
@@ -607,6 +610,9 @@ const Budget: React.FC = () => {
 
             {mode === 'classic' && canEdit && (
                 <div className="px-4 pt-4 flex justify-end">
+                    {/* FORK-START: budget-custom */}
+                    <ReceiptImportButton currency={currency} onImported={loadAll} />
+                    {/* FORK-END: budget-custom */}
                     <button
                         type="button"
                         onClick={openNewTransaction}
@@ -960,6 +966,15 @@ const Budget: React.FC = () => {
                     )}
                 </section>
 
+                {/* FORK-START: budget-custom */}
+                <BudgetReceiptsSection
+                    currency={currency}
+                    canEdit={canEdit}
+                    startDate={startOfMonth()}
+                    endDate={endOfMonth()}
+                    onChanged={loadAll}
+                />
+                {/* FORK-END: budget-custom */}
             </div>
 
             {/* Unified Budget entry sheet */}

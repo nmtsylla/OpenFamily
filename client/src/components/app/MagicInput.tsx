@@ -64,6 +64,9 @@ const AI_ERROR_CODES = [
     'AI_UNAUTHORIZED',
     'AI_MODEL_NOT_FOUND',
     'AI_INVALID_RESPONSE',
+    // FORK-START: budget-custom
+    'AI_UNSUPPORTED_MEDIA',
+    // FORK-END: budget-custom
     'AI_PROVIDER_ERROR',
     'AI_NOT_ENOUGH_RECIPES',
 ];

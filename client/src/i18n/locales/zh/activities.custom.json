@@ -1,0 +1,156 @@
+{
+  "titleToday": "今天可以做的事",
+  "titleTomorrow": "明天可以做的事",
+  "subtitle_other": "{{count}} 个无屏活动",
+  "regenerate": "换一批灵感",
+  "errorTitle": "目前无法获取灵感",
+  "retry": "重试",
+  "addKidTitle": "家庭中还没有孩子",
+  "addKidDescription": "添加孩子后，即可获得适合其年龄的灵感。",
+  "goToFamily": "前往家庭",
+  "degradedDisabled": "离线灵感 — 未配置 AI 模型",
+  "degradedBadJson": "离线灵感 — 响应无法使用",
+  "degradedOffline": "离线灵感 — 无法连接助手",
+  "durationMinutes_other": "{{count}} 分钟",
+  "schedule": "安排",
+  "scheduling": "正在安排……",
+  "scheduled": "已安排",
+  "scheduledTitle": "活动已安排",
+  "scheduledDescription": "{{title}} 已加入家庭日程。",
+  "conflictTitle": "时间已被占用",
+  "conflictDescription": "该孩子在这个时间已有其他活动。",
+  "scheduleFailedTitle": "无法安排该活动",
+  "categories": {
+    "outdoor": "户外",
+    "creative": "创意",
+    "cooking": "烹饪",
+    "learning": "学习",
+    "sport": "运动",
+    "chores": "家务",
+    "social": "一起"
+  },
+  "timesOfDay": {
+    "morning": "早上",
+    "afternoon": "下午",
+    "evening": "晚上"
+  },
+  "bank": {
+    "treasure-hunt-garden": {
+      "title": "花园寻宝",
+      "instructions": "藏好五样东西，画一张地图，然后开始寻宝。"
+    },
+    "obstacle-course": {
+      "title": "后院障碍闯关",
+      "instructions": "在花园里搭一条闯关路线，给每次挑战计时。"
+    },
+    "herbarium": {
+      "title": "小区植物标本册",
+      "instructions": "收集树叶，压干后连名字一起贴进本子里。"
+    },
+    "picnic": {
+      "title": "孩子准备的野餐",
+      "instructions": "菜单、食物和野餐地点全部由他们决定。"
+    },
+    "paper-boats": {
+      "title": "纸船比赛",
+      "instructions": "折好纸船，接一盆水，用嘴吹着它们往前跑。"
+    },
+    "watering-weeding": {
+      "title": "给菜园浇水和除草",
+      "instructions": "每人负责一垄。傍晚浇水，可以减少蒸发。"
+    },
+    "land-art": {
+      "title": "用捡到的东西做自然拼画",
+      "instructions": "用自然材料在地上拼一幅画，再拍照留念。"
+    },
+    "neighbourhood-olympics": {
+      "title": "小区运动会",
+      "instructions": "邀请邻居，自己发明五个项目，再做一块记分牌。"
+    },
+    "blanket-fort": {
+      "title": "床单和树枝搭的小屋",
+      "instructions": "先搭好小屋，再钻进去吃点心。"
+    },
+    "cookies": {
+      "title": "烘焙课：曲奇饼干",
+      "instructions": "他们称量、搅拌和塑形，你只需要负责开烤箱。"
+    },
+    "board-game": {
+      "title": "自己动手做桌游",
+      "instructions": "一起设计棋盘、规则和棋子，然后玩一局。"
+    },
+    "shadow-theatre": {
+      "title": "影子戏",
+      "instructions": "剪出角色，挂一块布，把故事演给爸爸妈妈看。"
+    },
+    "construction-challenge": {
+      "title": "30 分钟搭建挑战",
+      "instructions": "搭出能立住十秒的最高塔。计时开始。"
+    },
+    "story-writing": {
+      "title": "写一个故事并配上插图",
+      "instructions": "每人写一章，每页配一幅画，最后大声读出来。"
+    },
+    "timed-tidy-up": {
+      "title": "伴着音乐限时整理",
+      "instructions": "一首歌，一个房间。歌结束前，地上的东西全部归位。"
+    },
+    "kitchen-science": {
+      "title": "厨房科学小实验",
+      "instructions": "火山、隐形墨水、液体密度。把看到的现象记下来。"
+    },
+    "yoga-balance": {
+      "title": "瑜伽与平衡练习",
+      "instructions": "在地上画一条线，每个姿势保持十秒，一轮比一轮难。"
+    },
+    "grandparents-interview": {
+      "title": "打电话采访爷爷奶奶",
+      "instructions": "准备五个关于他们童年的问题，并把回答写下来。"
+    },
+    "postcards": {
+      "title": "给朋友寄明信片",
+      "instructions": "每人画一张卡片，写上一句话并写上地址。然后去邮筒。"
+    },
+    "toy-sort": {
+      "title": "整理玩具去捐赠",
+      "instructions": "分成三堆：留下、送人、修理。让他们决定，你不要替他们做选择。"
+    }
+  },
+  "materials": "材料",
+  "materialNames": {
+    "baking-soda": "小苏打",
+    "basin": "水盆",
+    "blanket": "桌布",
+    "boxes": "纸盒",
+    "bread": "面包",
+    "bricks": "积木",
+    "butter": "黄油",
+    "cardboard": "纸板",
+    "chairs": "椅子",
+    "chalk": "粉笔",
+    "coloured-pencils": "彩色铅笔",
+    "cushions": "靠垫",
+    "dice": "骰子",
+    "felt-pens": "彩笔",
+    "flour": "面粉",
+    "food-colouring": "食用色素",
+    "glue": "胶水",
+    "lamp": "台灯",
+    "leaves": "树叶",
+    "mat": "垫子",
+    "notebook": "本子",
+    "paper": "纸",
+    "pebbles": "小石子",
+    "pegs": "晾衣夹",
+    "pencil": "铅笔",
+    "rope": "绳子",
+    "sheet": "床单",
+    "sheets": "床单",
+    "stamps": "邮票",
+    "stopwatch": "秒表",
+    "sugar": "糖",
+    "tape": "胶带",
+    "vinegar": "醋",
+    "watering-can": "洒水壶"
+  }
+}

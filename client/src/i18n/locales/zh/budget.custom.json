@@ -1,0 +1,48 @@
+{
+  "sections": {
+    "receipts": "已导入小票"
+  },
+  "confirm": {
+    "deleteReceipt": "删除这张小票、它的明细以及由它创建的记录？"
+  },
+  "receipt": {
+    "import": "导入小票",
+    "title": "导入小票或账单",
+    "pickHint": "拍摄小票照片或附上账单（PDF）：自动读取金额并按分类拆分。",
+    "reviewHint": "请核对金额与分类，取消不需要的项目后确认。",
+    "pick": "选择文件",
+    "filesHint": "JPEG、PNG、WebP 或 PDF — 最多 5 个文件",
+    "analyze": "识别",
+    "analyzing": "识别中…",
+    "merchant": "商家或供应商",
+    "merchantUnknown": "未知商家",
+    "date": "日期",
+    "total": "金额",
+    "lines": "明细（{{count}}）",
+    "addLine": "添加一行",
+    "lineLabel": "商品",
+    "linesTotal": "明细合计",
+    "itemCount_one": "{{count}} 项",
+    "itemCount_other": "{{count}} 项",
+    "entryCount_one": "{{count}} 条记录",
+    "entryCount_other": "{{count}} 条记录",
+    "noItems": "该文档未保留任何明细。",
+    "singleMode": "作为一条记录导入（仅总额）",
+    "singleModeHint": "识别出的 {{count}} 行明细仍会保存在小票详情中。",
+    "singleModeStored": "已作为一条记录导入；识别出的明细仍保留在详情中。",
+    "delete": "删除这张小票",
+    "duplicate": "{{date}} 的 {{merchant}} 已经导入过——很可能是同一张单据。",
+    "mismatch": "明细合计（{{lines}}）与票面总额（{{total}}）不一致：将按明细导入。",
+    "confirm": "导入（{{count}}）",
+    "saving": "导入中…",
+    "successTitle": "小票已导入",
+    "successDescription": "已向预算添加 {{count}} 条记录。",
+    "errors": {
+      "unsupported": "{{name}}：格式不支持或文件过大（JPEG、PNG、WebP 或 PDF，最大 8 MB）。",
+      "analyze": "识别失败，请换一张更清晰的照片重试。",
+      "save": "无法保存该小票。",
+      "duplicate": "这张小票已经导入过了。",
+      "nothingSelected": "请至少选择一行。"
+    }
+  }
+}

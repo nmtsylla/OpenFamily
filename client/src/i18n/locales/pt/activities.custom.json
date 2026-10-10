@@ -1,0 +1,158 @@
+{
+  "titleToday": "Coisas para fazer hoje",
+  "titleTomorrow": "Coisas para fazer amanhã",
+  "subtitle_one": "{{count}} ideia sem telas",
+  "subtitle_other": "{{count}} ideias sem telas",
+  "regenerate": "Outras ideias",
+  "errorTitle": "Ideias indisponíveis no momento",
+  "retry": "Tentar novamente",
+  "addKidTitle": "Nenhuma criança na família ainda",
+  "addKidDescription": "Adicione as crianças para receber ideias adequadas às idades delas.",
+  "goToFamily": "Ir para Família",
+  "degradedDisabled": "ideias offline — nenhum modelo de IA configurado",
+  "degradedBadJson": "ideias offline — resposta inutilizável",
+  "degradedOffline": "ideias offline — assistente inacessível",
+  "materials": "Materiais",
+  "durationMinutes_one": "{{count}} min",
+  "durationMinutes_other": "{{count}} min",
+  "schedule": "Planejar",
+  "scheduling": "Planejando…",
+  "scheduled": "Planejada",
+  "scheduledTitle": "Atividade planejada",
+  "scheduledDescription": "{{title}} está no planejamento da família.",
+  "conflictTitle": "Horário já ocupado",
+  "conflictDescription": "Outra atividade já ocupa esse horário para esta criança.",
+  "scheduleFailedTitle": "Não foi possível planejar a atividade",
+  "categories": {
+    "outdoor": "Ao ar livre",
+    "creative": "Criativo",
+    "cooking": "Culinária",
+    "learning": "Aprendizado",
+    "sport": "Esporte",
+    "chores": "Tarefas",
+    "social": "Juntos"
+  },
+  "timesOfDay": {
+    "morning": "Manhã",
+    "afternoon": "Tarde",
+    "evening": "Noite"
+  },
+  "bank": {
+    "treasure-hunt-garden": {
+      "title": "Caça ao tesouro no jardim",
+      "instructions": "Escondam cinco objetos, desenhem um mapa e comecem a busca."
+    },
+    "obstacle-course": {
+      "title": "Pista de obstáculos no quintal",
+      "instructions": "Montem uma pista no jardim e cronometrem cada passagem."
+    },
+    "herbarium": {
+      "title": "Herbário do bairro",
+      "instructions": "Recolham folhas, deixem secar e colem com os nomes."
+    },
+    "picnic": {
+      "title": "Piquenique feito pelas crianças",
+      "instructions": "Elas planejam o cardápio, preparam tudo e escolhem o lugar do piquenique."
+    },
+    "paper-boats": {
+      "title": "Corrida de barcos de papel",
+      "instructions": "Dobrem os barcos, encham uma bacia e soprem para fazê-los avançar."
+    },
+    "watering-weeding": {
+      "title": "Regar e capinar a horta",
+      "instructions": "Cada um fica com uma fileira. Reguem à noite para evitar a evaporação."
+    },
+    "land-art": {
+      "title": "Land art com o que acharem lá fora",
+      "instructions": "Façam um desenho no chão com elementos naturais e fotografem."
+    },
+    "neighbourhood-olympics": {
+      "title": "Olimpíadas do bairro",
+      "instructions": "Convidem os vizinhos, inventem cinco provas e mantenham um placar."
+    },
+    "blanket-fort": {
+      "title": "Cabana de lençóis e galhos",
+      "instructions": "Construam uma cabana e depois façam o lanche dentro dela."
+    },
+    "cookies": {
+      "title": "Oficina de biscoitos",
+      "instructions": "Elas pesam, misturam e modelam. Você só abre o forno."
+    },
+    "board-game": {
+      "title": "Criar um jogo de tabuleiro",
+      "instructions": "Inventem o tabuleiro, as regras e as peças, depois joguem juntos."
+    },
+    "shadow-theatre": {
+      "title": "Teatro de sombras",
+      "instructions": "Recortem personagens, estendam um lençol e encenem a história para os pais."
+    },
+    "construction-challenge": {
+      "title": "Desafio de construção em 30 minutos",
+      "instructions": "A torre mais alta que fica de pé por dez segundos. Cronômetro ligado."
+    },
+    "story-writing": {
+      "title": "Escrever e ilustrar uma história",
+      "instructions": "Um capítulo cada um, um desenho por página, depois leiam em voz alta."
+    },
+    "timed-tidy-up": {
+      "title": "Arrumação cronometrada com música",
+      "instructions": "Uma música, um cômodo. O que estiver fora do lugar volta antes do fim."
+    },
+    "kitchen-science": {
+      "title": "Experiências de ciência na cozinha",
+      "instructions": "Vulcão, tinta invisível, densidade dos líquidos. Anotem o que observam."
+    },
+    "yoga-balance": {
+      "title": "Yoga e circuito de equilíbrio",
+      "instructions": "Uma linha no chão, posturas mantidas por dez segundos, mais difíceis a cada rodada."
+    },
+    "grandparents-interview": {
+      "title": "Ligar e entrevistar os avós",
+      "instructions": "Cinco perguntas sobre a infância deles e anotem as respostas."
+    },
+    "postcards": {
+      "title": "Cartões-postais para os amigos",
+      "instructions": "Cada um desenha um cartão, escreve um recado e coloca o endereço. Depois, à caixa de correio."
+    },
+    "toy-sort": {
+      "title": "Separar brinquedos para doar",
+      "instructions": "Três pilhas: ficar, doar, consertar. Eles escolhem, você não decide."
+    }
+  },
+  "materialNames": {
+    "baking-soda": "bicarbonato de sódio",
+    "basin": "bacia",
+    "blanket": "toalha de mesa",
+    "boxes": "caixas",
+    "bread": "pão",
+    "bricks": "tijolos",
+    "butter": "manteiga",
+    "cardboard": "papelão",
+    "chairs": "cadeiras",
+    "chalk": "giz",
+    "coloured-pencils": "lápis de cor",
+    "cushions": "almofadas",
+    "dice": "dados",
+    "felt-pens": "canetinhas",
+    "flour": "farinha",
+    "food-colouring": "corante alimentício",
+    "glue": "cola",
+    "lamp": "lâmpada",
+    "leaves": "folhas",
+    "mat": "tapete",
+    "notebook": "caderno",
+    "paper": "papel",
+    "pebbles": "pedrinhas",
+    "pegs": "prendedores",
+    "pencil": "lápis",
+    "rope": "corda",
+    "sheet": "lençol",
+    "sheets": "lençóis",
+    "stamps": "selos",
+    "stopwatch": "cronômetro",
+    "sugar": "açúcar",
+    "tape": "fita adesiva",
+    "vinegar": "vinagre",
+    "watering-can": "regador"
+  }
+}

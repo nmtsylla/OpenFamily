@@ -1,0 +1,8 @@
+{
+  "settings": {
+    "visionHint": "Importar a foto de um recibo ou o PDF de uma fatura exige um modelo capaz de ler imagens (ex.: gpt-4o, claude-sonnet, gemini-flash, llava, qwen2.5-vl)."
+  },
+  "errors": {
+    "AI_UNSUPPORTED_MEDIA": "O provedor configurado não lê este tipo de documento. Envie uma foto (JPEG, PNG, WebP)."
+  }
+}

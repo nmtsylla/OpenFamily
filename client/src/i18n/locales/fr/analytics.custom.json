@@ -1,0 +1,61 @@
+{
+  "nav": {
+    "budgetAnalytics": "Analyse du budget",
+    "mobileBudgetAnalytics": "Analyse"
+  },
+  "back": "Retour au budget",
+  "title": "Analyse du budget",
+  "subtitle": "Les dépenses entre deux dates, jusqu'au jour et au commerce.",
+  "range": {
+    "from": "Du",
+    "to": "Au",
+    "presets": "Périodes rapides",
+    "month": "Ce mois",
+    "last30": "30 derniers jours",
+    "year": "Cette année",
+    "invalid": "Choisissez une période valide : le début ne peut pas suivre la fin, et cinq ans au maximum."
+  },
+  "totals": {
+    "income": "Revenus",
+    "expenses": "Dépenses",
+    "balance": "Solde",
+    "count": "Opérations"
+  },
+  "split": {
+    "title": "Prévu / réel",
+    "actual": "Écritures ponctuelles",
+    "recurring": "Récurrent"
+  },
+  "pace": {
+    "title": "Rythme",
+    "subtitle": "Projection sur les {{elapsed}} premiers jours sur {{total}}",
+    "daily": "Moyenne par jour",
+    "projected": "Projection sur la période"
+  },
+  "charts": {
+    "cumulative": "Solde sur la période",
+    "monthly": "Revenus et dépenses par mois",
+    "weekday": "Dépenses par jour de la semaine",
+    "income": "Revenus",
+    "expenses": "Dépenses",
+    "balance": "Solde cumulé"
+  },
+  "categories": {
+    "title": "Par catégorie",
+    "count_one": "{{count}} écriture",
+    "count_other": "{{count}} écritures"
+  },
+  "members": {
+    "title": "Par membre",
+    "note": "Écritures assignées uniquement — une série récurrente n'est jamais attribuée à un membre."
+  },
+  "merchants": {
+    "title": "Principaux commerces",
+    "empty": "Aucun reçu importé sur cette période."
+  },
+  "states": {
+    "loading": "Chargement…",
+    "error": "Impossible de charger l'analyse.",
+    "empty": "Rien d'enregistré sur cette période."
+  }
+}

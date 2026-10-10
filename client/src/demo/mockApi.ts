@@ -18,6 +18,11 @@ let demoCategories: Record<'shopping' | 'recipe' | 'budget', string[]> = {
 
 type Json = Record<string, unknown>;
 const ok = <T,>(data: T) => ({ success: true, data });
+// FORK-START: budget-custom
+// Receipts imported during the demo session: the seeded store has none, and the
+// demo has no backend to keep them, so they live here for the session.
+let demoReceipts: Json[] = [];
+// FORK-END: budget-custom
 const uid = () =>
     (typeof crypto !== 'undefined' && crypto.randomUUID
         ? crypto.randomUUID()
@@ -677,6 +682,127 @@ async function route(method: string, path: string, q: Record<string, string>, bo
         return ok(create('budgetLimits', body));
     }
 
+    // FORK-START: budget-custom
+    // Imported receipts: kept in memory for the session, like the entries above.
+    if (path === '/api/budget/receipts' && method === 'GET') {
+        let list = demoReceipts;
+        if (q.start_date) list = list.filter((r) => (r.date as string) >= q.start_date);
+        if (q.end_date) list = list.filter((r) => (r.date as string) <= q.end_date);
+        return ok(list);
+    }
+    if (path === '/api/budget/receipts' && method === 'POST') {
+        const entries = Array.isArray(body.entries) ? (body.entries as Json[]) : [];
+        const created = entries.map((entry) => create('budgetEntries', {
+            ...entry,
+            date: body.date,
+            is_expense: true,
+        }));
+        // Same field names as the API: `import_mode` (not `mode`) and an id per
+        // archived line, so the drill-down renders exactly like it does online.
+        const { mode, items, ...rest } = body;
+        const receipt: Json = {
+            id: uid(),
+            created_at: new Date().toISOString(),
+            ...rest,
+            import_mode: mode === 'single' ? 'single' : 'itemized',
+            entry_count: created.length,
+            entry_ids: created.map((entry) => entry.id),
+            items: (Array.isArray(items) ? (items as Json[]) : []).map((item, index) => ({
+                ...item,
+                id: `${index + 1}`,
+            })),
+        };
+        demoReceipts.unshift(receipt);
+        return ok({ receipt, entry_count: created.length });
+    }
+    if (seg[1] === 'budget' && seg[2] === 'receipts' && seg.length === 4 && method === 'DELETE') {
+        const receipt = demoReceipts.find((r) => r.id === seg[3]);
+        for (const id of (receipt?.entry_ids as string[] | undefined) ?? []) remove('budgetEntries', id);
+        demoReceipts = demoReceipts.filter((r) => r.id !== seg[3]);
+        return ok({});
+    }
+
+    // Budget analytics: the shipped page fetches an overview the demo has no
+    // store for, so derive one from the seeded budget entries (no recurring
+    // expansion, no members, no merchants — the demo has none of those).
+    if (path === '/api/budget-analytics/overview' && method === 'GET') {
+        const start = q.start || '';
+        const end = q.end || '';
+        const round2 = (n: number) => Math.round(n * 100) / 100;
+        const entries = (store.budgetEntries as Json[])
+            .filter((e) => (e.date as string) >= start && (e.date as string) <= end);
+        const pick = (expense: boolean) => entries.filter((e) => Boolean(e.is_expense) === expense);
+        const sum = (list: Json[]) => round2(list.reduce((total, e) => total + num(e.amount), 0));
+        const expenses = sum(pick(true));
+        const income = sum(pick(false));
+
+        const byDay: Json[] = [];
+        let cumulativeExpenses = 0;
+        let cumulativeIncome = 0;
+        for (const date = new Date(`${start}T00:00:00Z`); date <= new Date(`${end}T00:00:00Z`); date.setUTCDate(date.getUTCDate() + 1)) {
+            const iso = date.toISOString().slice(0, 10);
+            const day = entries.filter((e) => e.date === iso);
+            cumulativeExpenses = round2(cumulativeExpenses + sum(day.filter((e) => e.is_expense)));
+            cumulativeIncome = round2(cumulativeIncome + sum(day.filter((e) => !e.is_expense)));
+            byDay.push({
+                date: iso,
+                expenses: sum(day.filter((e) => e.is_expense)),
+                income: sum(day.filter((e) => !e.is_expense)),
+                cumulativeExpenses,
+                cumulativeBalance: round2(cumulativeIncome - cumulativeExpenses),
+            });
+        }
+
+        const group = (list: Json[], key: (e: Json) => string) => {
+            const map = new Map<string, Json[]>();
+            for (const entry of list) map.set(key(entry), [...(map.get(key(entry)) ?? []), entry]);
+            return map;
+        };
+        const spending = pick(true);
+        const byCategory = [...group(spending, (e) => String(e.category || 'Autre'))].map(([category, list]) => ({
+            category,
+            expenses: sum(list),
+            count: list.length,
+            share: expenses > 0 ? round2(sum(list) / expenses) : 0,
+        })).sort((a, b) => b.expenses - a.expenses);
+        const byMonth = [...group(entries, (e) => String(e.date).slice(0, 7))].map(([month, list]) => ({
+            month,
+            expenses: sum(list.filter((e) => e.is_expense)),
+            income: sum(list.filter((e) => !e.is_expense)),
+        })).sort((a, b) => a.month.localeCompare(b.month));
+        const byWeekday = [...group(spending, (e) => String(((new Date(`${e.date}T00:00:00Z`).getUTCDay() + 6) % 7) + 1))]
+            .map(([weekday, list]) => ({ weekday: Number(weekday), expenses: sum(list) }))
+            .sort((a, b) => a.weekday - b.weekday);
+
+        const daysTotal = Math.max(1, Math.round((Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86400000) + 1);
+        const todayIso = new Date().toISOString().slice(0, 10);
+        const daysElapsed = Math.min(daysTotal, Math.max(0, Math.round((Date.parse(`${todayIso}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86400000) + 1));
+        const pace = {
+            daysElapsed,
+            daysTotal,
+            dailyAverage: daysElapsed > 0 ? round2(expenses / daysElapsed) : 0,
+            projectedExpenses: daysElapsed > 0 ? round2((expenses / daysElapsed) * daysTotal) : 0,
+        };
+
+        return ok({
+            start,
+            end,
+            totals: { income, expenses, balance: round2(income - expenses), count: entries.length },
+            split: {
+                actual: { expenses, income, count: entries.length },
+                recurring: { expenses: 0, income: 0, count: 0 },
+            },
+            byDay,
+            byCategory,
+            byMember: [],
+            byMerchant: [],
+            byMonth,
+            byWeekday,
+            pace,
+        });
+    }
+    // FORK-END: budget-custom
+
     // ── AI assistant ────────────────────────────────────────────────────────────
     // The demo pretends a local Ollama is configured so the ✨ features show up.
     if (path === '/api/ai/settings' && method === 'GET') {
@@ -734,6 +860,33 @@ async function route(method: string, path: string, q: Record<string, string>, bo
         }
         return ok({ proposals });
     }
+    // FORK-START: budget-custom
+    if (path === '/api/ai/extract-receipt' && method === 'POST') {
+        // No model runs in the browser: a canned supermarket ticket so the
+        // import → review → confirm flow can be demoed end to end.
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+        const today = new Date();
+        const iso = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`;
+        return ok({
+            receipt: {
+                document_type: 'receipt',
+                merchant: 'Supermarché Léon',
+                date: iso,
+                currency: 'EUR',
+                total: 27.32,
+                category: 'Alimentation',
+                items: [
+                    { label: 'Lait demi-écrémé', quantity: 2, unit_price: 1.15, amount: 2.3, category: 'Alimentation' },
+                    { label: 'Poulet fermier', quantity: 1, unit_price: 9.9, amount: 9.9, category: 'Alimentation' },
+                    { label: 'Lessive', quantity: 1, unit_price: 12.45, amount: 12.45, category: 'Maison' },
+                    { label: 'Doliprane', quantity: 1, unit_price: 2.67, amount: 2.67, category: 'Santé' },
+                ],
+            },
+            usage: null,
+            duplicate: null,
+        });
+    }
+    // FORK-END: budget-custom
 
     // ── Integrations ────────────────────────────────────────────────────────────
     if (path === '/api/integrations' && method === 'GET') return ok(store.integrations);

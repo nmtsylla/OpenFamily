@@ -1,0 +1,158 @@
+{
+  "titleToday": "Things to do today",
+  "titleTomorrow": "Things to do tomorrow",
+  "subtitle_one": "{{count}} screen-free idea",
+  "subtitle_other": "{{count}} screen-free ideas",
+  "regenerate": "Other ideas",
+  "errorTitle": "Ideas unavailable right now",
+  "retry": "Retry",
+  "addKidTitle": "No child in the family yet",
+  "addKidDescription": "Add the children to get ideas suited to their ages.",
+  "goToFamily": "Go to family",
+  "degradedDisabled": "offline ideas — no AI model configured",
+  "degradedBadJson": "offline ideas — unusable answer",
+  "degradedOffline": "offline ideas — assistant unreachable",
+  "durationMinutes_one": "{{count}} min",
+  "durationMinutes_other": "{{count}} min",
+  "schedule": "Plan it",
+  "scheduling": "Planning…",
+  "scheduled": "Planned",
+  "scheduledTitle": "Activity planned",
+  "scheduledDescription": "{{title}} is in the family schedule.",
+  "conflictTitle": "Slot already taken",
+  "conflictDescription": "Another activity already occupies that time for this child.",
+  "scheduleFailedTitle": "The activity could not be planned",
+  "categories": {
+    "outdoor": "Outdoors",
+    "creative": "Creative",
+    "cooking": "Cooking",
+    "learning": "Learning",
+    "sport": "Sport",
+    "chores": "Chores",
+    "social": "Together"
+  },
+  "timesOfDay": {
+    "morning": "Morning",
+    "afternoon": "Afternoon",
+    "evening": "Evening"
+  },
+  "bank": {
+    "treasure-hunt-garden": {
+      "title": "Garden treasure hunt",
+      "instructions": "Hide five objects, draw a map and start the search."
+    },
+    "obstacle-course": {
+      "title": "Backyard obstacle course",
+      "instructions": "Build a course in the garden and time every run."
+    },
+    "herbarium": {
+      "title": "Neighbourhood herbarium",
+      "instructions": "Collect leaves, dry them and glue them in with their names."
+    },
+    "picnic": {
+      "title": "Picnic the children make",
+      "instructions": "They plan the menu, make everything and pick the picnic spot."
+    },
+    "paper-boats": {
+      "title": "Paper-boat race",
+      "instructions": "Fold the boats, fill a basin and blow them across."
+    },
+    "watering-weeding": {
+      "title": "Water and weed the vegetable patch",
+      "instructions": "Everyone takes a row. Water in the evening to avoid evaporation."
+    },
+    "land-art": {
+      "title": "Land art with what you find outside",
+      "instructions": "Make a picture on the ground from natural bits, then photograph it."
+    },
+    "neighbourhood-olympics": {
+      "title": "Neighbourhood Olympics",
+      "instructions": "Invite the neighbours, invent five events and keep a scoreboard."
+    },
+    "blanket-fort": {
+      "title": "Sheet-and-branch den",
+      "instructions": "Build a den, then have the snack in it."
+    },
+    "cookies": {
+      "title": "Baking workshop: cookies",
+      "instructions": "They weigh, mix and shape. You only open the oven."
+    },
+    "board-game": {
+      "title": "Make your own board game",
+      "instructions": "Invent the board, the rules and the pieces, then play it together."
+    },
+    "shadow-theatre": {
+      "title": "Shadow theatre",
+      "instructions": "Cut out characters, hang a sheet and perform the story for the parents."
+    },
+    "construction-challenge": {
+      "title": "30-minute building challenge",
+      "instructions": "The tallest tower that stands for ten seconds. Stopwatch running."
+    },
+    "story-writing": {
+      "title": "Write and illustrate a story",
+      "instructions": "One chapter each, one drawing per page, then read it aloud."
+    },
+    "timed-tidy-up": {
+      "title": "Timed tidy-up with music",
+      "instructions": "One song, one room. Anything lying around goes back before it ends."
+    },
+    "kitchen-science": {
+      "title": "Kitchen science experiments",
+      "instructions": "Volcano, invisible ink, liquid density. Write down what you see."
+    },
+    "yoga-balance": {
+      "title": "Yoga and balance course",
+      "instructions": "A line on the floor, poses held for ten seconds, harder each round."
+    },
+    "grandparents-interview": {
+      "title": "Call and interview the grandparents",
+      "instructions": "Five questions about their childhood, and write the answers down."
+    },
+    "postcards": {
+      "title": "Postcards for friends",
+      "instructions": "Everyone draws a card, writes a note and addresses it. Then to the postbox."
+    },
+    "toy-sort": {
+      "title": "Sort toys to give away",
+      "instructions": "Three piles: keep, give, repair. They choose, you don't arbitrate."
+    }
+  },
+  "materials": "Materials",
+  "materialNames": {
+    "baking-soda": "baking soda",
+    "basin": "basin",
+    "blanket": "tablecloth",
+    "boxes": "boxes",
+    "bread": "bread",
+    "bricks": "bricks",
+    "butter": "butter",
+    "cardboard": "cardboard",
+    "chairs": "chairs",
+    "chalk": "chalk",
+    "coloured-pencils": "coloured pencils",
+    "cushions": "cushions",
+    "dice": "dice",
+    "felt-pens": "felt pens",
+    "flour": "flour",
+    "food-colouring": "food colouring",
+    "glue": "glue",
+    "lamp": "lamp",
+    "leaves": "leaves",
+    "mat": "mat",
+    "notebook": "notebook",
+    "paper": "paper",
+    "pebbles": "pebbles",
+    "pegs": "pegs",
+    "pencil": "pencil",
+    "rope": "rope",
+    "sheet": "sheet",
+    "sheets": "sheets",
+    "stamps": "stamps",
+    "stopwatch": "stopwatch",
+    "sugar": "sugar",
+    "tape": "tape",
+    "vinegar": "vinegar",
+    "watering-can": "watering can"
+  }
+}

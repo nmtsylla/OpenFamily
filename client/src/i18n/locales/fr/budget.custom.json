@@ -1,0 +1,48 @@
+{
+  "sections": {
+    "receipts": "Reçus importés"
+  },
+  "confirm": {
+    "deleteReceipt": "Supprimer ce reçu, ses lignes et les écritures qu'il a créées ?"
+  },
+  "receipt": {
+    "import": "Importer un reçu",
+    "title": "Importer un reçu ou une facture",
+    "pickHint": "Photographiez un ticket ou joignez une facture (PDF) : les montants sont lus puis répartis par catégorie.",
+    "reviewHint": "Vérifiez les montants et les catégories, décochez ce que vous ne voulez pas, puis validez.",
+    "pick": "Choisir des documents",
+    "filesHint": "JPEG, PNG, WebP ou PDF — 5 documents maximum",
+    "analyze": "Analyser",
+    "analyzing": "Analyse en cours…",
+    "merchant": "Commerce ou fournisseur",
+    "merchantUnknown": "Commerce inconnu",
+    "date": "Date",
+    "total": "Montant",
+    "lines": "Lignes ({{count}})",
+    "addLine": "Ajouter une ligne",
+    "lineLabel": "Article",
+    "linesTotal": "Total des lignes",
+    "itemCount_one": "{{count}} ligne",
+    "itemCount_other": "{{count}} lignes",
+    "entryCount_one": "{{count}} écriture",
+    "entryCount_other": "{{count}} écritures",
+    "noItems": "Aucune ligne conservée pour ce document.",
+    "singleMode": "Importer en une seule écriture (le total)",
+    "singleModeHint": "Les {{count}} ligne(s) lue(s) restent dans le détail du reçu.",
+    "singleModeStored": "Importé en une seule écriture ; les lignes lues restent dans le détail.",
+    "delete": "Supprimer ce reçu",
+    "duplicate": "{{merchant}} du {{date}} a déjà été importé — il s'agit probablement du même document.",
+    "mismatch": "La somme des lignes ({{lines}}) diffère du total imprimé ({{total}}) : c'est le détail qui sera importé.",
+    "confirm": "Importer ({{count}})",
+    "saving": "Import en cours…",
+    "successTitle": "Reçu importé",
+    "successDescription": "{{count}} écriture(s) ajoutée(s) au budget.",
+    "errors": {
+      "unsupported": "{{name}} : format non pris en charge ou fichier trop volumineux (JPEG, PNG, WebP ou PDF, 8 Mo maximum).",
+      "analyze": "L'analyse a échoué. Réessayez avec une photo plus nette.",
+      "save": "Le reçu n'a pas pu être enregistré.",
+      "duplicate": "Ce reçu a déjà été importé.",
+      "nothingSelected": "Sélectionnez au moins une ligne."
+    }
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "sections": {
+    "receipts": "Recibos importados"
+  },
+  "confirm": {
+    "deleteReceipt": "¿Eliminar este recibo, sus líneas y los movimientos que creó?"
+  },
+  "receipt": {
+    "import": "Importar un recibo",
+    "title": "Importar un recibo o una factura",
+    "pickHint": "Haz una foto de un tique o adjunta una factura (PDF): se leen los importes y se reparten por categoría.",
+    "reviewHint": "Revisa los importes y las categorías, desmarca lo que no quieras y confirma.",
+    "pick": "Elegir documentos",
+    "filesHint": "JPEG, PNG, WebP o PDF — máximo 5 documentos",
+    "analyze": "Analizar",
+    "analyzing": "Analizando…",
+    "merchant": "Comercio o proveedor",
+    "merchantUnknown": "Comercio desconocido",
+    "date": "Fecha",
+    "total": "Importe",
+    "lines": "Líneas ({{count}})",
+    "addLine": "Añadir una línea",
+    "lineLabel": "Artículo",
+    "linesTotal": "Total de las líneas",
+    "itemCount_one": "{{count}} línea",
+    "itemCount_other": "{{count}} líneas",
+    "entryCount_one": "{{count}} movimiento",
+    "entryCount_other": "{{count}} movimientos",
+    "noItems": "No se ha conservado ninguna línea de este documento.",
+    "singleMode": "Importar como un solo movimiento (el total)",
+    "singleModeHint": "Las {{count}} línea(s) leídas se conservan en el detalle del recibo.",
+    "singleModeStored": "Importado como un solo movimiento; las líneas leídas se conservan en el detalle.",
+    "delete": "Eliminar este recibo",
+    "duplicate": "{{merchant}} del {{date}} ya se importó — probablemente sea el mismo documento.",
+    "mismatch": "La suma de las líneas ({{lines}}) difiere del total impreso ({{total}}): se importará el detalle.",
+    "confirm": "Importar ({{count}})",
+    "saving": "Importando…",
+    "successTitle": "Recibo importado",
+    "successDescription": "{{count}} movimiento(s) añadido(s) al presupuesto.",
+    "errors": {
+      "unsupported": "{{name}}: formato no admitido o demasiado grande (JPEG, PNG, WebP o PDF, 8 MB máximo).",
+      "analyze": "El análisis ha fallado. Inténtalo de nuevo con una foto más nítida.",
+      "save": "No se ha podido guardar el recibo.",
+      "duplicate": "Este recibo ya se ha importado.",
+      "nothingSelected": "Selecciona al menos una línea."
+    }
+  }
+}
