@@ -40,8 +40,13 @@ const MODULE_KEYS: Record<CustomFeature, readonly string[]> = {
 // `customDisabledModules()` puts its key in what /api/auth/me reports, the client
 // keeps that key in the array it sends back on the next module toggle
 // (Settings → PUT /api/auth/modules), and upstream rejects any key it does not
-// know with a 400. Registering the keys makes the round-trip legal, and lets a
-// family hide a custom module like any upstream one.
+// know with a 400. Registering the keys makes that round-trip legal.
+//
+// Note what this does NOT do: the Settings page still lists only upstream
+// modules, so a family hides a custom feature through its CUSTOM_FEATURE_* flag
+// (which reports the key as disabled), not through a checkbox. Listing them
+// there would mean fork-owned label keys in six locales for a switch the env
+// flag already provides.
 export const CUSTOM_MODULE_KEYS = ['weather', 'activities', 'budgetReceipts', 'budgetAnalytics'] as const;
 
 // Dashboard widgets this fork adds. The server's own DASHBOARD_WIDGETS list
