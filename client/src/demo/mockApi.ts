@@ -60,6 +60,65 @@ const demoPantrySeed = (): Json[] => {
         index === 0 ? { ...item, expires_on: inDays(2) } : index === 1 ? { ...item, expires_on: inDays(5) } : item);
 };
 const pantryAsItem = (item: Json) => ({ ...item, quantity: Number(item.quantity ?? 1) });
+
+/**
+ * Receipt lines the import refused to guess at (a fee, an unreadable label):
+ * they wait here until the pantry page names or ignores them. Seeded so the
+ * demo shows the review banner without importing a ticket first.
+ */
+let demoPantryPending: Json[] = [
+    { id: 'pantry-pending-1', receipt_id: 'demo-receipt-1', label: 'SAC POUBELLE 30L X20', item: '', quantity: 1, unit: null, category: 'Maison', merchant: 'Supermarché Léon', date: null, created_at: new Date().toISOString() },
+    { id: 'pantry-pending-2', receipt_id: 'demo-receipt-1', label: 'COTISATION MUTUELLE', item: '', quantity: 1, unit: null, category: 'Santé', merchant: 'Mutuelle Solidaris', date: null, created_at: new Date().toISOString() },
+];
+
+/** Merge lines into the demo pantry, by folded name, like the server does. */
+const mergePantryLines = (lines: Json[], source = 'receipt'): { created: number; updated: number } => {
+    let created = 0;
+    let updated = 0;
+    for (const line of lines) {
+        const name = String(line.name ?? line.pantry_item ?? line.label ?? '').trim();
+        if (!name) continue;
+        const key = pantryKey(name);
+        const existing = demoPantry.find((item) => pantryKey(String(item.name)) === key && item.source !== 'grocy');
+        if (existing) {
+            existing.quantity = Number(existing.quantity ?? 0) + Number(line.quantity ?? 1);
+            updated += 1;
+        } else {
+            demoPantry = [{
+                id: uid(), name, category: line.category ?? 'Autre', quantity: Number(line.quantity ?? 1),
+                unit: line.pantry_unit || line.unit || null, location: 'pantry', expires_on: null,
+                low_stock_threshold: null, lunchbox_bucket: null, notes: null, source,
+            }, ...demoPantry];
+            created += 1;
+        }
+    }
+    return { created, updated };
+};
+
+/**
+ * The server's split (lib/pantry.custom.ts, splitReceiptLines): only a line the
+ * model called stock AND named is merged straight in; the rest is queued.
+ */
+const splitReceiptLines = (items: Json[]): { stock: Json[]; pending: Json[] } => {
+    const stock: Json[] = [];
+    const pending: Json[] = [];
+    for (const line of items) {
+        const item = String(line.pantry_item ?? '').trim();
+        const label = String(line.label ?? '').trim();
+        if (!item && !label) continue;
+        const row = {
+            label: label || item, item, quantity: Number(line.quantity ?? 1) || 1,
+            unit: line.pantry_unit || null, category: line.category ?? 'Autre',
+        };
+        if (item && line.pantry_stock === true) stock.push({ ...row, name: item });
+        else pending.push(row);
+    }
+    return { stock, pending };
+};
+
+/** The manual "add to pantry" call: it has no per-line verdict, so it merges all. */
+const importReceiptIntoPantry = (receipt: Json): { created: number; updated: number } =>
+    mergePantryLines(Array.isArray(receipt?.items) ? (receipt.items as Json[]) : []);
 // FORK-END: pantry
 const uid = () =>
     (typeof crypto !== 'undefined' && crypto.randomUUID
@@ -854,27 +913,32 @@ async function route(method: string, path: string, q: Record<string, string>, bo
     }
     if (seg[1] === 'pantry' && seg[2] === 'import' && seg[3] === 'receipt') {
         const receipt = demoReceipts.find((r) => r.id === body.receiptId);
-        const lines = Array.isArray(receipt?.items) ? (receipt?.items as Json[]) : [];
-        let created = 0;
-        let updated = 0;
-        for (const line of lines) {
-            const name = String(line.label ?? '').trim();
-            if (!name) continue;
-            const key = pantryKey(name);
-            const existing = demoPantry.find((item) => pantryKey(String(item.name)) === key && item.source !== 'grocy');
-            if (existing) { existing.quantity = Number(existing.quantity ?? 0) + Number(line.quantity ?? 1); updated += 1; }
-            else {
-                demoPantry = [{
-                    id: uid(), name, category: line.category ?? 'Autre', quantity: Number(line.quantity ?? 1),
-                    unit: null, location: 'pantry', expires_on: null, low_stock_threshold: null,
-                    lunchbox_bucket: null, notes: null, source: 'receipt',
-                }, ...demoPantry];
-                created += 1;
-            }
-        }
-        return ok({ created, updated });
+        if (!receipt) return { success: false, error: 'NOT_FOUND' };
+        return ok(importReceiptIntoPantry(receipt));
     }
-    if (seg[1] === 'pantry' && seg.length === 3 && !['shopping-list', 'stock', 'import'].includes(seg[2])) {
+    // The receipt lines waiting for a name, and the two ways out: confirm (with
+    // the family's own name and category) or ignore.
+    if (path === '/api/pantry/pending' && method === 'GET') {
+        return ok({ items: demoPantryPending.map((line) => ({ ...line, quantity: Number(line.quantity ?? 1) })) });
+    }
+    if (seg[1] === 'pantry' && seg[2] === 'pending' && seg[4] === 'confirm' && method === 'POST') {
+        const line = demoPantryPending.find((entry) => entry.id === seg[3]);
+        if (!line) return { success: false, error: 'NOT_FOUND' };
+        const name = String(body.name ?? '').trim();
+        if (!name) return { success: false, error: 'INVALID_ITEM' };
+        const merged = mergePantryLines([{
+            name, quantity: Number(body.quantity ?? 1) || 1,
+            unit: body.unit ?? line.unit ?? null, category: body.category ?? line.category ?? 'Autre',
+        }]);
+        demoPantryPending = demoPantryPending.filter((entry) => entry.id !== seg[3]);
+        return ok(merged);
+    }
+    if (seg[1] === 'pantry' && seg[2] === 'pending' && seg.length === 4 && method === 'DELETE') {
+        if (!demoPantryPending.some((entry) => entry.id === seg[3])) return { success: false, error: 'NOT_FOUND' };
+        demoPantryPending = demoPantryPending.filter((entry) => entry.id !== seg[3]);
+        return ok({});
+    }
+    if (seg[1] === 'pantry' && seg.length === 3 && !['shopping-list', 'stock', 'import', 'pending'].includes(seg[2])) {
         if (method === 'PUT') {
             const row = demoPantry.find((item) => item.id === seg[2]);
             if (!row) return { success: false, error: 'NOT_FOUND' };
@@ -1060,13 +1124,26 @@ async function route(method: string, path: string, q: Record<string, string>, bo
             import_mode: mode === 'single' ? 'single' : 'itemized',
             entry_count: created.length,
             entry_ids: created.map((entry) => entry.id),
+            pantry_imported: true,
             items: (Array.isArray(items) ? (items as Json[]) : []).map((item, index) => ({
                 ...item,
                 id: `${index + 1}`,
             })),
         };
         demoReceipts.unshift(receipt);
-        return ok({ receipt, entry_count: created.length });
+        // Like the server: the same call stocks the obvious products and queues
+        // the rest for the pantry page (one transaction, one ticket).
+        const { stock, pending } = splitReceiptLines(receipt.items as Json[]);
+        const pantry = mergePantryLines(stock);
+        for (const line of pending) {
+            demoPantryPending.unshift({
+                id: uid(), receipt_id: receipt.id, label: line.label, item: line.item,
+                quantity: line.quantity, unit: line.unit, category: line.category,
+                merchant: receipt.merchant ?? null, date: receipt.date ?? null,
+                created_at: new Date().toISOString(),
+            });
+        }
+        return ok({ receipt, entry_count: created.length, pantry: { ...pantry, pending: pending.length } });
     }
     if (seg[1] === 'budget' && seg[2] === 'receipts' && seg.length === 4 && method === 'DELETE') {
         const receipt = demoReceipts.find((r) => r.id === seg[3]);
@@ -1229,10 +1306,10 @@ async function route(method: string, path: string, q: Record<string, string>, bo
                 total: 27.32,
                 category: 'Alimentation',
                 items: [
-                    { label: 'Lait demi-écrémé', quantity: 2, unit_price: 1.15, amount: 2.3, category: 'Alimentation' },
-                    { label: 'Poulet fermier', quantity: 1, unit_price: 9.9, amount: 9.9, category: 'Alimentation' },
-                    { label: 'Lessive', quantity: 1, unit_price: 12.45, amount: 12.45, category: 'Maison' },
-                    { label: 'Doliprane', quantity: 1, unit_price: 2.67, amount: 2.67, category: 'Santé' },
+                    { label: 'LAIT DEMI-ECREME BIO VILLAGE 1L', quantity: 2, unit_price: 1.15, amount: 2.3, category: 'Alimentation', pantry_item: 'Lait demi-écrémé', pantry_unit: 'L', pantry_stock: true },
+                    { label: 'POULET FERMIER S/O PESEE', quantity: 1, unit_price: 9.9, amount: 9.9, category: 'Alimentation', pantry_item: 'Poulet', pantry_unit: '', pantry_stock: true },
+                    { label: 'LESSIVE LIQUIDE X 40D', quantity: 1, unit_price: 12.45, amount: 12.45, category: 'Maison', pantry_item: 'Lessive', pantry_unit: '', pantry_stock: true },
+                    { label: 'DOLIPRANE 1000MG', quantity: 1, unit_price: 2.67, amount: 2.67, category: 'Santé', pantry_item: 'Paracétamol', pantry_unit: '', pantry_stock: false },
                 ],
             },
             usage: null,

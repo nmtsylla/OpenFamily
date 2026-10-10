@@ -343,5 +343,53 @@ export const coreMigrations: readonly Migration[] = [
                 ON custom_pantry_items(user_id, name_key) WHERE source = 'grocy'`,
         ],
     },
+    {
+        // The receipt lines the pantry import does NOT stock by itself: a
+        // service, a fee, a line the model could not name generically. They wait
+        // here — with the printed label, the proposed name, the quantity and the
+        // unit — until someone confirms or dismisses them on the pantry page, so
+        // a receipt never silently fills the stock with guesses and never drops
+        // a line either.
+        //
+        // ON DELETE CASCADE on the receipt: the lines came from that ticket, so
+        // deleting the receipt takes its queue with it (the products already
+        // merged into the pantry stay — they are real stock).
+        id: 'custom/0006-pantry-pending',
+        statements: [
+            `CREATE TABLE IF NOT EXISTS custom_pantry_pending (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                receipt_id UUID NOT NULL REFERENCES budget_receipts(id) ON DELETE CASCADE,
+                label VARCHAR(160) NOT NULL,
+                item VARCHAR(160) NOT NULL DEFAULT '',
+                quantity DECIMAL(10, 3) NOT NULL DEFAULT 1,
+                unit VARCHAR(50),
+                category VARCHAR(50) NOT NULL DEFAULT 'Autre',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )`,
+            `CREATE INDEX IF NOT EXISTS idx_custom_pantry_pending_user
+                ON custom_pantry_pending(user_id)`,
+        ],
+    },
+    {
+        // The receipt-import guard now names the TICKET (budget_receipts.
+        // fingerprint: merchant + date + total, unique per family), not the
+        // receipt row. With the row id, deleting an imported receipt and
+        // scanning the same ticket again made a fresh id, the guard missed, and
+        // the same groceries were counted into the pantry twice.
+        //
+        // Rows whose receipt was already deleted cannot be mapped (the id is all
+        // they hold): they keep it, match no fingerprint, and stay inert. The
+        // products they counted are still in the pantry, which is the point.
+        id: 'custom/0007-pantry-guard-fingerprint',
+        statements: [
+            `UPDATE custom_pantry_imports pi
+                SET source_ref = r.fingerprint
+               FROM budget_receipts r
+              WHERE pi.source = 'receipt'
+                AND pi.user_id = r.user_id
+                AND pi.source_ref = r.id::text`,
+        ],
+    },
     // FORK-END: custom-migrations
 ];
