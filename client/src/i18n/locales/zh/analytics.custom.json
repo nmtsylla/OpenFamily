@@ -1,0 +1,61 @@
+{
+  "nav": {
+    "budgetAnalytics": "Budget analytics",
+    "mobileBudgetAnalytics": "Analytics"
+  },
+  "back": "Back to budget",
+  "title": "Budget analytics",
+  "subtitle": "Spending between two dates, down to the day and the shop.",
+  "range": {
+    "from": "From",
+    "to": "To",
+    "presets": "Quick ranges",
+    "month": "This month",
+    "last30": "Last 30 days",
+    "year": "This year",
+    "invalid": "Pick a valid range: the start must not be after the end, and at most five years apart."
+  },
+  "totals": {
+    "income": "Income",
+    "expenses": "Expenses",
+    "balance": "Balance",
+    "count": "Transactions"
+  },
+  "split": {
+    "title": "Planned vs actual",
+    "actual": "One-off entries",
+    "recurring": "Recurring"
+  },
+  "pace": {
+    "title": "Pace",
+    "subtitle": "Projection from the first {{elapsed}} of {{total}} days",
+    "daily": "Daily average",
+    "projected": "Projected over the period"
+  },
+  "charts": {
+    "cumulative": "Balance over the period",
+    "monthly": "Income and expenses per month",
+    "weekday": "Spending per weekday",
+    "income": "Income",
+    "expenses": "Expenses",
+    "balance": "Cumulative balance"
+  },
+  "categories": {
+    "title": "By category",
+    "count_one": "{{count}} entry",
+    "count_other": "{{count}} entries"
+  },
+  "members": {
+    "title": "By member",
+    "note": "Assigned entries only — a recurring series is never attributed to a member."
+  },
+  "merchants": {
+    "title": "Top merchants",
+    "empty": "No receipt was imported over this period."
+  },
+  "states": {
+    "loading": "Loading…",
+    "error": "Could not load the analytics.",
+    "empty": "Nothing recorded over this period."
+  }
+}

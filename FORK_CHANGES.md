@@ -126,7 +126,10 @@ Fork-owned namespaces only, referenced as `t('<ns>:key')`; no key is added to an
 upstream locale file:
 
 - `weather.custom`, `activities.custom` (six locales)
-- `analytics.custom` (`en`, `fr`; other locales fall back to English)
+- `analytics.custom` (six locales; the `es`, `pt`, `ru`, `zh` files are copies of
+  the English strings — placeholders pending translation, required because
+  `client/scripts/check-i18n.mjs` fails the build on any namespace missing from a
+  locale)
 - `dashboard.custom`, `budget.custom`, `ai.custom` (six locales)
 
 ## Tests
@@ -180,8 +183,8 @@ lockfile is the fork's own.
 
 ## Verification performed on this port
 
-- `tsc --noEmit` clean for `client/` and `server/`
-- `vite build` (client) succeeds, plain and with `VITE_DEMO=1`
+- `npm run build` at the root (shared + server + client) passes, which includes
+  `check:i18n` and `tsc`; the client build also passes with `VITE_DEMO=1`
 - `npm test` (server): 19/19 pass
 - Migrations applied and re-applied cleanly against a real Postgres 16 (fresh
   schema, second run a no-op, ids recorded as `custom/0001`, `custom/0002`)
