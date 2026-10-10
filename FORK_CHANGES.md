@@ -46,7 +46,7 @@ otherwise.
 |------|--------|-----|
 | `server/src/app.ts` | `custom-routes`, `budget-custom` | One `registerCustomRoutes(app)` hook (import + call, above the upstream limiters) and one added condition so `/api/ai/extract-receipt` skips the 1 MB default JSON parser |
 | `server/src/routes/auth.ts` | `custom-features`, `media` | Adds the env-disabled custom modules to `disabled_modules`; accepts an `s3:` avatar reference |
-| `server/src/routes/userSettings.ts` | `weather` | Adds the two custom dashboard widget keys to `DASHBOARD_WIDGETS` (the list `parseDashboardPrefs` validates against — without it the widgets are silently dropped) |
+| `server/src/routes/userSettings.ts` | `weather`, `custom-modules` | Adds the two custom dashboard widget keys to `DASHBOARD_WIDGETS` (the list `parseDashboardPrefs` validates against — without it the widgets are silently dropped) and the custom module keys to `TOGGLEABLE_MODULES` (upstream rejects an unknown key in `PUT /api/auth/modules`, so a flag-disabled key reported through `/api/auth/me` would make the next module toggle fail with 400) |
 | `server/src/migrations/registry.ts` | `custom-migrations` | Appends the two fork migrations (`custom/0001`, `custom/0002`) |
 | `server/src/index.ts` | `media` | Ensures the bucket exists at startup when storage is configured |
 | `server/src/lib/postFields.ts`, `server/src/lib/recipeImage.ts` | `media` | Keeps an `s3:` media reference intact instead of treating it as a data URL |
@@ -62,7 +62,7 @@ otherwise.
 | `client/src/pages/Budget.tsx` | `budget-custom` | Mounts the receipt import button and the imported-receipts section |
 | `client/src/contexts/AuthContext.tsx` | `weather` | Adds the two custom widget keys to the client's `DASHBOARD_WIDGETS` |
 | `client/src/components/app/MagicInput.tsx` | `budget-custom` | Adds the `AI_UNSUPPORTED_MEDIA` error code |
-| `client/src/demo/mockApi.ts` | `budget-custom` | Demo handlers for receipts, receipt extraction and analytics |
+| `client/src/demo/mockApi.ts` | `budget-custom`, `demo-prefs` | Demo handlers for receipts, receipt extraction and analytics; plus the two object-shaped endpoints upstream's demo never answers (`dashboard-prefs`, `posts/latest`), whose `ok([])` catch-all crashed the demo's default route |
 | `client/nginx.conf` | `media` | Dedicated `location ^~ /api/media/` block (upstream's `location /api/` line untouched) |
 | `scripts/smoke-api.sh` | `budget-custom` | Smoke calls for the custom endpoints |
 | `.env.example` | (section) | `# --- Custom ---` section at the end of the file |
@@ -82,7 +82,7 @@ Only 19 lines in 12 files, all wrapped in markers:
 | `server/src/services/ai/gemini.ts` | 1 | request parts carry attachments |
 | `server/src/services/ai/ollama.ts` | 1 | user message carries images when present |
 | `server/src/db.ts` | 1 | `connectionTimeoutMillis` uses `CUSTOM_POSTGRES_CONNECT_TIMEOUT_MS` |
-| `server/src/routes/userSettings.ts` | 1 | `DASHBOARD_WIDGETS` spreads the custom widget keys |
+| `server/src/routes/userSettings.ts` | 2 | `DASHBOARD_WIDGETS` spreads the custom widget keys; `TOGGLEABLE_MODULES` spreads the custom module keys |
 | `client/src/contexts/AuthContext.tsx` | 1 | `DASHBOARD_WIDGETS` lists the custom widget keys |
 | `README.md`, `README.fr.md`, `README.zh-CN.md` | 1 each | Feature row appended to the budget line |
 | `ROADMAP.md` | 2 | The receipt-import bullet |
@@ -148,43 +148,35 @@ was verified in a browser instead (see "Verification" below).
 
 ## Known gaps and inherited issues
 
-- **Demo mode dashboard is blank — upstream bug, not a port regression.**
-  `client/src/demo/mockApi.ts` has no handler for `/api/auth/dashboard-prefs`, so
-  its `ok([])` fallback makes `dashboardPrefs` an array and
-  `client/src/pages/Dashboard.tsx` throws on `prefs.order.filter`. Reproduced on
-  the upstream baseline as well. Fix belongs upstream (or as a demo handler here).
-  The custom weather hook now shape-checks its payloads (`isDashboardWeather`,
-  `isWeeklyForecast`, `isKidsActivities`, `isSavedLocation`), so a malformed
-  payload shows the card's error state instead of taking the page down — that
-  does not fix the prefs crash.
+- **Demo mode: fixed on the fork side.** `client/src/demo/mockApi.ts` has no
+  handler for `/api/auth/dashboard-prefs` or `/api/posts/latest` in either tree,
+  so its `ok([])` catch-all made `dashboardPrefs` an array (the dashboard throws
+  on `prefs.order.filter`) and the latest post `[]` (throws on `author_name`).
+  Both gaps were reproduced on the upstream baseline; this fork answers those two
+  object-shaped endpoints properly (marker `demo-prefs`), so the static demo's
+  default route renders again. The demo hides the two weather widgets, since it
+  has no weather backend.
 - `server/src/lib/postFields.ts`: the fork's reorder of the length check below the
   data-URL check was not ported (not media-related, and it would move upstream
   lines). Upstream order is preserved, so non-media behaviour is upstream's.
 - `deploy/README.md` still mentions the old checkout path `/home/bsylla/OpenFamily`
   in its backup snippet.
-- The analytics and weather locale files exist for `en`/`fr` only; the other
-  locales fall back to English.
+- `analytics.custom.json` exists for all six locales, but its `es`/`pt`/`ru`/`zh`
+  files are English placeholders pending translation (required by `check-i18n`).
 
-## Local development in this checkout
+## Local development
 
-`/home` was full (296 MB free), so a second `npm install` did not fit. The three
-`node_modules` directories here are **symlinks** into
-`/home/bsylla/OpenFamily-budget/`, which has the same dependencies installed:
-
-```bash
-ln -s /home/bsylla/OpenFamily-budget/node_modules node_modules
-ln -s /home/bsylla/OpenFamily-budget/client/node_modules client/node_modules
-ln -s /home/bsylla/OpenFamily-budget/server/node_modules server/node_modules
-```
-
-They are excluded through `.git/info/exclude`, not through `.gitignore`. Replace
-them with a real install (`npm ci` at the root) once there is disk space; the
-lockfile is the fork's own.
+`npm ci` at the root installs every workspace from the lockfile (772 packages).
+Earlier the checkout carried symlinked `node_modules` into a sibling worktree
+because `/home` was full; they are gone — a real install now exists, and the
+lockfile is this fork's own.
 
 ## Verification performed on this port
 
-- `npm run build` at the root (shared + server + client) passes, which includes
-  `check:i18n` and `tsc`; the client build also passes with `VITE_DEMO=1`
+- `npm ci` at the root installs the lockfile (772 packages), then `npm run build`
+  (shared + server + client) passes, including `check:i18n` (6 languages,
+  28 namespaces, structure and interpolation parity) and `tsc`; the client build
+  also passes with `VITE_DEMO=1`
 - `npm test` (server): 19/19 pass
 - Migrations applied and re-applied cleanly against a real Postgres 16 (fresh
   schema, second run a no-op, ids recorded as `custom/0001`, `custom/0002`)
@@ -193,7 +185,11 @@ lockfile is the fork's own.
   weather forecast (live Open-Meteo), plus upstream `/api/budget/entries` and
   `/api/auth/me` untouched; media rejects an unsigned key without a 500
 - With `CUSTOM_FEATURE_BUDGET_ANALYTICS_ENABLED=false`: the route answers 404 and
-  `/api/auth/me` reports `budgetAnalytics` as disabled, other custom routes stay up
+  `/api/auth/me` reports `budgetAnalytics` as disabled, other custom routes stay
+  up, and the disabled key round-trips through `PUT /api/auth/modules` (200)
+  while an unknown key is still rejected (400, control check)
+- A 1.6 MB receipt body reaches `/api/ai/extract-receipt` (400 from the route,
+  not 413 from the default JSON parser)
 - Browser: the analytics page renders in demo mode (nav entry, i18n labels,
   demo-derived numbers, no console errors) — this is the check that catches
   `<Routes>` children violations, which neither `tsc` nor the build can see

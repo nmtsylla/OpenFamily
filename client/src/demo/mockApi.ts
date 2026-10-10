@@ -326,6 +326,27 @@ async function route(method: string, path: string, q: Record<string, string>, bo
         return ok({ user: store.user });
     }
     if (path === '/api/auth/profile') { store.user = { ...store.user, ...body }; return ok({ user: store.user }); }
+    // FORK-START: demo-prefs
+    // The catch-all at the bottom answers `[]`, which is not a DashboardPrefs
+    // object: the dashboard then throws on `prefs.order.filter` and the demo's
+    // default route renders nothing. The demo has no weather backend, so the two
+    // custom widgets start hidden here and the upstream widgets keep their
+    // default order.
+    if (path === '/api/auth/dashboard-prefs' && method === 'GET') {
+        return ok({ order: ['stats', 'weather', 'activities', 'agenda', 'planning', 'quick', 'notes'], hidden: ['weather', 'activities'], agendaView: 'day' });
+    }
+    if (path === '/api/auth/dashboard-prefs' && method === 'PUT') {
+        // Echo what the customiser sent, as the server does.
+        return ok(body);
+    }
+    // ── Dashboard ───────────────────────────────────────────────────────────
+    if (path === '/api/posts/latest') {
+        // Same trap as the prefs above: the catch-all answers `[]`, the dashboard
+        // stores it as the latest post and then dereferences `author_name`. This
+        // endpoint returns an object or null, so answer null (no post yet).
+        return ok(null);
+    }
+    // FORK-END: demo-prefs
     if (path === '/api/auth/modules') {
         if (method === 'PUT') {
             const list = Array.isArray(body.disabled_modules) ? (body.disabled_modules as string[]) : [];

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { query } from '../db';
 import { authMiddleware, AuthRequest, requireParent } from '../middleware/auth';
 // FORK-START: weather
-import { CUSTOM_DASHBOARD_WIDGETS } from '../custom/features.custom';
+import { CUSTOM_DASHBOARD_WIDGETS, CUSTOM_MODULE_KEYS } from '../custom/features.custom';
 // FORK-END: weather
 
 const router = Router();
@@ -22,6 +22,14 @@ export const TOGGLEABLE_MODULES = [
     'kiosk',
     'notes',
     'ai',
+    // FORK-START: custom-modules
+    // The fork's own module keys (custom/features.custom.ts). They must be in
+    // this list for two reasons: a key reported as disabled by a
+    // CUSTOM_FEATURE_*_ENABLED flag round-trips through PUT /api/auth/modules
+    // (upstream rejects unknown keys with a 400), and a family may hide a custom
+    // module exactly like an upstream one.
+    ...CUSTOM_MODULE_KEYS,
+    // FORK-END: custom-modules
 ] as const;
 
 // Dashboard widgets, in default display order. 'quick' is the shopping/budget/
