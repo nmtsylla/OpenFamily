@@ -1,0 +1,124 @@
+{
+    "nav": {
+        "lunchboxes": "便当",
+        "mobileLunchboxes": "便当"
+    },
+    "title": "便当",
+    "subtitle": "每个孩子每天一份便当，以及你实际准备的内容",
+    "thisWeek": "本周",
+    "weekOf": "{{start}} 至 {{end}} 这一周",
+    "confirmDelete": "删除这份便当吗？",
+    "tabs": {
+        "planning": "计划",
+        "tracking": "记录"
+    },
+    "grid": {
+        "label": "便当",
+        "add": "添加便当",
+        "noMembers": "请先添加家庭成员，才能安排便当。"
+    },
+    "form": {
+        "editTitle": "编辑便当",
+        "newTitle": "准备便当",
+        "description": "{{date}}",
+        "child": "孩子",
+        "main": "主菜",
+        "mainPlaceholder": "例如火腿奶酪三明治",
+        "fruit": "水果或蔬菜",
+        "fruitPlaceholder": "例如橘子",
+        "snack": "点心",
+        "snackPlaceholder": "例如麦片棒",
+        "drink": "饮品",
+        "drinkPlaceholder": "例如苹果汁",
+        "notes": "备注（可选）",
+        "notesPlaceholder": "过敏、当天偏好……",
+        "prepare": "准备",
+        "aiPrompt": "没有想法？根据家里现有的食材生成一个建议。",
+        "suggest": "生成建议"
+    },
+    "errors": {
+        "load": "无法加载便当。",
+        "save": "无法保存这份便当。",
+        "delete": "无法删除这份便当。",
+        "selectChild": "请选择孩子。",
+        "emptyBox": "至少填写一项（主菜、水果、点心或饮品）。",
+        "shopping": "无法生成购物清单。"
+    },
+    "shopping": {
+        "button": "把本周的食材加入购物清单",
+        "empty": "本周没有填写便当。",
+        "added_other": "已向购物清单添加 {{count}} 项",
+        "skipped_other": "{{count}} 项已在清单中",
+        "alreadyThere": "已在清单中"
+    },
+    "tracking": {
+        "frequent": "最常见的食材 — 最近 60 天",
+        "nothingYet": "暂无内容。",
+        "none": "最近 60 天没有便当记录。",
+        "total_other": "本期共 {{count}} 份便当。",
+        "history": "最近记录",
+        "noHistory": "{{name}} 暂无记录。",
+        "noMembers": "请先添加家庭成员，才能记录便当。",
+        "loadError": "无法加载记录。"
+    },
+    "ai": {
+        "title": "用 AI 推荐便当",
+        "description": "说明家里有什么，助手会推荐最多 3 份可直接打包的便当。",
+        "add": "添加",
+        "remove": "移除 {{name}}",
+        "mains": "菜品 / 剩菜",
+        "mainsPlaceholder": "例如剩下的鸡肉、米饭、金枪鱼卷",
+        "fruits": "水果 / 蔬菜",
+        "fruitsPlaceholder": "例如苹果、橘子、胡萝卜",
+        "snacks": "点心",
+        "snacksPlaceholder": "例如果泥、饼干、奶酪",
+        "drinks": "饮品",
+        "drinksPlaceholder": "例如水、苹果汁、牛奶",
+        "location": "食用地点",
+        "context": "当天情况（可选）",
+        "contextPlaceholder": "例如体育活动出行、炎热天气",
+        "generate": "生成 3 个建议",
+        "generating": "生成中…",
+        "regenerate": "重新生成",
+        "useIdea": "使用此建议",
+        "applied": "已应用",
+        "mainLabel": "主菜：",
+        "fruitLabel": "水果：",
+        "snackLabel": "点心：",
+        "drinkLabel": "饮品：",
+        "hintFor": "给 {{name}}",
+        "hintItems_other": "可用食材 {{count}} 项",
+        "errors": {
+            "minItem": "请至少列出一种可用食材（菜品、水果、点心或饮品）。",
+            "generate": "无法生成建议。"
+        },
+        "locations": {
+            "school": "学校",
+            "daycare": "托儿所",
+            "outing": "出游 / 野餐",
+            "work": "工作单位",
+            "travel": "出行",
+            "other": "其他"
+        }
+    },
+    "nutrition": {
+        "button": "分析本周",
+        "title": "本周营养分析",
+        "description": "由助手分析已计划的餐食和便当。",
+        "analyzing": "正在分析本周…",
+        "failed": "无法分析本周。",
+        "empty": "本周还没有安排任何餐食。",
+        "mealsAnalyzed_other": "已分析 {{count}} 餐",
+        "strengths": "优点",
+        "weaknesses": "待改进",
+        "missingGroups": "缺少的食物类别",
+        "recommendations": "建议",
+        "rerun": "重新分析",
+        "verdicts": {
+            "excellent": "优秀",
+            "good": "良好",
+            "needs_improvement": "有待改进",
+            "unbalanced": "不均衡"
+        }
+    }
+}

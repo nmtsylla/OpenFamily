@@ -1,0 +1,129 @@
+{
+    "nav": {
+        "lunchboxes": "Lancheiras",
+        "mobileLunchboxes": "Lancheiras"
+    },
+    "title": "Lancheiras",
+    "subtitle": "Uma lancheira por criança e por dia, e o que você realmente prepara ao longo do tempo",
+    "thisWeek": "Esta semana",
+    "weekOf": "Semana de {{start}} a {{end}}",
+    "confirmDelete": "Excluir esta lancheira?",
+    "tabs": {
+        "planning": "Planejamento",
+        "tracking": "Acompanhamento"
+    },
+    "grid": {
+        "label": "Lancheira",
+        "add": "Adicionar uma lancheira",
+        "noMembers": "Adicione primeiro membros da família para planejar lancheiras."
+    },
+    "form": {
+        "editTitle": "Editar a lancheira",
+        "newTitle": "Preparar uma lancheira",
+        "description": "Para {{date}}",
+        "child": "Criança",
+        "main": "Prato principal",
+        "mainPlaceholder": "ex. sanduíche de presunto e queijo",
+        "fruit": "Fruta ou legume",
+        "fruitPlaceholder": "ex. mexerica",
+        "snack": "Lanche",
+        "snackPlaceholder": "ex. barra de cereal",
+        "drink": "Bebida",
+        "drinkPlaceholder": "ex. suco de maçã",
+        "notes": "Observações (opcional)",
+        "notesPlaceholder": "Alergia, preferência do dia…",
+        "prepare": "Preparar",
+        "aiPrompt": "Sem ideias? Gere uma sugestão com o que você tem em casa.",
+        "suggest": "Sugerir"
+    },
+    "errors": {
+        "load": "Não foi possível carregar as lancheiras.",
+        "save": "Não foi possível salvar esta lancheira.",
+        "delete": "Não foi possível excluir esta lancheira.",
+        "selectChild": "Escolha uma criança.",
+        "emptyBox": "Preencha pelo menos um item (prato, fruta, lanche ou bebida).",
+        "shopping": "Não foi possível montar a lista de compras."
+    },
+    "shopping": {
+        "button": "Adicionar à lista de compras os itens da semana",
+        "empty": "Nenhuma lancheira preenchida nesta semana.",
+        "added_one": "{{count}} item adicionado à lista de compras",
+        "added_other": "{{count}} itens adicionados à lista de compras",
+        "skipped_one": "{{count}} item já estava na lista",
+        "skipped_other": "{{count}} itens já estavam na lista",
+        "alreadyThere": "Já está na lista"
+    },
+    "tracking": {
+        "frequent": "Itens mais frequentes — últimos 60 dias",
+        "nothingYet": "Nada ainda.",
+        "none": "Nenhuma lancheira registrada nos últimos 60 dias.",
+        "total_one": "{{count}} lancheira no período.",
+        "total_other": "{{count}} lancheiras no período.",
+        "history": "Histórico recente",
+        "noHistory": "Ainda não há histórico para {{name}}.",
+        "noMembers": "Adicione primeiro membros da família para acompanhar as lancheiras.",
+        "loadError": "Não foi possível carregar o acompanhamento."
+    },
+    "ai": {
+        "title": "Sugerir uma lancheira com IA",
+        "description": "Diga o que tem em casa e o assistente propõe até 3 lancheiras prontas para levar.",
+        "add": "Adicionar",
+        "remove": "Remover {{name}}",
+        "mains": "Pratos / sobras",
+        "mainsPlaceholder": "ex. frango de ontem, arroz, wrap de atum",
+        "fruits": "Frutas / legumes",
+        "fruitsPlaceholder": "ex. maçã, mexerica, cenoura",
+        "snacks": "Lanches",
+        "snacksPlaceholder": "ex. purê de fruta, biscoito, queijo",
+        "drinks": "Bebidas",
+        "drinksPlaceholder": "ex. água, suco de maçã, leite",
+        "location": "Onde vai ser comido",
+        "context": "Contexto do dia (opcional)",
+        "contextPlaceholder": "ex. passeio esportivo, dia quente",
+        "generate": "Gerar 3 ideias",
+        "generating": "Gerando…",
+        "regenerate": "Gerar de novo",
+        "useIdea": "Usar esta ideia",
+        "applied": "Aplicada",
+        "mainLabel": "Prato:",
+        "fruitLabel": "Fruta:",
+        "snackLabel": "Lanche:",
+        "drinkLabel": "Bebida:",
+        "hintFor": "para {{name}}",
+        "hintItems_one": "{{count}} alimento disponível",
+        "hintItems_other": "{{count}} alimentos disponíveis",
+        "errors": {
+            "minItem": "Informe pelo menos um alimento disponível (prato, fruta, lanche ou bebida).",
+            "generate": "Não foi possível gerar ideias."
+        },
+        "locations": {
+            "school": "Escola",
+            "daycare": "Creche",
+            "outing": "Passeio / piquenique",
+            "work": "Trabalho",
+            "travel": "Viagem",
+            "other": "Outro"
+        }
+    },
+    "nutrition": {
+        "button": "Analisar a semana",
+        "title": "Leitura nutricional da semana",
+        "description": "As refeições planejadas e as lancheiras, revisadas pelo assistente.",
+        "analyzing": "Lendo a semana…",
+        "failed": "Não foi possível analisar a semana.",
+        "empty": "Ainda não há nada planejado nesta semana.",
+        "mealsAnalyzed_one": "{{count}} refeição analisada",
+        "mealsAnalyzed_other": "{{count}} refeições analisadas",
+        "strengths": "Pontos fortes",
+        "weaknesses": "A melhorar",
+        "missingGroups": "Grupos sub-representados",
+        "recommendations": "Recomendações",
+        "rerun": "Analisar de novo",
+        "verdicts": {
+            "excellent": "Excelente",
+            "good": "Bom",
+            "needs_improvement": "A melhorar",
+            "unbalanced": "Desequilibrado"
+        }
+    }
+}

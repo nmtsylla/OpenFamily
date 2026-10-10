@@ -1,0 +1,129 @@
+{
+    "nav": {
+        "lunchboxes": "Lunchboxes",
+        "mobileLunchboxes": "Lunchboxes"
+    },
+    "title": "Lunchboxes",
+    "subtitle": "One box per child per day, plus what you actually pack over time",
+    "thisWeek": "This week",
+    "weekOf": "Week of {{start}} to {{end}}",
+    "confirmDelete": "Delete this lunchbox?",
+    "tabs": {
+        "planning": "Planning",
+        "tracking": "Tracking"
+    },
+    "grid": {
+        "label": "Lunchbox",
+        "add": "Add a lunchbox",
+        "noMembers": "Add family members first to plan lunchboxes."
+    },
+    "form": {
+        "editTitle": "Edit lunchbox",
+        "newTitle": "Prepare a lunchbox",
+        "description": "For {{date}}",
+        "child": "Child",
+        "main": "Main dish",
+        "mainPlaceholder": "e.g. ham and cheese sandwich",
+        "fruit": "Fruit or vegetable",
+        "fruitPlaceholder": "e.g. clementine",
+        "snack": "Snack",
+        "snackPlaceholder": "e.g. cereal bar",
+        "drink": "Drink",
+        "drinkPlaceholder": "e.g. apple juice",
+        "notes": "Notes (optional)",
+        "notesPlaceholder": "Allergy, preference of the day…",
+        "prepare": "Prepare",
+        "aiPrompt": "Out of ideas? Generate a suggestion from what you have at home.",
+        "suggest": "Suggest"
+    },
+    "errors": {
+        "load": "Unable to load lunchboxes.",
+        "save": "Unable to save this lunchbox.",
+        "delete": "Unable to delete this lunchbox.",
+        "selectChild": "Pick a child.",
+        "emptyBox": "Fill in at least one item (dish, fruit, snack or drink).",
+        "shopping": "Unable to build the shopping list."
+    },
+    "shopping": {
+        "button": "Add this week's items to the shopping list",
+        "empty": "No lunchbox with contents this week.",
+        "added_one": "{{count}} item added to the shopping list",
+        "added_other": "{{count}} items added to the shopping list",
+        "skipped_one": "{{count}} item already on the list",
+        "skipped_other": "{{count}} items already on the list",
+        "alreadyThere": "Already on the list"
+    },
+    "tracking": {
+        "frequent": "Most frequent items — last 60 days",
+        "nothingYet": "Nothing yet.",
+        "none": "No lunchbox logged in the last 60 days.",
+        "total_one": "{{count}} lunchbox over the period.",
+        "total_other": "{{count}} lunchboxes over the period.",
+        "history": "Recent history",
+        "noHistory": "No history yet for {{name}}.",
+        "noMembers": "Add family members first to track lunchboxes.",
+        "loadError": "Unable to load the tracking."
+    },
+    "ai": {
+        "title": "Suggest a lunchbox with AI",
+        "description": "Say what is at home, the assistant proposes up to 3 ready-to-pack lunchboxes.",
+        "add": "Add",
+        "remove": "Remove {{name}}",
+        "mains": "Dishes / leftovers",
+        "mainsPlaceholder": "e.g. leftover chicken, rice, tuna wrap",
+        "fruits": "Fruit / vegetables",
+        "fruitsPlaceholder": "e.g. apple, clementine, carrot",
+        "snacks": "Snacks",
+        "snacksPlaceholder": "e.g. fruit puree, biscuit, cheese",
+        "drinks": "Drinks",
+        "drinksPlaceholder": "e.g. water, apple juice, milk",
+        "location": "Where it will be eaten",
+        "context": "Context of the day (optional)",
+        "contextPlaceholder": "e.g. sports outing, hot day",
+        "generate": "Generate 3 ideas",
+        "generating": "Generating…",
+        "regenerate": "Generate again",
+        "useIdea": "Use this idea",
+        "applied": "Applied",
+        "mainLabel": "Main:",
+        "fruitLabel": "Fruit:",
+        "snackLabel": "Snack:",
+        "drinkLabel": "Drink:",
+        "hintFor": "for {{name}}",
+        "hintItems_one": "{{count}} item available",
+        "hintItems_other": "{{count}} items available",
+        "errors": {
+            "minItem": "List at least one available food (dish, fruit, snack or drink).",
+            "generate": "Could not generate ideas."
+        },
+        "locations": {
+            "school": "School",
+            "daycare": "Daycare / nursery",
+            "outing": "Outing / picnic",
+            "work": "Work",
+            "travel": "Travel",
+            "other": "Other"
+        }
+    },
+    "nutrition": {
+        "button": "Analyse the week",
+        "title": "Nutritional read of the week",
+        "description": "The planned meals and the lunchboxes, read by the assistant.",
+        "analyzing": "Reading the week…",
+        "failed": "Could not analyse the week.",
+        "empty": "Nothing is planned this week yet.",
+        "mealsAnalyzed_one": "{{count}} meal analysed",
+        "mealsAnalyzed_other": "{{count}} meals analysed",
+        "strengths": "Strengths",
+        "weaknesses": "To improve",
+        "missingGroups": "Under-represented groups",
+        "recommendations": "Recommendations",
+        "rerun": "Analyse again",
+        "verdicts": {
+            "excellent": "Excellent",
+            "good": "Good",
+            "needs_improvement": "Needs work",
+            "unbalanced": "Unbalanced"
+        }
+    }
+}

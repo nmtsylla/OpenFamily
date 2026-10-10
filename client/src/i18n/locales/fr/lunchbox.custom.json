@@ -1,0 +1,129 @@
+{
+    "nav": {
+        "lunchboxes": "Boîtes à lunch",
+        "mobileLunchboxes": "Boîtes à lunch"
+    },
+    "title": "Boîtes à lunch",
+    "subtitle": "Une boîte par enfant et par jour, et ce que vous préparez vraiment au fil du temps",
+    "thisWeek": "Cette semaine",
+    "weekOf": "Semaine du {{start}} au {{end}}",
+    "confirmDelete": "Supprimer cette boîte à lunch ?",
+    "tabs": {
+        "planning": "Planning",
+        "tracking": "Suivi"
+    },
+    "grid": {
+        "label": "Boîte à lunch",
+        "add": "Ajouter une boîte à lunch",
+        "noMembers": "Ajoutez d'abord des membres de la famille pour planifier des boîtes à lunch."
+    },
+    "form": {
+        "editTitle": "Modifier la boîte à lunch",
+        "newTitle": "Préparer une boîte à lunch",
+        "description": "Pour le {{date}}",
+        "child": "Enfant",
+        "main": "Plat principal",
+        "mainPlaceholder": "ex. sandwich jambon-fromage",
+        "fruit": "Fruit ou légume",
+        "fruitPlaceholder": "ex. clémentine",
+        "snack": "Collation",
+        "snackPlaceholder": "ex. barre de céréales",
+        "drink": "Boisson",
+        "drinkPlaceholder": "ex. jus de pomme",
+        "notes": "Notes (facultatif)",
+        "notesPlaceholder": "Allergie, envie du jour…",
+        "prepare": "Préparer",
+        "aiPrompt": "Pas d'idée ? Générez une suggestion à partir de ce que vous avez à la maison.",
+        "suggest": "Suggérer"
+    },
+    "errors": {
+        "load": "Impossible de charger les boîtes à lunch.",
+        "save": "Impossible d'enregistrer cette boîte à lunch.",
+        "delete": "Impossible de supprimer cette boîte à lunch.",
+        "selectChild": "Choisissez un enfant.",
+        "emptyBox": "Remplissez au moins un élément (plat, fruit, collation ou boisson).",
+        "shopping": "Impossible de construire la liste de courses."
+    },
+    "shopping": {
+        "button": "Ajouter les articles de la semaine à la liste de courses",
+        "empty": "Aucune boîte à lunch remplie cette semaine.",
+        "added_one": "{{count}} article ajouté à la liste de courses",
+        "added_other": "{{count}} articles ajoutés à la liste de courses",
+        "skipped_one": "{{count}} article déjà sur la liste",
+        "skipped_other": "{{count}} articles déjà sur la liste",
+        "alreadyThere": "Déjà sur la liste"
+    },
+    "tracking": {
+        "frequent": "Articles les plus fréquents — 60 derniers jours",
+        "nothingYet": "Rien pour l'instant.",
+        "none": "Aucune boîte à lunch enregistrée ces 60 derniers jours.",
+        "total_one": "{{count}} boîte à lunch sur la période.",
+        "total_other": "{{count}} boîtes à lunch sur la période.",
+        "history": "Historique récent",
+        "noHistory": "Aucun historique pour {{name}}.",
+        "noMembers": "Ajoutez d'abord des membres de la famille pour suivre les boîtes à lunch.",
+        "loadError": "Impossible de charger le suivi."
+    },
+    "ai": {
+        "title": "Suggérer une boîte à lunch avec l'IA",
+        "description": "Dites ce que vous avez à la maison : l'assistant propose jusqu'à 3 boîtes à lunch prêtes à emporter.",
+        "add": "Ajouter",
+        "remove": "Retirer {{name}}",
+        "mains": "Plats / restes",
+        "mainsPlaceholder": "ex. reste de poulet, riz, wrap au thon",
+        "fruits": "Fruits / légumes",
+        "fruitsPlaceholder": "ex. pomme, clémentine, carotte",
+        "snacks": "Collations",
+        "snacksPlaceholder": "ex. compote, biscuit, fromage",
+        "drinks": "Boissons",
+        "drinksPlaceholder": "ex. eau, jus de pomme, lait",
+        "location": "Lieu de consommation",
+        "context": "Contexte du jour (facultatif)",
+        "contextPlaceholder": "ex. sortie sportive, journée chaude",
+        "generate": "Générer 3 idées",
+        "generating": "Génération…",
+        "regenerate": "Regénérer",
+        "useIdea": "Utiliser cette idée",
+        "applied": "Appliquée",
+        "mainLabel": "Plat :",
+        "fruitLabel": "Fruit :",
+        "snackLabel": "Collation :",
+        "drinkLabel": "Boisson :",
+        "hintFor": "pour {{name}}",
+        "hintItems_one": "{{count}} aliment disponible",
+        "hintItems_other": "{{count}} aliments disponibles",
+        "errors": {
+            "minItem": "Indiquez au moins un aliment disponible (plat, fruit, collation ou boisson).",
+            "generate": "Impossible de générer des idées."
+        },
+        "locations": {
+            "school": "École",
+            "daycare": "Crèche / garderie",
+            "outing": "Sortie / pique-nique",
+            "work": "Travail",
+            "travel": "Voyage",
+            "other": "Autre"
+        }
+    },
+    "nutrition": {
+        "button": "Analyser la semaine",
+        "title": "Lecture nutritionnelle de la semaine",
+        "description": "Les repas planifiés et les boîtes à lunch, relus par l'assistant.",
+        "analyzing": "Lecture de la semaine…",
+        "failed": "Impossible d'analyser la semaine.",
+        "empty": "Rien n'est encore planifié cette semaine.",
+        "mealsAnalyzed_one": "{{count}} repas analysé",
+        "mealsAnalyzed_other": "{{count}} repas analysés",
+        "strengths": "Points forts",
+        "weaknesses": "À améliorer",
+        "missingGroups": "Groupes sous-représentés",
+        "recommendations": "Recommandations",
+        "rerun": "Analyser à nouveau",
+        "verdicts": {
+            "excellent": "Excellent",
+            "good": "Bon",
+            "needs_improvement": "À améliorer",
+            "unbalanced": "Déséquilibré"
+        }
+    }
+}

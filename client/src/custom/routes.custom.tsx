@@ -16,11 +16,17 @@
 import React from 'react';
 import { Navigate, Route } from 'react-router-dom';
 import BudgetAnalytics from './pages/BudgetAnalytics.custom';
+import Lunchboxes from './pages/Lunchboxes.custom';
 
 export const customRoutes = (isModuleEnabled: (key: string) => boolean): React.ReactElement[] => [
     <Route
         key="budget-analytics"
         path="/budget-analytics"
         element={isModuleEnabled('budgetAnalytics') ? <BudgetAnalytics /> : <Navigate to="/" replace />}
+    />,
+    <Route
+        key="lunchboxes"
+        path="/lunchboxes"
+        element={isModuleEnabled('lunchbox') ? <Lunchboxes /> : <Navigate to="/" replace />}
     />,
 ];

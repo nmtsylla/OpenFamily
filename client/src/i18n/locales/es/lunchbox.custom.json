@@ -1,0 +1,129 @@
+{
+    "nav": {
+        "lunchboxes": "Fiambreras",
+        "mobileLunchboxes": "Fiambreras"
+    },
+    "title": "Fiambreras",
+    "subtitle": "Una fiambrera por niño y día, y lo que de verdad preparas con el tiempo",
+    "thisWeek": "Esta semana",
+    "weekOf": "Semana del {{start}} al {{end}}",
+    "confirmDelete": "¿Eliminar esta fiambrera?",
+    "tabs": {
+        "planning": "Planificación",
+        "tracking": "Seguimiento"
+    },
+    "grid": {
+        "label": "Fiambrera",
+        "add": "Añadir una fiambrera",
+        "noMembers": "Añade primero miembros de la familia para planificar fiambreras."
+    },
+    "form": {
+        "editTitle": "Editar la fiambrera",
+        "newTitle": "Preparar una fiambrera",
+        "description": "Para el {{date}}",
+        "child": "Niño/a",
+        "main": "Plato principal",
+        "mainPlaceholder": "p. ej. bocadillo de jamón y queso",
+        "fruit": "Fruta o verdura",
+        "fruitPlaceholder": "p. ej. clementina",
+        "snack": "Merienda",
+        "snackPlaceholder": "p. ej. barrita de cereales",
+        "drink": "Bebida",
+        "drinkPlaceholder": "p. ej. zumo de manzana",
+        "notes": "Notas (opcional)",
+        "notesPlaceholder": "Alergia, antojo del día…",
+        "prepare": "Preparar",
+        "aiPrompt": "¿Sin ideas? Genera una sugerencia con lo que tienes en casa.",
+        "suggest": "Sugerir"
+    },
+    "errors": {
+        "load": "No se pudieron cargar las fiambreras.",
+        "save": "No se pudo guardar esta fiambrera.",
+        "delete": "No se pudo eliminar esta fiambrera.",
+        "selectChild": "Elige un niño o una niña.",
+        "emptyBox": "Rellena al menos un elemento (plato, fruta, merienda o bebida).",
+        "shopping": "No se pudo crear la lista de la compra."
+    },
+    "shopping": {
+        "button": "Añadir a la lista de la compra los artículos de la semana",
+        "empty": "Ninguna fiambrera rellena esta semana.",
+        "added_one": "{{count}} artículo añadido a la lista de la compra",
+        "added_other": "{{count}} artículos añadidos a la lista de la compra",
+        "skipped_one": "{{count}} artículo ya estaba en la lista",
+        "skipped_other": "{{count}} artículos ya estaban en la lista",
+        "alreadyThere": "Ya está en la lista"
+    },
+    "tracking": {
+        "frequent": "Artículos más frecuentes — últimos 60 días",
+        "nothingYet": "Nada todavía.",
+        "none": "Ninguna fiambrera registrada en los últimos 60 días.",
+        "total_one": "{{count}} fiambrera en el periodo.",
+        "total_other": "{{count}} fiambreras en el periodo.",
+        "history": "Historial reciente",
+        "noHistory": "Todavía no hay historial para {{name}}.",
+        "noMembers": "Añade primero miembros de la familia para hacer seguimiento.",
+        "loadError": "No se pudo cargar el seguimiento."
+    },
+    "ai": {
+        "title": "Sugerir una fiambrera con IA",
+        "description": "Di qué tienes en casa y el asistente propone hasta 3 fiambreras listas para llevar.",
+        "add": "Añadir",
+        "remove": "Quitar {{name}}",
+        "mains": "Platos / sobras",
+        "mainsPlaceholder": "p. ej. pollo sobrante, arroz, wrap de atún",
+        "fruits": "Frutas / verduras",
+        "fruitsPlaceholder": "p. ej. manzana, clementina, zanahoria",
+        "snacks": "Meriendas",
+        "snacksPlaceholder": "p. ej. puré de fruta, galleta, queso",
+        "drinks": "Bebidas",
+        "drinksPlaceholder": "p. ej. agua, zumo de manzana, leche",
+        "location": "Dónde se va a comer",
+        "context": "Contexto del día (opcional)",
+        "contextPlaceholder": "p. ej. salida deportiva, día de calor",
+        "generate": "Generar 3 ideas",
+        "generating": "Generando…",
+        "regenerate": "Generar de nuevo",
+        "useIdea": "Usar esta idea",
+        "applied": "Aplicada",
+        "mainLabel": "Plato:",
+        "fruitLabel": "Fruta:",
+        "snackLabel": "Merienda:",
+        "drinkLabel": "Bebida:",
+        "hintFor": "para {{name}}",
+        "hintItems_one": "{{count}} alimento disponible",
+        "hintItems_other": "{{count}} alimentos disponibles",
+        "errors": {
+            "minItem": "Indica al menos un alimento disponible (plato, fruta, merienda o bebida).",
+            "generate": "No se pudieron generar ideas."
+        },
+        "locations": {
+            "school": "Colegio",
+            "daycare": "Guardería",
+            "outing": "Excursión / pícnic",
+            "work": "Trabajo",
+            "travel": "Viaje",
+            "other": "Otro"
+        }
+    },
+    "nutrition": {
+        "button": "Analizar la semana",
+        "title": "Lectura nutricional de la semana",
+        "description": "Las comidas planificadas y las fiambreras, revisadas por el asistente.",
+        "analyzing": "Leyendo la semana…",
+        "failed": "No se pudo analizar la semana.",
+        "empty": "Todavía no hay nada planificado esta semana.",
+        "mealsAnalyzed_one": "{{count}} comida analizada",
+        "mealsAnalyzed_other": "{{count}} comidas analizadas",
+        "strengths": "Puntos fuertes",
+        "weaknesses": "A mejorar",
+        "missingGroups": "Grupos poco representados",
+        "recommendations": "Recomendaciones",
+        "rerun": "Analizar de nuevo",
+        "verdicts": {
+            "excellent": "Excelente",
+            "good": "Bien",
+            "needs_improvement": "Mejorable",
+            "unbalanced": "Desequilibrado"
+        }
+    }
+}
