@@ -318,4 +318,9 @@ dotenv never overrides a variable that is already set, so pinning is enough.
   either case. Clicking "Other ideas" swapped in four new bank ideas within
   ~170 ms with the hint shown again. On a warm in-process cache both model phases
   answer in 120-189 ms. Screenshots and the request timeline:
-  `/tmp/poteto/dashboard-first-paint.png`, `/tmp/poteto/dashboard-after-regenerate.png`
+  `/tmp/poteto/shot-dashboard-first-paint.webp`,
+  `/tmp/poteto/shot-dashboard-after-regenerate.webp`
+- Lunchbox AI dialog, same instance. Three generated ideas landed 20-50 s after
+  the request, and clicking "Generate again" kept all twelve idea lines on screen
+  at 0.8 s, 6.8 s and 27 s while the button showed its spinner
+  (`/tmp/poteto/shot-lunchbox-regenerate.webp`)

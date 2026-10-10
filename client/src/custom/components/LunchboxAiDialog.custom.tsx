@@ -186,7 +186,10 @@ export const LunchboxAiDialog: React.FC<Props> = ({ open, onOpenChange, familyMe
         }
         setError('');
         setGenerating(true);
-        setIdeas([]);
+        // The previous ideas stay on screen: the model takes 15-60 s at the
+        // gateway, and emptying the list turns "give me other ideas" into the
+        // same wait with nothing to read. Only the applied index resets, since
+        // it points into the list that is about to be replaced.
         setAppliedIdx(null);
         try {
             localStorage.setItem(
