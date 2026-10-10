@@ -195,6 +195,19 @@ Earlier the checkout carried symlinked `node_modules` into a sibling worktree
 because `/home` was full; they are gone — a real install now exists, and the
 lockfile is this fork's own.
 
+Since this checkout is also the deployment, `.env` holds the **live** instance
+config and `server/src/config/loadEnv.ts` loads it through dotenv (it reads
+`cwd/.env` and `cwd/../.env`). Running the server locally therefore inherits
+`CUSTOM_POSTGRES_SSL=verify-full` and `REGISTRATION_ENABLED=false` from
+production. Pin what differs for a throwaway database, e.g.:
+
+```bash
+cd server && CUSTOM_POSTGRES_SSL=disable REGISTRATION_ENABLED=true \
+  POSTGRES_HOST=127.0.0.1 POSTGRES_PASSWORD=… JWT_SECRET=… npx tsx src/index.ts
+```
+
+dotenv never overrides a variable that is already set, so pinning is enough.
+
 ## Verification performed on this port
 
 - `npm ci` at the root installs the lockfile (772 packages), then `npm run build`
