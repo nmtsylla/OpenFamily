@@ -14,6 +14,7 @@ import {
     type ClothingSuggestionDTO,
     type ForecastDTO,
     type GeoOverride,
+    type WidgetPhaseStatus,
 } from '../hooks/useWeather.custom';
 import WeatherDetailsDialog from './WeatherDetailsDialog.custom';
 
@@ -258,6 +259,7 @@ const WeatherClothingCard: React.FC<Props> = ({ override, onOverrideChange }) =>
                             <KidsSuggestions
                                 kids={data.kids}
                                 suggestions={data.suggestions}
+                                status={query.status}
                                 aiUnavailable={!!data.aiUnavailable}
                             />
                         )}
@@ -344,8 +346,10 @@ const WeatherTile: React.FC<{
 const KidsSuggestions: React.FC<{
     kids: ClothingKidDTO[];
     suggestions: ClothingSuggestionDTO[];
+    /** What the model phase is doing. The weather itself is already on screen. */
+    status: WidgetPhaseStatus;
     aiUnavailable: boolean;
-}> = ({ kids, suggestions, aiUnavailable }) => {
+}> = ({ kids, suggestions, status, aiUnavailable }) => {
     const { t } = useTranslation('weather.custom');
     const byKidId = useMemo(() => {
         const m = new Map<string, ClothingSuggestionDTO>();
@@ -370,9 +374,17 @@ const KidsSuggestions: React.FC<{
                             </span>
                         </div>
 
-                        {aiUnavailable || !suggestion ? (
+                        {status === 'thinking' && !suggestion ? (
+                            // The outfit waits on the model; the weather above is
+                            // already the answer, so the wait shows as a
+                            // placeholder, not as "no suggestion".
+                            <div className="animate-pulse space-y-2 pt-0.5">
+                                <div className="h-4 w-3/4 rounded bg-surface-2" />
+                                <div className="h-4 w-1/2 rounded bg-surface-2" />
+                            </div>
+                        ) : status !== 'ready' || aiUnavailable || !suggestion ? (
                             <p className="text-micro italic text-muted-foreground">
-                                {t('noSuggestion')}
+                                {t(status === 'failed' ? 'degraded.generic' : 'noSuggestion')}
                             </p>
                         ) : (
                             <SuggestionPills suggestion={suggestion} />

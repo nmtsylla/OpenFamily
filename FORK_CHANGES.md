@@ -14,10 +14,11 @@ upstream tree (that tree is kept for reference at `/home/bsylla/OpenFamily-budge
 where the same features were spread over 50 upstream files and ~9000 inserted
 lines). Here they live in `custom/` locations with a single hook per upstream file.
 
-Measured divergence of this port: **34 upstream files touched, 1479 insertions,
-20 modified lines** (measured 2026-10-10, `git diff --numstat upstream/main` over
-the files that exist upstream; the lunchbox port added 255 insertions and one
-modified line to the previous 1224/19). Every touched upstream file carries
+Measured divergence of this port: **34 upstream files touched, 1504 insertions,
+24 modified lines** (measured 2026-10-10, `git diff --numstat upstream/main` over
+the files that exist upstream; the two-phase dashboard fix added 25 insertions and
+four modified lines to the previous 1479/20, which itself followed the lunchbox
+port at 1224/19). Every touched upstream file carries
 `FORK-START/END` markers except the three that cannot hold comments
 (`.env.example`, `package-lock.json`, `server/package.json` — each explained
 below).
@@ -105,10 +106,11 @@ otherwise.
 
 ### Modified (non-additive) upstream lines — the complete list
 
-Only 19 lines in 12 files, all wrapped in markers:
+Only 23 lines in 13 files, all wrapped in markers:
 
 | File | Lines | What |
 |------|-------|------|
+| `server/src/services/ai/index.ts` | 4 | the four provider calls in `aiCompleteWithUsage` pass the request with the no-deliberation line appended |
 | `server/src/routes/auth.ts` | 2 re-indented | The avatar data-URL format/size checks are skipped for an `s3:` reference (wrapped in `if (!isMediaRef(...))`) |
 | `server/src/services/ai/openai.ts` | 2 | `chatCompletionUrl(baseUrl)`, `messageContent(request)` |
 | `server/src/services/ai/anthropic.ts` | 2 | `max_tokens` 2048 → 4096; user content carries attachments |
@@ -119,6 +121,45 @@ Only 19 lines in 12 files, all wrapped in markers:
 | `client/src/contexts/AuthContext.tsx` | 1 | `DASHBOARD_WIDGETS` lists the custom widget keys |
 | `README.md`, `README.fr.md`, `README.zh-CN.md` | 1 each | Feature row appended to the budget line |
 | `ROADMAP.md` | 2 | The receipt-import bullet |
+
+## Measured latency of the AI dashboard widgets
+
+The two dashboard widgets are the only AI calls a member waits on with an empty
+card, so they were measured end to end (2026-10-10, live instance, French UI,
+provider `openai` against `opencode.ai/zen/go`, model `deepseek-v4.1-flash`).
+
+Route durations from the server log, before any change:
+
+| Route | Duration |
+|-------|----------|
+| `POST /kids-activities` | 28.1 s, and one 60.2 s (the shared `AI_TIMEOUT_MS` giving up) |
+| `POST /clothing-suggestions` | 17.8 s (209 ms on a cache hit) |
+
+One request to the gateway with the real prompt and no cap returned
+`prompt_tokens: 533` (256 of them cached) and `completion_tokens: 3456`, of which
+`reasoning_tokens: 2796`. Four fifths of the generated tokens were the model
+deliberating before it wrote anything, and the wall time tracks completion tokens,
+not prompt size (the JSON itself is ~700 tokens).
+
+Four concurrent runs of the same prompt, English and French, with and without one
+appended line:
+
+| Run | reasoning tokens | completion tokens | wall |
+|-----|-----------------|-------------------|------|
+| en, as-is | 1974 | 2813 | 60.8 s |
+| en, + no-deliberation line | 0 | 760 | 17.8 s |
+| fr, as-is | 5078 | 5971 | 62.2 s |
+| fr, + no-deliberation line | 384 | 1305 | 12.3 s |
+
+Every arm returned valid JSON. Three further sequential runs of the directive
+prompt gave 17.1 s / 44.4 s / 85.9 s (reasoning 684 / 1241 / 4043), so the line
+reduces deliberation at the median but does not switch it off, and the spread is
+wide. The gateway is what bounds this number. That is why the second half of the
+fix does not depend on it: both widget routes answer a first phase (`instant:
+true`) with the context and, for activities, the offline bank, and the dashboard
+paints that in ~200 ms before asking for the model's answer (see
+`routes/aiDashboard.custom.ts` and `useWidgetPhases` in
+`client/src/custom/hooks/useWeather.custom.ts`).
 
 ## Dependency changes
 
@@ -267,3 +308,14 @@ dotenv never overrides a variable that is already set, so pinning is enough.
 - Browser: the analytics page renders in demo mode (nav entry, i18n labels,
   demo-derived numbers, no console errors) — this is the check that catches
   `<Routes>` children violations, which neither `tsc` nor the build can see
+- Two-phase dashboard widgets, on the live instance with a cold server cache
+  (`docker compose restart server`, real account, headless Chromium against
+  `http://127.0.0.1:8200`): the two `instant` requests land at 211 ms and 227 ms
+  and the activities card shows four bank ideas with the "more ideas on the way"
+  hint; the model phase returns 23.6 s later for the outfits, and the activities
+  model call timed out at the 60 s `AI_TIMEOUT_MS`, which left the same ideas on
+  screen under the card's "offline ideas" wording. The ideas never blanked in
+  either case. Clicking "Other ideas" swapped in four new bank ideas within
+  ~170 ms with the hint shown again. On a warm in-process cache both model phases
+  answer in 120-189 ms. Screenshots and the request timeline:
+  `/tmp/poteto/dashboard-first-paint.png`, `/tmp/poteto/dashboard-after-regenerate.png`

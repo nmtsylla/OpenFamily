@@ -238,23 +238,86 @@ const geoKey = (override: GeoOverride | null): string =>
     override ? `${override.latitude.toFixed(2)},${override.longitude.toFixed(2)}` : 'saved';
 
 /**
+ * One widget, two phases. The fast phase carries what needs no model at all
+ * (weather, kids, the offline activity bank) and lands in a couple of hundred
+ * milliseconds; the slow one carries the model's answer and can take anywhere
+ * from a few seconds to a minute at the gateway. Painting the fast phase first
+ * is what keeps the card useful while the model thinks.
+ *
+ * A regenerate re-runs both phases for the new key, and while they run the
+ * payload already on screen stays there, so the card never blanks under the
+ * reader. `status` says what the model phase is doing, which is the only thing
+ * the card cannot tell from the payload.
+ */
+export type WidgetPhaseStatus = 'thinking' | 'failed' | 'ready';
+
+export interface WidgetResult<T> extends AsyncResult<T> {
+    status: WidgetPhaseStatus;
+}
+
+const postWidget = async <T>(
+    path: string,
+    body: Record<string, unknown>,
+    guard: (value: unknown) => value is T,
+): Promise<T | null> => {
+    const response = await api.post<{ success: boolean; data: unknown }>(path, body);
+    return guard(response.data) ? response.data : null;
+};
+
+function useWidgetPhases<T>(
+    key: string,
+    fast: () => Promise<T | null>,
+    slow: () => Promise<T | null>,
+    enabled: boolean,
+): WidgetResult<T | null> {
+    const context = useCachedQuery(`${key}:context`, fast, enabled);
+    const model = useCachedQuery(`${key}:model`, slow, enabled);
+
+    // A phase counts for the current key only once it has stopped loading.
+    // While it is in flight, its data still belongs to the previous key.
+    const fresh = (model.loading ? null : model.data) ?? (context.loading ? null : context.data);
+    const data = fresh ?? model.data ?? context.data;
+
+    const refetch = useCallback(() => {
+        context.refetch();
+        model.refetch();
+    }, [context.refetch, model.refetch]);
+
+    return {
+        data,
+        // With something on screen there is no failure to report: stale ideas
+        // beat an error card.
+        error: data ? null : (model.error ?? context.error),
+        loading: !data && (context.loading || model.loading),
+        status: !enabled || (!model.loading && !model.error)
+            ? 'ready'
+            : model.loading
+              ? 'thinking'
+              : 'failed',
+        refetch,
+    };
+}
+
+/**
  * The target day's forecast plus one outfit per child.
  *
  * `enabled` false when the member has neither a saved city nor a session
  * geolocation fix — the card renders its empty state instead of asking.
  */
-export function useDashboardWeather(override: GeoOverride | null, enabled: boolean): AsyncResult<DashboardWeatherDTO | null> {
-    return useCachedQuery(
-        // The copy is generated server-side, so the language belongs in the key:
-        // switching the interface must not serve the previous language.
-        `weather-clothing:${widgetLanguage()}:${geoKey(override)}`,
-        async () => {
-            const response = await api.post<{ success: boolean; data: DashboardWeatherDTO }>(
+export function useDashboardWeather(override: GeoOverride | null, enabled: boolean): WidgetResult<DashboardWeatherDTO | null> {
+    // The copy is generated server-side, so the language belongs in the key:
+    // switching the interface must not serve the previous language.
+    const key = `weather-clothing:${widgetLanguage()}:${geoKey(override)}`;
+    const body = { ...(override ?? {}), lang: widgetLanguage() };
+    return useWidgetPhases(
+        key,
+        () =>
+            postWidget(
                 '/api/ai/dashboard/clothing-suggestions',
-                { ...(override ?? {}), lang: widgetLanguage() },
-            );
-            return isDashboardWeather(response.data) ? response.data : null;
-        },
+                { ...body, instant: true },
+                isDashboardWeather,
+            ),
+        () => postWidget('/api/ai/dashboard/clothing-suggestions', body, isDashboardWeather),
         enabled,
     );
 }
@@ -282,25 +345,25 @@ export function useWeeklyForecast(
  * Screen-free ideas for the target day. `exclude` carries the titles already
  * shown, so "other ideas" asks the model for something new rather than rotating
  * the same four all summer.
+ *
+ * The fast phase answers with the server's offline bank, which needs no model
+ * call, so the card has real ideas to show while the model writes its own.
  */
 export function useKidsActivities(
     override: GeoOverride | null,
     exclude: string[],
     enabled: boolean,
-): AsyncResult<KidsActivitiesDTO | null> {
-    return useCachedQuery(
-        `activities:${widgetLanguage()}:${geoKey(override)}:${[...exclude].sort().join('~')}`,
-        async () => {
-            const response = await api.post<{ success: boolean; data: KidsActivitiesDTO }>(
-                '/api/ai/dashboard/kids-activities',
-                {
-                    ...(override ?? {}),
-                    lang: widgetLanguage(),
-                    ...(exclude.length > 0 ? { exclude } : {}),
-                },
-            );
-            return isKidsActivities(response.data) ? response.data : null;
-        },
+): WidgetResult<KidsActivitiesDTO | null> {
+    const key = `activities:${widgetLanguage()}:${geoKey(override)}:${[...exclude].sort().join('~')}`;
+    const body = {
+        ...(override ?? {}),
+        lang: widgetLanguage(),
+        ...(exclude.length > 0 ? { exclude } : {}),
+    };
+    return useWidgetPhases(
+        key,
+        () => postWidget('/api/ai/dashboard/kids-activities', { ...body, instant: true }, isKidsActivities),
+        () => postWidget('/api/ai/dashboard/kids-activities', body, isKidsActivities),
         enabled,
     );
 }

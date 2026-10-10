@@ -193,7 +193,16 @@ const KidsActivitiesCard: React.FC<Props> = ({ override }) => {
                             <span>{dayContextHeading(data.dayContext, t)}</span>
                             <span>·</span>
                             <span>{t('subtitle', { count: data.activities.length })}</span>
-                            {data.aiUnavailable && data.code && (
+                            {/* The bank answers in ~200 ms while the model can take
+                                a minute; the ideas are real either way, and this
+                                says which ones the reader is looking at. */}
+                            {query.status === 'thinking' && (
+                                <span className="ml-1 italic">· {t('thinkingMore')}</span>
+                            )}
+                            {query.status === 'failed' && (
+                                <span className="ml-1 italic">· {t('degradedOffline')}</span>
+                            )}
+                            {query.status === 'ready' && data.aiUnavailable && data.code && (
                                 <span className="ml-1 italic">
                                     · {t(DEGRADED_LABEL_KEY[data.code] ?? 'degradedOffline')}
                                 </span>

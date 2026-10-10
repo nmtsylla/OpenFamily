@@ -269,6 +269,16 @@ router.post('/clothing-suggestions', async (req: AuthRequest, res) => {
             });
         }
 
+        // First phase of the card, asked for with `instant: true`. It carries
+        // the context and the weather and makes no model call, so a slow model
+        // never holds the whole card blank.
+        if (req.body?.instant === true) {
+            return res.json({
+                success: true,
+                data: { ...base, suggestions: [], cached: false, model: '' },
+            });
+        }
+
         const settings = await loadEnabledAiSettings(req.userId!);
         if (!settings) {
             return res.json({
@@ -356,23 +366,27 @@ router.post('/kids-activities', async (req: AuthRequest, res) => {
         };
 
         const kidInputs = toKidInputs(ctx.kids);
-        const fallback = () => ({
-            ...base,
-            // Bank ideas come back as ids + material slugs: the client renders
-            // them through i18n, so the offline card is in the reader's language
-            // too (no per-language copy of the bank on the server).
-            activities: ctx.kids.length === 0
+        // Rain, strong wind or cold → keep the ideas indoors.
+        const outdoorOk =
+            ctx.summary.precipBucket === 'none' &&
+            ctx.summary.windyBucket !== 'windy' &&
+            ctx.summary.tempMax >= 12;
+        // Bank ideas come back as ids + material slugs: the client renders them
+        // through i18n, so the offline card is in the reader's language too (no
+        // per-language copy of the bank on the server). The degraded path and
+        // the instant phase serve this exact list.
+        const bankActivities =
+            ctx.kids.length === 0
                 ? []
                 : pickFallbackActivities({
                       kids: ctx.kids.map((k) => ({ id: k.id, ageYears: k.ageYears })),
-                      // Rain, strong wind or cold → keep the ideas indoors.
-                      outdoorOk:
-                          ctx.summary.precipBucket === 'none' &&
-                          ctx.summary.windyBucket !== 'windy' &&
-                          ctx.summary.tempMax >= 12,
+                      outdoorOk,
                       dateKey: ctx.dayContext.date,
                       exclude,
-                  }),
+                  });
+        const fallback = () => ({
+            ...base,
+            activities: bankActivities,
             cached: false,
             model: '',
             aiUnavailable: true,
@@ -382,6 +396,19 @@ router.post('/kids-activities', async (req: AuthRequest, res) => {
             return res.json({
                 success: true,
                 data: { ...base, activities: [], cached: false, model: '' },
+            });
+        }
+
+        // First phase of the card, asked for with `instant: true`. It carries
+        // the context and the offline bank and makes no model call, so the
+        // reader sees real ideas instead of a skeleton for the 15-60 s a model
+        // answer takes. Not `aiUnavailable`: the model has not been asked yet,
+        // and the client shows its own "more ideas coming" state from the second
+        // request being in flight.
+        if (req.body?.instant === true) {
+            return res.json({
+                success: true,
+                data: { ...base, activities: bankActivities, cached: false, model: '' },
             });
         }
 
