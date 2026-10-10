@@ -51,6 +51,15 @@ services:
       SMTP_PASS: ${SMTP_PASS:-}
       MAIL_FROM: ${MAIL_FROM:-}
       SUPPORT_EMAIL: ${SUPPORT_EMAIL:-}
+      # FORK-START: deploy
+      # Weather (Open-Meteo) — key-less, so these only matter to point at a
+      # mirror or lengthen the server-side cache. Unset = the built-in defaults.
+      CUSTOM_OPEN_METEO_BASE_URL: ${CUSTOM_OPEN_METEO_BASE_URL:-https://api.open-meteo.com/v1/forecast}
+      CUSTOM_OPEN_METEO_GEOCODING_URL: ${CUSTOM_OPEN_METEO_GEOCODING_URL:-https://geocoding-api.open-meteo.com/v1/search}
+      CUSTOM_WEATHER_DEFAULT_LANG: ${CUSTOM_WEATHER_DEFAULT_LANG:-fr}
+      CUSTOM_WEATHER_CACHE_TTL_MS: ${CUSTOM_WEATHER_CACHE_TTL_MS:-600000}
+      CUSTOM_WEATHER_REQUEST_TIMEOUT_MS: ${CUSTOM_WEATHER_REQUEST_TIMEOUT_MS:-8000}
+      # FORK-END: deploy
       APP_PUBLIC_URL: ${APP_PUBLIC_URL:-}
       ANDROID_CERT_SHA256: ${ANDROID_CERT_SHA256:-}
       ANDROID_PACKAGE_NAME: ${ANDROID_PACKAGE_NAME:-}

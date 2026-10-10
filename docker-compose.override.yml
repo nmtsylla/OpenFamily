@@ -1,0 +1,50 @@
+# =============================================================================
+#  Surcharges locales de cette instance (hôte homelab).
+#
+#  Gardé HORS du docker-compose.yml amont : `git pull` reste sans conflit.
+#  Compose charge ce fichier automatiquement.
+#
+#  Trois choix d'exploitation :
+#   1. Plus de PostgreSQL local : la base est le projet Neon `keurtonux`, base
+#      `openfamily` (voir POSTGRES_* dans .env, TLS verify-full), sur le même
+#      projet que KeurTonux mais une base à part.
+#   2. Seul le client est publié, et uniquement sur la loopback : l'accès passe
+#      par le tunnel Cloudflare (https://family.bsylla.com -> 8200).
+#   3. Pas de HTTPS à l'intérieur : le tunnel termine le TLS à la périphérie
+#      Cloudflare, nginx ne voit que du HTTP.
+# =============================================================================
+
+services:
+  # Base managée : plus de conteneur PostgreSQL à faire tourner ni de port
+  # 5432/5433 exposé sur l'hôte (déjà pris par la stack maiky).
+  postgres: !reset null
+
+  server:
+    environment:
+      # Le compose amont vise `postgres:5432` en clair ; ici la base est chez
+      # Neon, donc hôte/port/TLS viennent tous de .env.
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      CUSTOM_POSTGRES_SSL: ${CUSTOM_POSTGRES_SSL:-disable}
+      CUSTOM_POSTGRES_CONNECT_TIMEOUT_MS: ${CUSTOM_POSTGRES_CONNECT_TIMEOUT_MS:-2000}
+      # Images partent sur un bucket S3 (Scaleway) : sans ces variables elles
+      # restent stockées en `data:` URL dans PostgreSQL.
+      CUSTOM_MINIO_ENDPOINT: ${CUSTOM_MINIO_ENDPOINT:-}
+      CUSTOM_MINIO_ACCESS_KEY: ${CUSTOM_MINIO_ACCESS_KEY:-}
+      CUSTOM_MINIO_SECRET_KEY: ${CUSTOM_MINIO_SECRET_KEY:-}
+      CUSTOM_MINIO_BUCKET: ${CUSTOM_MINIO_BUCKET:-}
+      CUSTOM_MINIO_REGION: ${CUSTOM_MINIO_REGION:-}
+    # Aucun port d'hôte : l'API n'est jointe que par le client nginx, par le
+    # réseau Compose (server:3001).
+    ports: !override []
+    # La dépendance amont (`postgres`, service_healthy) n'a plus de cible.
+    depends_on: !reset []
+
+  client:
+    ports: !override
+      # 8200 = la cible du tunnel (family.bsylla.com). Loopback : c'est
+      # cloudflared, sur l'hôte, qui s'y connecte.
+      - '127.0.0.1:${CLIENT_PORT:-8200}:80'

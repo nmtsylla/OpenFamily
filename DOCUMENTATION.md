@@ -88,6 +88,21 @@ OpenFamily centralise l'ensemble de l'organisation d'un foyer en un seul outil. 
 - **Statistiques visuelles** avec graphiques (Recharts)
 - Assignation des dépenses à un membre de la famille
 - Vue mensuelle avec comparaison budget prévu vs réel
+<!-- FORK-START: docs -->
+- **Import de reçus et de factures** (photo ou PDF) : l'assistant IA lit le document, chaque
+  ligne du ticket devient une dépense dans **sa propre catégorie** (une facture sans détail
+  devient une seule dépense), tout est vérifiable avant l'enregistrement
+- **Mode « une seule écriture »** à l'import : pour une facture dont le détail ne sert pas,
+  une case à cocher n'inscrit que le total dans le budget — les lignes lues restent
+  enregistrées dans le détail du reçu
+- **Section « Reçus importés »** sous le budget : un reçu = une ligne (commerce, date, total),
+  dépliable pour voir article par article ce qui a été acheté ; supprimer un reçu supprime
+  aussi les écritures qu'il a créées
+- **Anti-doublon** : un même ticket (même commerce, même date, même montant) ne peut pas être
+  importé deux fois — l'écran de relecture le signale et l'enregistrement le refuse
+- Les lignes de tous les reçus restent en base, pour de futures analyses (par article, par
+  magasin, dans le temps)
+<!-- FORK-END: docs -->
 
 ### 👨‍👩‍👧‍👦 Gestion de la famille
 - Profil détaillé pour chaque membre : nom, date de naissance, couleur, avatar
@@ -112,6 +127,23 @@ OpenFamily centralise l'ensemble de l'organisation d'un foyer en un seul outil. 
 - Résumé des tâches en cours, prochains rendez-vous, budget du mois
 - **Personnalisable par membre** : chaque compte choisit les blocs affichés et leur ordre
 - Accès rapide à tous les modules
+<!-- FORK-START: docs -->
+### 🌤️ Météo, tenues et activités
+- **Ville de la famille** réglée dans les Paramètres (géocodage automatique) ou position
+  ponctuelle « Ma position » depuis la carte, jamais enregistrée
+- **Prévisions du jour ciblé** : le lendemain pendant l'année scolaire (pour préparer la
+  tenue du matin), le jour même le week-end et pendant les vacances d'été
+- **Détail de la semaine** : températures ressenties, lever/coucher du soleil, indice UV
+- **Tenue par enfant** : une suggestion adaptée à la météo et à l'âge, générée par votre
+  modèle IA (aucun modèle configuré = la carte montre la météo seule)
+- **Activités sans écran** les jours à la maison, avec bouton « Planifier » qui crée
+  l'entrée dans le planning (les créneaux déjà occupés sont refusés) ; sans IA
+  disponible, une banque d'idées hors ligne prend le relais
+- **Textes générés dans la langue de l'interface** (tenues et activités, IA comme
+  banque hors ligne) ; une langue non prise en charge retombe sur l'anglais
+- Prévisions fournies par [Open-Meteo](https://open-meteo.com) : **aucune clé d'API**,
+  aucun compte, aucune configuration requise
+<!-- FORK-END: docs -->
 
 ---
 
@@ -301,6 +333,8 @@ OpenFamily utilise **PostgreSQL 16** avec le schéma suivant :
 | `recipes` | Recettes (ingrédients et instructions en JSONB) |
 | `meal_plans` | Planning des repas (lié aux recettes) |
 | `budget_entries` | Revenus et dépenses |
+| `budget_receipts` | Reçus et factures importés (commerce, date, total, catégorie, empreinte anti-doublon) | <!-- FORK-START: docs -->
+| `budget_receipt_items` | Lignes détaillées de chaque reçu, conservées pour l'analyse | <!-- FORK-END: docs -->
 | `budget_limits` | Limites mensuelles par catégorie |
 | `notifications` | Notifications internes |
 | `push_subscriptions` | Abonnements push (Web Push / VAPID) |
@@ -317,6 +351,30 @@ OpenFamily utilise **PostgreSQL 16** avec le schéma suivant :
 - **JSONB** pour les données flexibles (ingrédients, instructions, items de template)
 
 ---
+
+<!-- FORK-START: docs -->
+## Stockage des images
+
+Les photos (avatar, recette, publication) arrivent du navigateur en `data:` URL,
+après redimensionnement côté client. Deux configurations possibles :
+
+| Configuration | Où vont les octets | Ce qui est stocké en base |
+|---|---|---|
+| Aucun bucket (`CUSTOM_MINIO_*` vides, défaut) | nulle part | la `data:` URL elle-même |
+| Bucket S3 configuré | le bucket (objet `media/<uuid>.<ext>`) | une référence `s3:<clé>` |
+
+Avec un bucket, les octets sont envoyés par le serveur au moment de la requête
+(`server/src/custom/lib/media.custom.ts`, appliqué à tout le corps de la requête avant les
+routes) et relus par **`GET /api/media/<clé>`**, dont la signature en query
+(`?exp=&sig=`) fait office d'authentification : une balise `<img>` ne peut pas
+porter l'en-tête `Authorization` du reste de l'API. Le bucket reste donc privé,
+aucune URL de stockage n'atteint le navigateur, et un lien expire au bout de
+7 jours. Tout service compatible S3 convient (MinIO, Scaleway Object Storage,
+AWS S3, OVH) : seul le bloc `CUSTOM_MINIO_*` change.
+
+Sans bucket, le comportement est celui d'origine : les images vivent en base, au
+prix d'une base plus grosse et de sauvegardes plus lourdes.
+<!-- FORK-END: docs -->
 
 ## Sécurité
 

@@ -26,7 +26,7 @@
 | 🗓️ **Planning hebdomadaire** | Horaires de travail et emploi du temps scolaire par membre |
 | 🍳 **Recettes** | Bibliothèque familiale, filtres avancés, temps de préparation |
 | 🍽️ **Planning repas** | Vue hebdomadaire, export PDF, liaison recettes |
-| 💰 **Budget** | Suivi mensuel, **graphiques**, **plafonds par catégorie avec alertes** |
+| 💰 **Budget** | Suivi mensuel, **graphiques**, **plafonds par catégorie avec alertes**, **import de reçus et de factures (IA)** <!-- FORK-START: docs --><!-- FORK-END: docs --> |
 | 👨‍👩‍👧‍👦 **Famille** | Profils membres, informations santé, contacts d'urgence |
 | 🔄 **Sync temps réel** | Mise à jour instantanée entre tous les appareils (WebSocket) |
 | 🔔 **Notifications** | Rappels de rendez-vous, alertes tâches (Web Push VAPID) + in-app |

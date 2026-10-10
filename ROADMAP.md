@@ -93,8 +93,12 @@ can shift based on feedback — issues and discussions are welcome.
   Traccar / Home Assistant `device_tracker`, plus geo-reminders ("you're near the
   supermarket, 5 items on the list"). Would replace the static planning on the
   Kiosk "who's where".
-- **AI assistant, next slices** — receipt photo → budget entries and dish photo →
-  recipe (needs a vision-capable model), streaming responses, per-member rate limits.
+<!-- FORK-START: docs -->
+- **AI assistant, next slices** — dish photo → recipe (needs a vision-capable model),
+  streaming responses, per-member rate limits. *(Receipt and bill import shipped: the
+  scanned lines are stored per receipt, so per-item analytics — spending by product,
+  by shop, over time — can be built on top.)*
+<!-- FORK-END: docs -->
 - **Barcode scanning & native pantry** — camera (PWA) + OpenFoodFacts for shopping
   and pantry; expiry dates with "use it up" recipe suggestions; connects to Grocy
   for those who have it, works standalone otherwise.

@@ -132,6 +132,37 @@ request PUT "/api/budget/entries/$BUDGET_ID" '{"description":"Courses semaine"}'
 request POST "/api/budget/limits" '{"category":"Alimentation","monthly_limit":300,"month":3,"year":2026}' >/dev/null
 request GET "/api/budget/statistics?month=3&year=2026" >/dev/null
 
+# FORK-START: budget-custom
+# Receipt import: a parent reaches the route (no AI configured here → 400), and a
+# 2 MB body is parsed INSIDE the router. A 413 would mean the default 1 MB parser,
+# registered before authentication, swallowed the body instead. The payload goes
+# through a file: a single shell argument is capped at 128 KB.
+printf '{"files":[{"name":"ticket.png","mime_type":"image/png","data":"' > /tmp/openfamily-receipt-request.json
+head -c 2000000 /dev/zero | tr '\0' 'A' >> /tmp/openfamily-receipt-request.json
+printf '"}]}' >> /tmp/openfamily-receipt-request.json
+receipt_status=$(curl -sS -o /tmp/openfamily-receipt.json -w '%{http_code}' -X POST "$API_BASE/api/ai/extract-receipt" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  --data-binary @/tmp/openfamily-receipt-request.json)
+rm -f /tmp/openfamily-receipt-request.json
+if [ "$receipt_status" != "400" ] || ! grep -q 'AI_NOT_CONFIGURED' /tmp/openfamily-receipt.json; then
+  echo "[FAIL] POST /api/ai/extract-receipt answered $receipt_status instead of reaching the route" >&2
+  cat /tmp/openfamily-receipt.json >&2
+  exit 1
+fi
+
+# Receipts live on their own router under /api/budget, mounted before it: the
+# list must answer (empty for a fresh family) rather than fall into the budget
+# router's prefix and 404.
+receipts=$(request GET "/api/budget/receipts")
+echo "$receipts" | jq -e '.data | length == 0' >/dev/null
+
+# Budget analytics: its own router under /api/budget-analytics; a well-formed
+# overview for the period (empty family → zeroed totals).
+analytics=$(request GET "/api/budget-analytics/overview?start=2026-03-01&end=2026-03-31")
+echo "$analytics" | jq -e '.data.totals | has("expenses")' >/dev/null
+# FORK-END: budget-custom
+
 echo "[11/12] Dashboard"
 request GET "/api/dashboard" >/dev/null
 

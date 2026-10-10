@@ -38,9 +38,10 @@ all in one place, on **your** server, with **your** data.
 | ✅ **Tasks** | Recurring tasks, family assignment, statistics |
 | 📅 **Appointments** | Monthly calendar, automatic reminders, color coding, **iCal export (.ics / webcal)** |
 | 🗓️ **Weekly planning** | Work hours and school timetables per family member |
+| 🌤️ **Weather & outfits** | Daily forecast for the family's city (Open-Meteo), an outfit per child inspired by it, and screen-free activity ideas on home days | <!-- FORK-START: docs --><!-- FORK-END: docs -->
 | 🍳 **Recipes** | Family library, advanced filters, prep/cook times |
 | 🍽️ **Meal planner** | Weekly view, PDF export, linked recipes |
-| 💰 **Budget** | Monthly tracking, **charts**, **per-category limits with alerts**, recurring debits |
+| 💰 **Budget** | Monthly tracking, **charts**, **per-category limits with alerts**, recurring debits, **receipt & bill import (AI)** <!-- FORK-START: docs --><!-- FORK-END: docs --> |
 | 👨‍👩‍👧‍👦 **Family** | Member profiles, health info, emergency contacts |
 | 🔄 **Real-time sync** | Instant updates across every device (WebSocket) |
 | 🔔 **Notifications** | Appointment reminders, task alerts (Web Push VAPID) + in-app |
