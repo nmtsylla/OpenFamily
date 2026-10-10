@@ -38,6 +38,29 @@ const lunchboxWithMember = (box: Json) => {
     };
 };
 // FORK-END: lunchbox
+// FORK-START: pantry
+// The pantry (see the /api/pantry handlers below): seeded with a few rows so the
+// demo's page, its tabs and the dashboard widget have something to show.
+const pantryKey = (name: string) =>
+    name.normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/œ/gi, 'oe').toLowerCase().trim().replace(/\s+/g, ' ');
+let demoPantry: Json[] = [
+    { id: 'pantry-demo-1', name: 'Lait', category: 'Alimentation', quantity: 1, unit: 'L', location: 'fridge', expires_on: null, low_stock_threshold: 1, lunchbox_bucket: 'drink', notes: null, source: 'manual' },
+    { id: 'pantry-demo-2', name: 'Pommes', category: 'Alimentation', quantity: 6, unit: null, location: 'cellar', expires_on: null, low_stock_threshold: null, lunchbox_bucket: 'fruit', notes: null, source: 'manual' },
+    { id: 'pantry-demo-3', name: 'Pâtes', category: 'Alimentation', quantity: 2, unit: 'paquet', location: 'pantry', expires_on: null, low_stock_threshold: 3, lunchbox_bucket: null, notes: null, source: 'manual' },
+];
+// The expiry demo: relative to the visitor's own day, so "use it up" always has
+// two rows whatever day the demo is opened.
+const demoPantrySeed = (): Json[] => {
+    const inDays = (days: number) => {
+        const date = new Date();
+        date.setDate(date.getDate() + days);
+        return date.toISOString().slice(0, 10);
+    };
+    return demoPantry.map((item, index) =>
+        index === 0 ? { ...item, expires_on: inDays(2) } : index === 1 ? { ...item, expires_on: inDays(5) } : item);
+};
+const pantryAsItem = (item: Json) => ({ ...item, quantity: Number(item.quantity ?? 1) });
+// FORK-END: pantry
 const uid = () =>
     (typeof crypto !== 'undefined' && crypto.randomUUID
         ? crypto.randomUUID()
@@ -348,7 +371,7 @@ async function route(method: string, path: string, q: Record<string, string>, bo
     // custom widgets start hidden here and the upstream widgets keep their
     // default order.
     if (path === '/api/auth/dashboard-prefs' && method === 'GET') {
-        return ok({ order: ['stats', 'weather', 'activities', 'agenda', 'planning', 'quick', 'notes'], hidden: ['weather', 'activities'], agendaView: 'day' });
+        return ok({ order: ['stats', 'weather', 'activities', 'pantry', 'agenda', 'planning', 'quick', 'notes'], hidden: ['weather', 'activities'], agendaView: 'day' });
     }
     if (path === '/api/auth/dashboard-prefs' && method === 'PUT') {
         // Echo what the customiser sent, as the server does.
@@ -750,6 +773,126 @@ async function route(method: string, path: string, q: Record<string, string>, bo
         if (method === 'PUT') return ok(lunchboxWithMember({ ...(demoLunchboxes.find((lb) => lb.id === seg[2]) || {}), ...body }));
         if (method === 'DELETE') { demoLunchboxes = demoLunchboxes.filter((lb) => lb.id !== seg[2]); return ok({}); }
     }
+    // ── Pantry (fork) ───────────────────────────────────────────────────────────
+    // FORK-START: pantry
+    // Same shape as the real router, including the two answers the page reacts
+    // to: DUPLICATE_NAME when a name is already in the pantry, and
+    // NO_GROCY_INTEGRATION (a demo has no Grocy to talk to).
+    if (path === '/api/pantry' && method === 'GET') {
+        let list = demoPantrySeed();
+        if (q.location) list = list.filter((item) => item.location === q.location);
+        if (q.filter === 'low_stock') {
+            list = list.filter((item) => item.low_stock_threshold !== null && Number(item.quantity) <= Number(item.low_stock_threshold));
+        }
+        if (q.filter === 'expiring') {
+            const days = Number(q.days ?? 14);
+            const limit = new Date();
+            limit.setDate(limit.getDate() + (Number.isFinite(days) ? days : 14));
+            const today = new Date().toISOString().slice(0, 10);
+            const end = limit.toISOString().slice(0, 10);
+            list = list.filter((item) => typeof item.expires_on === 'string' && item.expires_on >= today && item.expires_on <= end);
+        }
+        return ok({ items: list.map(pantryAsItem) });
+    }
+    if (path === '/api/pantry' && method === 'POST') {
+        const name = String(body.name ?? '').trim();
+        if (!name) return { success: false, error: 'INVALID_ITEM' };
+        const key = pantryKey(name);
+        if (demoPantry.some((item) => pantryKey(String(item.name)) === key && item.source !== 'grocy')) {
+            return { success: false, error: 'DUPLICATE_NAME' };
+        }
+        const row: Json = {
+            id: uid(), category: 'Autre', quantity: 1, unit: null, location: 'pantry',
+            expires_on: null, low_stock_threshold: null, lunchbox_bucket: null, notes: null,
+            source: 'manual', ...body, name,
+        };
+        demoPantry = [row, ...demoPantry];
+        return ok({ item: pantryAsItem(row) });
+    }
+    if (seg[1] === 'pantry' && seg[2] === 'shopping-list' && method === 'POST') {
+        const onList = new Set((store.shopping as Json[]).filter((s) => !s.is_checked).map((s) => pantryKey(String(s.name))));
+        let created = 0;
+        let skipped = 0;
+        for (const item of demoPantry) {
+            if (item.low_stock_threshold === null || Number(item.quantity) > Number(item.low_stock_threshold)) continue;
+            const key = pantryKey(String(item.name));
+            if (onList.has(key)) { skipped += 1; continue; }
+            (store.shopping as Json[]).unshift({
+                id: uid(), name: item.name, category: item.category, quantity: 1, unit: item.unit,
+                price: null, is_checked: false, notes: null, created_at: new Date().toISOString(),
+            });
+            onList.add(key);
+            created += 1;
+        }
+        return ok({ created, skipped });
+    }
+    if (seg[1] === 'pantry' && seg[2] === 'stock' && method === 'POST') {
+        let created = 0;
+        let updated = 0;
+        for (const entry of Array.isArray(body.items) ? (body.items as Json[]) : []) {
+            const name = String(entry.name ?? '').trim();
+            if (!name) continue;
+            const key = pantryKey(name);
+            const existing = demoPantry.find((item) => pantryKey(String(item.name)) === key && item.source !== 'grocy');
+            if (existing) {
+                existing.quantity = Number(existing.quantity ?? 0) + Number(entry.quantity ?? 1);
+                if (!existing.unit && entry.unit) existing.unit = entry.unit;
+                updated += 1;
+            } else {
+                demoPantry = [{
+                    id: uid(), name, category: entry.category ?? 'Autre', quantity: Number(entry.quantity ?? 1),
+                    unit: entry.unit ?? null, location: 'pantry', expires_on: null, low_stock_threshold: null,
+                    lunchbox_bucket: null, notes: null, source: 'shopping',
+                }, ...demoPantry];
+                created += 1;
+            }
+        }
+        return ok({ created, updated });
+    }
+    if (seg[1] === 'pantry' && seg[2] === 'import' && seg[3] === 'grocy') {
+        return { success: false, error: 'NO_GROCY_INTEGRATION' };
+    }
+    if (seg[1] === 'pantry' && seg[2] === 'import' && seg[3] === 'receipt') {
+        const receipt = demoReceipts.find((r) => r.id === body.receiptId);
+        const lines = Array.isArray(receipt?.items) ? (receipt?.items as Json[]) : [];
+        let created = 0;
+        let updated = 0;
+        for (const line of lines) {
+            const name = String(line.label ?? '').trim();
+            if (!name) continue;
+            const key = pantryKey(name);
+            const existing = demoPantry.find((item) => pantryKey(String(item.name)) === key && item.source !== 'grocy');
+            if (existing) { existing.quantity = Number(existing.quantity ?? 0) + Number(line.quantity ?? 1); updated += 1; }
+            else {
+                demoPantry = [{
+                    id: uid(), name, category: line.category ?? 'Autre', quantity: Number(line.quantity ?? 1),
+                    unit: null, location: 'pantry', expires_on: null, low_stock_threshold: null,
+                    lunchbox_bucket: null, notes: null, source: 'receipt',
+                }, ...demoPantry];
+                created += 1;
+            }
+        }
+        return ok({ created, updated });
+    }
+    if (seg[1] === 'pantry' && seg.length === 3 && !['shopping-list', 'stock', 'import'].includes(seg[2])) {
+        if (method === 'PUT') {
+            const row = demoPantry.find((item) => item.id === seg[2]);
+            if (!row) return { success: false, error: 'NOT_FOUND' };
+            const name = String(body.name ?? row.name).trim();
+            const key = pantryKey(name);
+            if (demoPantry.some((item) => item.id !== row.id && pantryKey(String(item.name)) === key && item.source !== 'grocy')) {
+                return { success: false, error: 'DUPLICATE_NAME' };
+            }
+            Object.assign(row, body, { name });
+            return ok({ item: pantryAsItem(row) });
+        }
+        if (method === 'DELETE') {
+            demoPantry = demoPantry.filter((item) => item.id !== seg[2]);
+            return ok({});
+        }
+    }
+    // FORK-END: pantry
+
     // FORK-START: outings
     // The demo has no OpenStreetMap and no model, so the planner is answered with
     // a fixed, plausible set (the page's own "add to the planning" button then

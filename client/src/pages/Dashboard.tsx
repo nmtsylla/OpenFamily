@@ -19,6 +19,9 @@ import WeatherClothingCard from '../custom/components/WeatherClothingCard.custom
 import KidsActivitiesCard from '../custom/components/KidsActivitiesCard.custom';
 import type { GeoOverride } from '../custom/hooks/useWeather.custom';
 // FORK-END: weather
+// FORK-START: pantry
+import PantryExpiryCard from '../custom/components/PantryExpiryCard.custom';
+// FORK-END: pantry
 
 interface DashboardStats {
     upcomingAppointments: number;
@@ -633,6 +636,9 @@ const Dashboard: React.FC = () => {
         weather: t('dashboard.custom:customize.widgets.weather'),
         activities: t('dashboard.custom:customize.widgets.activities'),
         // FORK-END: weather
+        // FORK-START: pantry
+        pantry: t('dashboard.custom:customize.widgets.pantry'),
+        // FORK-END: pantry
         agenda: t('dashboard:customize.widgets.agenda'),
         planning: t('dashboard:customize.widgets.planning'),
         quick: t('dashboard:customize.widgets.quick'),
@@ -648,6 +654,10 @@ const Dashboard: React.FC = () => {
             case 'weather': return <WeatherClothingCard key="weather" override={geoOverride} onOverrideChange={setGeoOverride} />;
             case 'activities': return <KidsActivitiesCard key="activities" override={geoOverride} />;
             // FORK-END: weather
+            // FORK-START: pantry
+            // Same as the two above: the card returns null when its module is off.
+            case 'pantry': return <PantryExpiryCard key="pantry" />;
+            // FORK-END: pantry
             case 'agenda': return renderAgenda();
             case 'planning': return renderPlanning();
             case 'quick': return renderQuickAccess();

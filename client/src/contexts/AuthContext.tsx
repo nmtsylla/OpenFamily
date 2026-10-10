@@ -19,11 +19,13 @@ interface User {
 }
 
 /** Dashboard widgets, in default display order (mirrors the server's list). */
-// FORK-START: weather
-// The fork's two weather widgets are part of the list, otherwise the dashboard
-// customiser cannot store them (prefs are validated against this union).
-export const DASHBOARD_WIDGETS = ['stats', 'weather', 'activities', 'agenda', 'planning', 'quick', 'notes'] as const;
-// FORK-END: weather
+// FORK-START: weather, pantry
+// The fork's dashboard widgets are part of the list, otherwise the dashboard
+// customiser cannot store them (prefs are validated against this union). The
+// marker wraps the modified line itself: an upstream merge that touches
+// DASHBOARD_WIDGETS must re-apply this one.
+export const DASHBOARD_WIDGETS = ['stats', 'weather', 'activities', 'pantry', 'agenda', 'planning', 'quick', 'notes'] as const;
+// FORK-END: weather, pantry
 export type DashboardWidget = typeof DASHBOARD_WIDGETS[number];
 
 export interface DashboardPrefs {

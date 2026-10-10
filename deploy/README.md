@@ -18,18 +18,26 @@ deploy/up.sh logs -f server    # journaux (migrations, erreurs)
 deploy/up.sh ps
 ```
 
-Ce dépôt (`/home/bsylla/OpenFamily-fork`) est le déploiement actif depuis le
-2026-10-10 : l'ancien arbre (`/home/bsylla/OpenFamily`, branche `develop`) a été
-arrêté par `deploy/up.sh down` dans ce répertoire-là. Les noms de conteneurs sont
-fixes (`openfamily-server`, `openfamily-client`) : les deux stacks ne peuvent pas
-tourner en même temps, l'arrêt de l'ancienne doit précéder le démarrage de la
-nouvelle.
+Ce dépôt (`/home/bsylla/OpenFamily`, branche `develop`) est le déploiement actif
+depuis le 2026-10-10 : l'arbre précédent a été arrêté par `deploy/up.sh down` le
+même jour. Les noms de conteneurs sont fixes (`openfamily-server`,
+`openfamily-client`) : deux stacks ne peuvent pas tourner en même temps, l'arrêt
+de l'ancienne doit précéder le démarrage de la nouvelle.
 
-**Retour arrière** (les images de l'ancien arbre existent toujours) :
+L'arbre précédent n'existe plus sur le disque (`/home/bsylla/OpenFamily-fork` ne
+contient plus de `docker-compose.yml`), seules ses images subsistent
+(`openfamily-fork-server`, `openfamily-fork-client`, 2026-10-10 05:14 UTC) : un
+« retour arrière » ne peut donc pas relancer un répertoire, il faut faire tourner
+ces images à la place des images `openfamily-{server,client}` — et revenir ensuite
+sur les migrations déjà appliquées (elles sont additives, jamais annulées).
+
+**Retour arrière** (images de l'arbre précédent) :
 
 ```bash
-cd /home/bsylla/OpenFamily-fork && deploy/up.sh down
-cd /home/bsylla/OpenFamily && deploy/up.sh up -d
+cd /home/bsylla/OpenFamily && deploy/up.sh down
+docker tag openfamily-fork-server openfamily-server
+docker tag openfamily-fork-client openfamily-client
+cd /home/bsylla/OpenFamily && deploy/up.sh up -d          # sans --build
 ```
 
 **Ce qui a changé au basculement** :
@@ -72,7 +80,7 @@ avant `.env`, et une session ouverte dans un autre dépôt (le stack maiky expor
   vérité des octets : le bucket l'est. Sauvegarder le bucket à part, ou `pg_dump`
   ci-dessous pour la base seule.
   ```bash
-  cd /home/bsylla/OpenFamily-fork && set -a; . ./.env; set +a
+  cd /home/bsylla/OpenFamily && set -a; . ./.env; set +a
   # sslrootcert=system: verify-full against the system trust store, otherwise psql
   # looks for ~/.postgresql/root.crt and refuses to connect.
   PGPASSWORD="$POSTGRES_PASSWORD" pg_dump \

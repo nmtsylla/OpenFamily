@@ -96,7 +96,6 @@ Sous le planning, un panneau propose des sorties pour un jour donné :
 
 <!-- FORK-END: docs -->
 
-
 ### 🍳 Bibliothèque de recettes
 - Ajout de recettes avec ingrédients, instructions pas à pas et photo
 - **Catégories** : Entrée, Plat, Dessert, Snack

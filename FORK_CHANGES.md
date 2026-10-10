@@ -24,7 +24,6 @@ marker-wrapped element), no modified line. Every touched upstream file carries
 `FORK-START/END` markers except the three that cannot hold comments
 (`.env.example`, `package-lock.json`, `server/package.json` — each explained
 below).
-below).
 
 ## Custom features (new files only)
 
@@ -35,17 +34,18 @@ below).
 | Receipt / bill import with line detail | `server/src/custom/routes/budgetReceipts.custom.ts`, `server/src/custom/ai/receipt.custom.ts`, `client/src/custom/components/{ReceiptImport,BudgetReceipts}.custom.tsx` | `CUSTOM_FEATURE_BUDGET_RECEIPTS_ENABLED` |
 | Budget analytics page | `server/src/custom/lib/budgetAnalytics.custom.ts`, `server/src/custom/routes/budgetAnalytics.custom.ts`, `client/src/custom/pages/BudgetAnalytics.custom.tsx` | `CUSTOM_FEATURE_BUDGET_ANALYTICS_ENABLED` |
 | Lunchboxes + weekly nutritional read (ported from KeurTonux) | `server/src/custom/lib/lunchbox.custom.ts`, `server/src/custom/lib/aiSettings.custom.ts`, `server/src/custom/lib/promptLanguage.custom.ts`, `server/src/custom/ai/{lunchbox,nutrition}.custom.ts`, `server/src/custom/routes/lunchbox.custom.ts`, `client/src/custom/pages/Lunchboxes.custom.tsx`, `client/src/custom/components/{LunchboxAiDialog,NutritionAnalysisDialog}.custom.tsx` | `CUSTOM_FEATURE_LUNCHBOX_ENABLED` |
+| Smart pantry — what the household has at home (locations, expiry, low stock), bridging the shopping list both ways, receipt lines and Grocy stock in, lunchbox AI and a "cook from what you have" tab out | `server/src/custom/lib/pantry.custom.ts`, `server/src/custom/lib/validation.custom.ts`, `server/src/custom/routes/pantry.custom.ts`, `client/src/custom/pages/Pantry.custom.tsx`, `client/src/custom/components/PantryExpiryCard.custom.tsx`, `client/src/custom/lib/pantryMatch.custom.ts` | `CUSTOM_FEATURE_PANTRY_ENABLED` |
 | AI outing planner on the Planning page — real places around the family (OpenStreetMap/Overpass) ranked by the family's own model for the day, the weather, the people coming (whole family / with the kids / parents only) and what the children's cards say, plus place-less activity ideas; the chosen outing is added to the planning through upstream's own `/api/planning` | `server/src/custom/lib/places.custom.ts`, `server/src/custom/lib/{location,kids}.custom.ts` (extracted from the dashboard route when this needed the same answers), `server/src/custom/ai/outings.custom.ts`, `server/src/custom/routes/outings.custom.ts`, `client/src/custom/components/OutingPlanner.custom.tsx`, `client/src/custom/hooks/useOutings.custom.ts` | `CUSTOM_FEATURE_OUTINGS_ENABLED` |
 | Feature flags / registration point | `server/src/custom/features.custom.ts`, `server/src/custom/register.custom.ts`, `server/src/custom/middleware/rateLimit.custom.ts` | — |
 | Client hooks for custom code | `client/src/custom/{nav.custom.ts,routes.custom.tsx}` | — |
 | Deploy assets | `deploy/README.md`, `deploy/up.sh`, `docker-compose.override.yml` | — |
-| Translations | `client/src/i18n/locales/<lng>/{weather,activities,analytics,dashboard,budget,ai,lunchbox}.custom.json` | — |
+| Translations | `client/src/i18n/locales/<lng>/{weather,activities,analytics,dashboard,budget,ai,lunchbox,pantry}.custom.json` | — |
 
 Gating: a feature's `CUSTOM_FEATURE_*_ENABLED=false` unmounts its API routes and
 adds its module keys to `disabled_modules` in `/api/auth/me`, which hides the
 matching nav entry, page and dashboard widget through the client's existing module
 filter. Module keys: `weather`, `activities`, `budgetReceipts`, `budgetAnalytics`,
-`lunchbox`, `outings`.
+`lunchbox`, `pantry`, `outings`.
 
 ## Ported from KeurTonux (`tonux/KeurTonux`, local checkout `/home/bsylla/keurtonux`)
 
@@ -84,8 +84,8 @@ otherwise.
 |------|--------|-----|
 | `server/src/app.ts` | `custom-routes`, `budget-custom` | One `registerCustomRoutes(app)` hook (import + call, above the upstream limiters) and one added condition so `/api/ai/extract-receipt` skips the 1 MB default JSON parser |
 | `server/src/routes/auth.ts` | `custom-features`, `media` | Adds the env-disabled custom modules to `disabled_modules`; accepts an `s3:` avatar reference |
-| `server/src/routes/userSettings.ts` | `weather`, `custom-modules` | Adds the two custom dashboard widget keys to `DASHBOARD_WIDGETS` (the list `parseDashboardPrefs` validates against — without it the widgets are silently dropped) and the custom module keys to `TOGGLEABLE_MODULES` (upstream rejects an unknown key in `PUT /api/auth/modules`, so a flag-disabled key reported through `/api/auth/me` would make the next module toggle fail with 400) |
-| `server/src/migrations/registry.ts` | `custom-migrations` | Appends the fork migrations (`custom/0001`, `custom/0002`, `custom/0003`) |
+| `server/src/routes/userSettings.ts` | `weather`, `custom-modules` | Adds the custom dashboard widget keys to `DASHBOARD_WIDGETS` (the list `parseDashboardPrefs` validates against — without it the widgets are silently dropped) and the custom module keys to `TOGGLEABLE_MODULES` (upstream rejects an unknown key in `PUT /api/auth/modules`, so a flag-disabled key reported through `/api/auth/me` would make the next module toggle fail with 400) |
+| `server/src/migrations/registry.ts` | `custom-migrations` | Appends the fork migrations (`custom/0001` … `custom/0005`) |
 | `server/src/index.ts` | `media` | Ensures the bucket exists at startup when storage is configured |
 | `server/src/lib/postFields.ts`, `server/src/lib/recipeImage.ts` | `media` | Keeps an `s3:` media reference intact instead of treating it as a data URL |
 | `server/src/routes/dataTransfer.ts` | `media` | Stores inline images on import and answers with JSON instead of rethrowing |
@@ -95,18 +95,18 @@ otherwise.
 | `server/src/db.ts` | `db-config` | Database TLS and connect timeout from `CUSTOM_POSTGRES_*` |
 | `client/src/App.tsx` | `custom-routes` | Mounts `customRoutes(isModuleEnabled)` inside `<Routes>` |
 | `client/src/components/layout/Layout.tsx` | `custom-nav` | Appends `customNavigation` / `customMobileTabs` to the upstream arrays |
-| `client/src/pages/Dashboard.tsx` | `weather` | Renders the two custom dashboard widgets |
+| `client/src/pages/Dashboard.tsx` | `weather`, `pantry` | Renders the custom dashboard widgets; the pantry expiry card has its own three `pantry` blocks, the weather blocks are untouched |
 | `client/src/pages/Settings.tsx` | `weather`, `budget-custom` | Weather location card, vision-model hint |
 | `client/src/pages/Budget.tsx` | `budget-custom` | Mounts the receipt import button and the imported-receipts section |
 | `client/src/pages/Planning.tsx` | `outings` | Renders the custom outing planner below the week grid (one import + one element, both marker-wrapped); the outcome is added through the page's own `/api/planning` endpoint |
-| `client/src/contexts/AuthContext.tsx` | `weather` | Adds the two custom widget keys to the client's `DASHBOARD_WIDGETS` |
+| `client/src/contexts/AuthContext.tsx` | `weather, pantry` | The `DASHBOARD_WIDGETS` line carries the fork's widget keys (weather, activities, pantry); one marker pair wraps that modified line itself, so an upstream change to it is re-applied from here |
 | `client/src/components/app/MagicInput.tsx` | `budget-custom` | Adds the `AI_UNSUPPORTED_MEDIA` error code |
-| `client/src/demo/mockApi.ts` | `budget-custom`, `demo-prefs`, `lunchbox`, `outings` | Demo handlers for receipts, receipt extraction, analytics and lunchboxes; plus the two object-shaped endpoints upstream's demo never answers (`dashboard-prefs`, `posts/latest`), whose `ok([])` catch-all crashed the demo's default route. The `outings` block answers the planner with a fixed set (a demo has no OpenStreetMap and no model) |
+| `client/src/demo/mockApi.ts` | `budget-custom`, `demo-prefs`, `lunchbox`, `pantry`, `outings` | Demo handlers for receipts, receipt extraction, analytics, lunchboxes and the pantry (seeded rows, the shopping-list bridge, the receipt import, and the two answers the page reacts to: `DUPLICATE_NAME`, `NO_GROCY_INTEGRATION`); plus the two object-shaped endpoints upstream's demo never answers (`dashboard-prefs`, `posts/latest`), whose `ok([])` catch-all crashed the demo's default route. The `demo-prefs` block's default widget order also carries `pantry`; the `outings` block answers the planner with a fixed set (a demo has no OpenStreetMap and no model) |
 | `client/nginx.conf` | `media` | Dedicated `location ^~ /api/media/` block (upstream's `location /api/` line untouched) |
 | `scripts/smoke-api.sh` | `budget-custom`, `lunchbox` | Smoke calls for the custom endpoints |
 | `.env.example` | (section) | `# --- Custom ---` section at the end of the file |
 | `DOCUMENTATION.md`, `ROADMAP.md`, `README.md`, `README.fr.md`, `README.zh-CN.md` | `docs` | Feature documentation |
-| `docker-compose.yml` | `deploy` | Custom env vars for the server service |
+| `docker-compose.yml` | `deploy` | Custom env vars for the server service, `CUSTOM_FEATURE_*_ENABLED` included (without a line there, a variable set in `.env` never reaches the container — the documented kill switch could not be used on a Docker install) |
 | `server/package.json`, `package-lock.json` | (none, JSON) | `@aws-sdk/client-s3` dependency and the `test` script; lockfile regenerated, never hand-edited |
 
 ### Modified (non-additive) upstream lines — the complete list
@@ -123,7 +123,7 @@ Only 23 lines in 13 files, all wrapped in markers:
 | `server/src/services/ai/ollama.ts` | 1 | user message carries images when present |
 | `server/src/db.ts` | 1 | `connectionTimeoutMillis` uses `CUSTOM_POSTGRES_CONNECT_TIMEOUT_MS` |
 | `server/src/routes/userSettings.ts` | 2 | `DASHBOARD_WIDGETS` spreads the custom widget keys; `TOGGLEABLE_MODULES` spreads the custom module keys |
-| `client/src/contexts/AuthContext.tsx` | 1 | `DASHBOARD_WIDGETS` lists the custom widget keys |
+| `client/src/contexts/AuthContext.tsx` | 1 | `DASHBOARD_WIDGETS` lists the custom widget keys (weather, activities, pantry) |
 | `README.md`, `README.fr.md`, `README.zh-CN.md` | 1 each | Feature row appended to the budget line |
 | `ROADMAP.md` | 2 | The receipt-import bullet |
 
@@ -184,6 +184,17 @@ next migration takes `core/0007`):
   two indexes. The fork's own table on purpose: upstream's `meal_plans` has one row per
   date+meal type and no "for whom", so adding lunchboxes there would mean altering an
   upstream table (KeurTonux's approach) instead of adding beside it.
+- `custom/0005-pantry-name-unique` — two PARTIAL unique indexes on `custom_pantry_items`: one
+  for `source <> 'grocy'`, one for `source = 'grocy'`. The merge invariant (one row per folded
+  name) is enforced by the database rather than by a SELECT-then-INSERT, so two concurrent
+  merges cannot both insert; the split is what lets a Grocy row and a hand-kept row for the
+  same product coexist, which is the Grocy sync's contract.
+- `custom/0004-pantry` — `custom_pantry_items` (`name_key` = the folded name every merge
+  compares on, `expires_on`, `low_stock_threshold`, `lunchbox_bucket`, `source`),
+  `custom_pantry_imports` (`UNIQUE (user_id, source, source_ref)` — the per-receipt import
+  guard), three indexes. The pantry is the fork's own table like the two above: upstream
+  has a shopping list, not a stock, and the Grocy integration only ever imported the
+  shopping list.
 
 Every statement is idempotent (`IF NOT EXISTS`), and the ids must never be renamed
 or their SQL edited: the runner records `id` + SQL checksum in
@@ -201,7 +212,7 @@ instance from the earlier fork tree, rename these in your `.env`:
 | `MINIO_ENDPOINT` / `_ACCESS_KEY` / `_SECRET_KEY` / `_BUCKET` / `_REGION` | `CUSTOM_MINIO_*` |
 | `OPEN_METEO_BASE_URL` / `OPEN_METEO_GEOCODING_URL` | `CUSTOM_OPEN_METEO_*` |
 | `WEATHER_DEFAULT_LANG` / `_CACHE_TTL_MS` / `_REQUEST_TIMEOUT_MS` | `CUSTOM_WEATHER_*` |
-| — (new) | `CUSTOM_FEATURE_{WEATHER,MEDIA,BUDGET_RECEIPTS,BUDGET_ANALYTICS,LUNCHBOX,OUTINGS,AI_WIDGETS}_ENABLED` |
+| — (new) | `CUSTOM_FEATURE_{WEATHER,MEDIA,BUDGET_RECEIPTS,BUDGET_ANALYTICS,LUNCHBOX,PANTRY,OUTINGS,AI_WIDGETS}_ENABLED` |
 | — (new) | `CUSTOM_OVERPASS_URL`, `CUSTOM_OVERPASS_TIMEOUT_MS`, `CUSTOM_OUTINGS_RADIUS_KM`, `CUSTOM_OUTINGS_CACHE_TTL_MS` |
 
 All eight flags are listed in `docker-compose.yml`'s `FORK-START: deploy` block, so an
@@ -220,18 +231,22 @@ upstream locale file:
   `client/scripts/check-i18n.mjs` fails the build on any namespace missing from a
   locale)
 - `dashboard.custom`, `budget.custom`, `ai.custom` (six locales)
+- `lunchbox.custom`, `pantry.custom` (six locales)
 - `outings.custom` (six locales)
 
 ## Tests
 
-`server/test/{weather,aiProvider,budgetAnalytics,aiPrompt,outings}.custom.test.ts` — matched by the
+`server/test/{weather,aiProvider,budgetAnalytics,aiPrompt,lunchbox,pantry,outings}.custom.test.ts` — matched by the
 server's `tsx --test test/*.test.ts`. `aiPrompt` covers the activities user prompt
 and the cache-key digest it shares a normalizer with: what the family wrote on a
 child's card has to reach the model, and two children with different notes must
+never share a cached idea list. `pantry` covers the merge key (accents, case,
+whitespace, the 160-char cap), the item sanitiser, low-stock and expiry
+boundaries, and the two import mappers (Grocy stock, receipt lines). `outings`
 covers the Overpass answer (categories, unnamed and duplicated places, a `ref`
 pointing at a place that was never offered) and the outing window (the model's
 suggestion when it fits inside a day, the requested length otherwise). The client
-never share a cached idea list. The client has no test runner; the custom UI
+has no test runner; the custom UI
 was verified in a browser instead (see "Verification" below).
 
 ## Endpoint moves (behaviour changes vs the earlier fork tree)
@@ -255,23 +270,28 @@ was verified in a browser instead (see "Verification" below).
 - `server/src/lib/postFields.ts`: the fork's reorder of the length check below the
   data-URL check was not ported (not media-related, and it would move upstream
   lines). Upstream order is preserved, so non-media behaviour is upstream's.
-- `deploy/README.md` still mentions the old checkout path `/home/bsylla/OpenFamily`
-  in its backup snippet.
+- `deploy/README.md` named the **wrong tree** as the active deployment (the live
+  Compose project's working dir is `/home/bsylla/OpenFamily`, confirmed by
+  `docker inspect openfamily-client`; the previous tree left no compose file
+  behind), and FORK_CHANGES repeated the inversion. Both are corrected, and the
+  rollback recipe now says what actually survives (the `openfamily-fork-*` images,
+  not a directory).
 - `analytics.custom.json` exists for all six locales, but its `es`/`pt`/`ru`/`zh`
   files are English placeholders pending translation (required by `check-i18n`).
 
 ## Deployment
 
-This checkout is the **live deployment** since 2026-10-10: `family.bsylla.com`
+This checkout (`/home/bsylla/OpenFamily`, branch `develop`) is the **live
+deployment** since 2026-10-10: `family.bsylla.com`
 (Cloudflare tunnel `navidrome`, host service `cloudflared.service`) → the client
 on `127.0.0.1:8200`, server reachable only inside the Compose network. Database:
 Neon `keurtonux`/`openfamily`, TLS `verify-full`. Images: S3 Scaleway bucket
 `openfamily-media`. Details and rollback: `deploy/README.md`.
 
-The previous checkout (`/home/bsylla/OpenFamily`, branch `develop`) was stopped
-with `deploy/up.sh down` in the same operation; its images are kept, so the
-rollback is two commands. Container names are fixed, so only one stack can run at
-a time.
+The previous tree was stopped with `deploy/up.sh down` the same day; only its
+images survive (`openfamily-fork-server`, `openfamily-fork-client`), the directory
+it was built from no longer holds a compose file — `deploy/README.md` has the
+workable rollback. Container names are fixed, so only one stack can run at a time.
 
 What the cutover exercised, on the live database:
 
@@ -353,6 +373,114 @@ dotenv never overrides a variable that is already set, so pinning is enough.
   and its link to the family page were checked in the browser, and the deployed
   instance serves the build that was verified (`/tmp/poteto/shot-personal-hint.webp`,
   `/tmp/poteto/shot-family-from-hint.webp`)
+
+### Smart pantry (2026-10-10)
+
+Checked against a **throwaway** Postgres 16 container on `127.0.0.1:5433`
+(`docker run postgres:16-alpine`), never the live Neon database, with the server
+pinned as the "Local development" snippet above plus
+`POSTGRES_PORT=5433 SERVER_PORT=3001` and a test account:
+
+- `npm run build` (shared + server + client, `check:i18n`: 6 languages,
+  30 namespaces) and `npm test` (server, 41/41 including the new
+  `pantry.custom.test.ts`) pass
+- `custom/0004-pantry` applied on a fresh schema (`applied` listed it,
+  `alreadyApplied: 0`); the next start reported `applied: []`, `alreadyApplied: 10`
+- API, with a real token: item CRUD (`INVALID_ITEM` on a blank name, 404 on an
+  unknown id), `filter=low_stock`, `filter=expiring&days=14` (and `days=0` empty),
+  the shopping bridge (`created:1`, then `created:0 skipped:1`; the item lands
+  unchecked on `/api/shopping`), the stock bridge (`lait` merged into `Lait`,
+  1 → 2), the receipt import (2 lines → `created:2`, second call 409, unknown
+  receipt 404), and Grocy (400 `NO_GROCY_INTEGRATION` without an integration;
+  against a stub `/api/stock` `created:2` then `updated:2`, the zero-amount entry
+  dropped, and the hand-kept `Riz` row left untouched because the match also
+  requires `source = 'grocy'`)
+- Receipt lines: add/edit/delete through the new endpoints, and the receipt total
+  stays the scanned amount (2.20 after adding a 1.50 line)
+- `expires_on` is validated as a real calendar day, not just four-two-two digits:
+  `'2026-13-45'` matches the shape but the DATE column rejects it (SQLSTATE
+  22008, reproduced with a direct `INSERT`), which would have surfaced as a 500
+  instead of a stored row. `POST /api/pantry` with that value now answers 201 and
+  stores `expires_on: null`, while a real date is kept. The Grocy mapper drops the
+  same bogus `next_best_before_date` for the same reason
+- Browser (Chromium against the Vite dev server on `:5173`, French UI): the
+  `/pantry` page renders with its nav entry and four tabs; each tab fetches its
+  own filter (Radix mounts only the active panel, so the page never reads the
+  uncontrolled `Tabs` state); adding a `Yaourt` row, setting its expiry, deleting
+  a row, "Envoyer le stock bas aux courses" (the item appeared on `/shopping`),
+  "Approvisionner depuis les courses" (checked item → `Lait` 1 → 2), "Importer
+  depuis Grocy" ("2 produits importés depuis Grocy"), the Cook tab (2/2 and 2/3
+  coverage, cookable first), the dashboard widget ("À finir bientôt", listed in
+  the customiser, its link opening `/pantry`), "Ajouter une ligne" on a receipt
+  and "Ajouter au garde-manger" (`Beurre`/`Farine` stored with `source: receipt`),
+  and "Charger depuis le garde-manger" in the lunchbox AI dialog (snack → `Yaourt`,
+  drink → `Lait`, hint "2 aliments disponibles")
+- With `CUSTOM_FEATURE_PANTRY_ENABLED=false`: `/api/pantry` answers 404,
+  `/api/auth/me` reports `pantry` in `disabled_modules`, the sidebar/mobile entries
+  and the dashboard widget are gone, `/pantry` redirects to `/`, and the rest of
+  the app still renders
+
+Follow-up review pass (security + quality) found five issues, all fixed and
+re-verified on the same throwaway database:
+
+- **Pool client held across the Grocy fetch** (was a whole-app starvation vector:
+  the client was checked out before `safeFetch`, so a slow host pinned one of 20
+  pool connections for up to 15 s per hop, and `response.json()` had no time
+  bound). The client is now taken after the fetch, around the transaction only.
+- **`/api/pantry/import/grocy` is the one pantry route that leaves the server**,
+  so it now carries `requireParent` (like upstream's
+  `POST /api/integrations/:id/sync`, which fetches the same stored URL with the
+  same decrypted key) and its own `integrationRateLimiter` (30 per 15 minutes,
+  upstream's outbound budget) instead of riding the 60-per-minute fixed-host one.
+  Verified: a child account gets 403; the 31st call in the window gets 429.
+- **Body read capped** at 1 MB via `readCappedText`, the fork's own convention.
+- **Merge is now an upsert** on the new partial unique indexes rather than
+  SELECT-then-INSERT. Verified: two parallel `POST /api/pantry/stock` for the same
+  new name produce one row with the summed quantity (`created:1` + `updated:1`),
+  and a hand-inserted duplicate is rejected by `idx_custom_pantry_name_owned`.
+  The conflict target excludes Grocy rows, which also fixes a latent bug: a receipt
+  line for a product the sync already owns used to increment the Grocy row, whose
+  next import then overwrote that quantity. Verified: a receipt line for `Pommes`
+  added to the hand-kept row (5 → 7) and left the Grocy row (9) alone.
+- **Malformed ids answer 404, not 500** (`isUuid` in `lib/validation.custom.ts`):
+  `PUT`/`DELETE /api/pantry/:id`, `/api/pantry/import/receipt`, and the three
+  receipt line-item routes no longer reach a UUID column with junk (no more
+  `22P02` + spurious error log).
+- **A duplicate name answers 409 `DUPLICATE_NAME`, not 500** (`isUniqueViolation`
+  in the same lib): adding a product the pantry already holds (in any spelling —
+  `Pommes` and `  pommes  ` both hit it) or renaming one onto another's folded name
+  is an ordinary dialog action, so the client toasts
+  `pantry.custom:errors.duplicateName`. Verified 409/409/200 on those three calls.
+- **The stock bridge now carries `unit` and `category`** from the shopping item
+  (the server already accepted both, so the client half was the gap): a new row
+  keeps them (`Farine T65`, 2 `kg`, `Alimentation`) and an existing row's empty
+  unit is filled without touching a non-empty one.
+- **`daysUntil` moved to `client/src/custom/lib/pantryDates.custom.ts`** (the page
+  and the dashboard card had a verbatim copy each), and a failed load no longer
+  renders the "nothing here yet" paragraph under its own error line.
+- **The Grocy button is hidden for child accounts**, mirroring the server's
+  `requireParent` (the budget page's `canEdit` rule).
+- **Demo mode renders the pantry**: `mockApi.ts` gained a `pantry` block (seeded
+  rows, tabs' filters, the shopping bridge, the receipt import, `DUPLICATE_NAME`
+  and `NO_GROCY_INTEGRATION`), and the `demo-prefs` default widget order now lists
+  `pantry`. Verified in the browser against `VITE_DEMO=1`: three seeded rows with
+  their badges, the Low-stock and Use-it-up tabs, and the dashboard widget with
+  `Lait`/`Pommes`. The client build also passes with `VITE_DEMO=1`.
+
+Deployed to production on 2026-10-10 (12:12 UTC) with `deploy/up.sh up -d --build`:
+
+- the server log shows `db.migrations_complete` with
+  `applied: ["custom/0004-pantry", "custom/0005-pantry-name-unique"]`,
+  `alreadyApplied: 9` — the two migrations landed on the Neon database, and
+  `openfamily_schema_migrations` now records both with that timestamp
+- `custom_pantry_items` exists there with `idx_custom_pantry_{user,name,expiry}`
+  plus the two partial unique indexes (`..._owned`, `..._grocy`), and is empty:
+  no family data was touched
+- `http://127.0.0.1:8200/health` and `https://family.bsylla.com/health` both
+  answer `{"status":"ok"}`, `GET /api/pantry` answers 401 without a token (the
+  mount is there, behind auth), and the served bundle
+  (`assets/index-B1__LhjB.js`) contains the `pantry.custom` namespace — the new
+  client is what the tunnel serves
 
 ### AI outing planner (2026-10-10)
 
