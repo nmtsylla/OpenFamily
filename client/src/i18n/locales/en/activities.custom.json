@@ -5,6 +5,8 @@
   "subtitle_other": "{{count}} screen-free ideas",
   "regenerate": "Other ideas",
   "thinkingMore": "more ideas on the way",
+  "personalHint": "Ideas use each child's age and what you wrote on their family card (notes and allergies).",
+  "personalHintAction": "Edit the family card",
   "errorTitle": "Ideas unavailable right now",
   "retry": "Retry",
   "addKidTitle": "No child in the family yet",

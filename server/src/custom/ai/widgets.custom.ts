@@ -12,6 +12,7 @@
 // same age share an entry, and a dashboard refresh costs zero tokens.
 // =============================================================================
 
+import { createHash } from 'node:crypto';
 import { aiCompleteWithUsage, AiError, type AiSettings } from '../../services/ai/index';
 import type { WeatherSummary } from '../weather/WeatherService.custom';
 import { LANGUAGE_NAME, type PromptLanguage } from '../lib/promptLanguage.custom';
@@ -191,6 +192,15 @@ export interface ActivityKidInput {
     id: string;
     firstName: string;
     ageYears: number;
+    /**
+     * What the family wrote on the child's own card. The free-text notes carry
+     * the interests and the things to steer around, the allergy list is a
+     * safety constraint on anything edible or physical. Both are optional, and
+     * both are capped before they reach the prompt, where every character
+     * competes with the instructions the model has to follow.
+     */
+    notes?: string | null;
+    allergies?: string[];
 }
 
 /**
@@ -280,6 +290,7 @@ Rules:
 - Use the family context provided (meals, chores) when it allows a concrete activity.
 - Do not overlap the slots already taken.
 - Everyday materials only, nothing to buy.
+- Use the information given about each child (what they love, what to avoid, their allergies) to choose the ideas.
 - The "kidIds" field must contain only the ids provided.
 - Write every title, instruction and material in ${LANGUAGE_NAME[lang]}.`;
     }
@@ -309,18 +320,50 @@ Règles :
 - Utilise le contexte familial fourni (repas, corvées) quand il permet une activité concrète.
 - Ne chevauche pas les créneaux déjà occupés.
 - Matériel du quotidien uniquement, rien à acheter.
+- Tiens compte des informations données sur chaque enfant : ce qu'il aime, ce qu'il faut éviter, ses allergies.
 - Le champ "kidIds" ne doit contenir que des ids fournis.`;
 };
 
-const buildKidsActivitiesUserPrompt = (
+/**
+ * What the family wrote on the child's card, normalized once for the two places
+ * that must agree on it: the prompt clause and the cache-key digest. Notes are
+ * free text and allergies are a safety constraint, so both are trimmed and
+ * capped rather than trusted: the model is an 8B with a short instruction
+ * budget, and an essay here pushes the JSON rules out of its head.
+ */
+const KID_FACT_MAX = 160;
+const KID_ALLERGY_MAX = 6;
+
+const normalizeKidFacts = (kid: ActivityKidInput): { notes: string; allergies: string[] } => ({
+    notes: (kid.notes ?? '').replace(/\s+/g, ' ').trim().slice(0, KID_FACT_MAX),
+    allergies: (kid.allergies ?? [])
+        .map((a) => a.trim())
+        .filter(Boolean)
+        .slice(0, KID_ALLERGY_MAX),
+});
+
+const kidFactsClause = (kid: ActivityKidInput, fr: boolean): string => {
+    const { notes, allergies } = normalizeKidFacts(kid);
+    const parts: string[] = [];
+    if (notes) {
+        parts.push(`${fr ? 'à savoir' : 'to know'} : ${notes}`);
+    }
+    if (allergies.length > 0) {
+        parts.push(`${fr ? 'allergies' : 'allergies'} : ${allergies.join(', ')}`);
+    }
+    return parts.length === 0 ? '' : ` (${parts.join(' ; ')})`;
+};
+
+/** Exported for its test: the prompt is the whole contract with the model. */
+export const buildKidsActivitiesUserPrompt = (
     weather: WeatherSummary,
     kids: ActivityKidInput[],
     context: FamilyDayContext,
     excludeTitles: string[],
     lang: PromptLanguage,
 ): string => {
-    const lines: string[] = [];
     const fr = lang === 'fr';
+    const lines: string[] = [];
 
     lines.push(
         fr
@@ -330,11 +373,10 @@ const buildKidsActivitiesUserPrompt = (
 
     lines.push(fr ? 'Enfants :' : 'Children:');
     for (const kid of kids) {
-        lines.push(
-            fr
-                ? `- id=${kid.id} prénom=${kid.firstName} age=${kid.ageYears} ans`
-                : `- id=${kid.id} name=${kid.firstName} age=${kid.ageYears}`,
-        );
+        const who = fr
+            ? `- id=${kid.id} prénom=${kid.firstName} age=${kid.ageYears} ans`
+            : `- id=${kid.id} name=${kid.firstName} age=${kid.ageYears}`;
+        lines.push(`${who}${kidFactsClause(kid, fr)}`);
     }
 
     // Keep the context block tight — every line here is a line the 8B model has
@@ -381,6 +423,21 @@ const ageBucket = (years: number): string => {
     if (years < 11) return '7-10';
     if (years < 15) return '11-14';
     return '15+';
+};
+
+/**
+ * Short digest of what the family wrote about a child, for the cache key. It has
+ * to be in there: the prompt now carries the notes and the allergies, so two
+ * households whose children share an age bucket but not those details must never
+ * share an entry. A child with neither leaves the key exactly as it was.
+ *
+ * Exported for its test: a wrong digest leaks one family's notes into another's
+ * ideas.
+ */
+export const kidFactDigest = (kid: ActivityKidInput): string => {
+    const { notes, allergies } = normalizeKidFacts(kid);
+    const raw = `${notes}|${allergies.join(',')}`;
+    return raw === '|' ? '' : createHash('sha1').update(raw).digest('hex').slice(0, 8);
 };
 
 // Static membership tables read as Record, not Set: they never change at runtime.
@@ -587,7 +644,7 @@ export const suggestActivitiesForKids = async (
         weather.tempMinBucket,
         weather.precipBucket,
         weather.windyBucket,
-        kids.map((k) => ageBucket(k.ageYears)).join(','),
+        kids.map((k) => `${ageBucket(k.ageYears)}.${kidFactDigest(k)}`).join(','),
         // Sorted so "regenerate" twice with the same exclusions still hits.
         [...exclude].sort().join('~'),
     ].join('|');

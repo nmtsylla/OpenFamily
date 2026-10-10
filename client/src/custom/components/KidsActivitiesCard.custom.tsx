@@ -225,6 +225,21 @@ const KidsActivitiesCard: React.FC<Props> = ({ override }) => {
                         />
                     ))}
                 </div>
+
+                {/* Where the personal part comes from. Hidden on the offline
+                    path, where the static bank cannot use it either. */}
+                {!data.aiUnavailable && (
+                    <p className="text-micro text-muted-foreground">
+                        {t('personalHint')}{' '}
+                        <button
+                            type="button"
+                            onClick={() => navigate('/family')}
+                            className="underline underline-offset-2 hover:text-foreground"
+                        >
+                            {t('personalHintAction')}
+                        </button>
+                    </p>
+                )}
             </CardContent>
         </Card>
     );

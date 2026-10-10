@@ -4,6 +4,8 @@
   "subtitle_other": "{{count}} 个无屏活动",
   "regenerate": "换一批灵感",
   "thinkingMore": "更多灵感正在路上",
+  "personalHint": "灵感会参考每个孩子的年龄，以及你在家庭档案中写下的内容（备注与过敏）。",
+  "personalHintAction": "编辑家庭档案",
   "errorTitle": "目前无法获取灵感",
   "retry": "重试",
   "addKidTitle": "家庭中还没有孩子",

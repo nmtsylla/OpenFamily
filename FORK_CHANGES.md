@@ -212,8 +212,11 @@ upstream locale file:
 
 ## Tests
 
-`server/test/{weather,aiProvider,budgetAnalytics}.custom.test.ts` — matched by the
-server's `tsx --test test/*.test.ts`. The client has no test runner; the custom UI
+`server/test/{weather,aiProvider,budgetAnalytics,aiPrompt}.custom.test.ts` — matched by the
+server's `tsx --test test/*.test.ts`. `aiPrompt` covers the activities user prompt
+and the cache-key digest it shares a normalizer with: what the family wrote on a
+child's card has to reach the model, and two children with different notes must
+never share a cached idea list. The client has no test runner; the custom UI
 was verified in a browser instead (see "Verification" below).
 
 ## Endpoint moves (behaviour changes vs the earlier fork tree)
@@ -324,3 +327,14 @@ dotenv never overrides a variable that is already set, so pinning is enough.
   the request, and clicking "Generate again" kept all twelve idea lines on screen
   at 0.8 s, 6.8 s and 27 s while the button showed its spinner
   (`/tmp/poteto/shot-lunchbox-regenerate.webp`)
+- What a child's card carries into the ideas, on a debug instance of the same
+  code against the live database. With `notes` "loves dinosaurs, hates loud
+  noises" and an allergy set on one child, the model answered "Quiet Dino Egg
+  Hunt" with cushions; with the same facts cleared, a repeat of the identical
+  request was a cache miss (50.4 s) and returned "Rainy Indoor Obstacle Course",
+  while the call after it hit the cache in 0.21 s. So the facts reach the prompt
+  and the cache key depends on them. The probe values were cleared afterwards and
+  all five member rows are back to empty notes and allergies. The card's footnote
+  and its link to the family page were checked in the browser, and the deployed
+  instance serves the build that was verified (`/tmp/poteto/shot-personal-hint.webp`,
+  `/tmp/poteto/shot-family-from-hint.webp`)

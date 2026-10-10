@@ -5,6 +5,8 @@
   "subtitle_other": "{{count}} idées sans écran",
   "regenerate": "D'autres idées",
   "thinkingMore": "d'autres idées arrivent",
+  "personalHint": "Les idées tiennent compte de l'âge de chaque enfant et de ce que vous avez écrit sur sa fiche (notes et allergies).",
+  "personalHintAction": "Modifier la fiche famille",
   "errorTitle": "Idées indisponibles pour l'instant",
   "retry": "Réessayer",
   "addKidTitle": "Aucun enfant dans la famille",

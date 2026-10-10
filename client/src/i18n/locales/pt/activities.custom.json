@@ -5,6 +5,8 @@
   "subtitle_other": "{{count}} ideias sem telas",
   "regenerate": "Outras ideias",
   "thinkingMore": "mais ideias a caminho",
+  "personalHint": "As ideias usam a idade de cada criança e o que escreveu na sua ficha familiar (notas e alergias).",
+  "personalHintAction": "Editar a ficha da família",
   "errorTitle": "Ideias indisponíveis no momento",
   "retry": "Tentar novamente",
   "addKidTitle": "Nenhuma criança na família ainda",

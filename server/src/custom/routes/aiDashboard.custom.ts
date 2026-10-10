@@ -11,6 +11,7 @@ import { WeatherError } from '../weather/errors.custom';
 import { resolveTargetDay, type DayContext } from '../lib/dayContext.custom';
 import { handleAiError, loadEnabledAiSettings } from '../lib/aiSettings.custom';
 import { resolvePromptLanguage } from '../lib/promptLanguage.custom';
+import { parseStringArray } from '../../lib/normalize';
 import { AiError } from '../../services/ai';
 import {
     suggestActivitiesForKids,
@@ -96,12 +97,27 @@ interface DashboardKid {
     color: string;
     birth_date: string | null;
     ageYears: number;
+    /**
+     * Server-only: what the family wrote on the child's card. They feed the
+     * activity prompt, and the widget responses project them out again, so a
+     * child's medical notes never ride out to the browser on a dashboard poll.
+     */
+    notes: string | null;
+    allergies: string[];
 }
+
+/** The free-text notes, read the way the family card displays them (`notes ?? medical_notes`). */
+const pickNotes = (notes: unknown, medicalNotes: unknown): string | null => {
+    for (const value of [notes, medicalNotes]) {
+        if (typeof value === 'string' && value.trim()) return value;
+    }
+    return null;
+};
 
 /** The family's children — the only members an outfit or an idea is for. */
 const loadKids = async (userId: string): Promise<DashboardKid[]> => {
     const result = await query(
-        `SELECT id, name, birth_date, color
+        `SELECT id, name, birth_date, color, notes, medical_notes, allergies
          FROM family_members
          WHERE user_id = $1 AND role = 'Enfant'
          ORDER BY birth_date NULLS LAST, name ASC`,
@@ -113,6 +129,8 @@ const loadKids = async (userId: string): Promise<DashboardKid[]> => {
         color: String(r.color),
         birth_date: r.birth_date === null || r.birth_date === undefined ? null : String(r.birth_date),
         ageYears: ageYearsFromBirthDate(r.birth_date, 8),
+        notes: pickNotes(r.notes, r.medical_notes),
+        allergies: parseStringArray(r.allergies),
     }));
 };
 
@@ -184,7 +202,17 @@ const loadFamilyDayContext = async (userId: string, dateKey: string): Promise<Fa
 };
 
 const toKidInputs = (kids: DashboardKid[]): (ActivityKidInput & ClothingKidInput)[] =>
-    kids.map((k) => ({ id: k.id, firstName: k.name.split(' ')[0] ?? k.name, ageYears: k.ageYears }));
+    kids.map((k) => ({
+        id: k.id,
+        firstName: k.name.split(' ')[0] ?? k.name,
+        ageYears: k.ageYears,
+        // Read by the activity prompt only; the outfit prompt ignores both.
+        notes: k.notes,
+        allergies: k.allergies,
+    }));
+
+/** A child as the browser sees it: never the notes or the allergies column. */
+type PublicKid = Pick<DashboardKid, 'id' | 'name' | 'color' | 'birth_date' | 'ageYears'>;
 
 interface WidgetContext {
     coords: ResolvedCoords;
@@ -192,7 +220,9 @@ interface WidgetContext {
     dayOffset: 0 | 1;
     summary: WeatherSummary;
     weather: TomorrowForecast;
-    kids: DashboardKid[];
+    kids: PublicKid[];
+    /** What the model is told about each child, the card notes included. */
+    kidInputs: (ActivityKidInput & ClothingKidInput)[];
 }
 
 /**
@@ -228,13 +258,24 @@ const loadWidgetContext = async (req: AuthRequest, res: Response): Promise<Widge
         throw err;
     }
 
+    const allKids = await loadKids(req.userId!);
+
     return {
         coords,
         dayContext,
         dayOffset,
         weather,
         summary: summarize(weather),
-        kids: await loadKids(req.userId!),
+        // Two shapes on purpose: the response carries the display fields, the
+        // prompt carries what the family wrote on each child's card.
+        kids: allKids.map(({ id, name, color, birth_date, ageYears }) => ({
+            id,
+            name,
+            color,
+            birth_date,
+            ageYears,
+        })),
+        kidInputs: toKidInputs(allKids),
     };
 };
 
@@ -300,7 +341,7 @@ router.post('/clothing-suggestions', async (req: AuthRequest, res) => {
         const lang = resolvePromptLanguage(req.body?.lang);
 
         try {
-            const result = await suggestClothingForKids(ctx.summary, toKidInputs(ctx.kids), {
+            const result = await suggestClothingForKids(ctx.summary, ctx.kidInputs, {
                 settings,
                 mode: ctx.dayContext.mode as ClothingDayMode,
                 lang,
@@ -365,7 +406,7 @@ router.post('/kids-activities', async (req: AuthRequest, res) => {
             dayContext: ctx.dayContext,
         };
 
-        const kidInputs = toKidInputs(ctx.kids);
+        const kidInputs = ctx.kidInputs;
         // Rain, strong wind or cold → keep the ideas indoors.
         const outdoorOk =
             ctx.summary.precipBucket === 'none' &&
