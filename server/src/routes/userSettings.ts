@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import { query } from '../db';
 import { authMiddleware, AuthRequest, requireParent } from '../middleware/auth';
+// FORK-START: weather
+import { CUSTOM_DASHBOARD_WIDGETS } from '../custom/features.custom';
+// FORK-END: weather
 
 const router = Router();
 
@@ -23,7 +26,12 @@ export const TOGGLEABLE_MODULES = [
 
 // Dashboard widgets, in default display order. 'quick' is the shopping/budget/
 // tasks quick-access card row; 'agenda' carries the day/week toggle.
-export const DASHBOARD_WIDGETS = ['stats', 'agenda', 'planning', 'quick', 'notes'] as const;
+// FORK-START: weather
+// The fork's two widget keys come from custom/features.custom.ts: this list is
+// what parseDashboardPrefs validates against, so a widget missing here is
+// silently dropped and never rendered.
+export const DASHBOARD_WIDGETS = ['stats', ...CUSTOM_DASHBOARD_WIDGETS, 'agenda', 'planning', 'quick', 'notes'] as const;
+// FORK-END: weather
 export type DashboardWidget = typeof DASHBOARD_WIDGETS[number];
 
 export interface DashboardPrefs {

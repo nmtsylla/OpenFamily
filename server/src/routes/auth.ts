@@ -8,6 +8,12 @@ import { normalizeEmail } from '../lib/normalize';
 import { isMailEnabled, sendPasswordResetEmail } from '../lib/mailer';
 import { resolveAppBaseUrl } from '../lib/appUrl';
 import { parseDisabledModules } from './userSettings';
+// FORK-START: custom-features
+import { customDisabledModules } from '../custom/features.custom';
+// FORK-END: custom-features
+// FORK-START: media
+import { isMediaRef } from '../custom/lib/media.custom';
+// FORK-END: media
 
 const router = Router();
 
@@ -25,6 +31,13 @@ router.get('/me', authMiddleware, async (req: AuthRequest, res) => {
         // disabled_modules is family-wide: always read it from the owner's row.
         const ownerModules = await query('SELECT disabled_modules FROM users WHERE id = $1', [req.userId]);
         const disabled_modules = parseDisabledModules(ownerModules.rows[0]?.disabled_modules);
+
+        // FORK-START: custom-features
+        // A custom feature switched off by CUSTOM_FEATURE_*_ENABLED is reported
+        // as a disabled module, so the client hides its nav entry, page and
+        // dashboard widgets through the existing mechanism (see custom/features.custom.ts).
+        disabled_modules.push(...customDisabledModules());
+        // FORK-END: custom-features
 
         return res.json({ success: true, data: { user: { ...result.rows[0], disabled_modules } } });
     } catch (error) {
@@ -384,13 +397,24 @@ router.put('/profile', authMiddleware, async (req: AuthRequest, res) => {
             fields.push(`avatar_url = $${idx++}`);
             values.push(null);
         } else if (typeof avatar_url === 'string') {
-            // Accept only data-URL images and cap the size (~1.5 MB of base64).
-            if (!/^data:image\/(png|jpeg|jpg|webp|gif);base64,/.test(avatar_url)) {
-                return res.status(400).json({ success: false, error: 'Invalid image format' });
+            // FORK-START: media
+            // An image already stored on the bucket is accepted as-is: the client
+            // sends back the reference the media middleware gave it, not the bytes
+            // again (see custom/lib/media.custom.ts). Only inline data-URL images
+            // go through the format and size checks below. This wraps two upstream
+            // lines (re-indented); it is the fork's only modified upstream line.
+            if (!isMediaRef(avatar_url)) {
+                // FORK-END: media
+                // Accept only data-URL images and cap the size (~1.5 MB of base64).
+                if (!/^data:image\/(png|jpeg|jpg|webp|gif);base64,/.test(avatar_url)) {
+                    return res.status(400).json({ success: false, error: 'Invalid image format' });
+                }
+                if (avatar_url.length > 1_500_000) {
+                    return res.status(400).json({ success: false, error: 'Image trop volumineuse' });
+                }
+                // FORK-START: media
             }
-            if (avatar_url.length > 1_500_000) {
-                return res.status(400).json({ success: false, error: 'Image trop volumineuse' });
-            }
+            // FORK-END: media
             fields.push(`avatar_url = $${idx++}`);
             values.push(avatar_url);
         }

@@ -29,6 +29,9 @@ import { cn } from '../../lib/utils';
 import { Button } from '../ui/Button';
 import { NotificationBell } from '../ui/NotificationBell';
 import { DemoBanner } from '../app/DemoBanner';
+// FORK-START: custom-nav
+import { customNavigation, customMobileTabs } from '../../custom/nav.custom';
+// FORK-END: custom-nav
 import { MagicInputButton } from '../app/MagicInput';
 
 interface LayoutProps {
@@ -60,6 +63,14 @@ const mobileTabs: { labelKey: string; href: string; icon: typeof Home; module?: 
     { labelKey: 'mobile.budget', href: '/budget', icon: Wallet, module: 'budget' },
     { labelKey: 'mobile.family', href: '/family', icon: Users },
 ];
+
+// FORK-START: custom-nav
+// Custom pages add their entries here rather than in the upstream arrays above
+// (see custom/nav.custom.ts). Each carries a `module` key, so the family-level
+// module setting and CUSTOM_FEATURE_*_ENABLED hide it through the filter below.
+navigation.push(...customNavigation);
+mobileTabs.push(...customMobileTabs);
+// FORK-END: custom-nav
 
 const quickActions: { labelKey: string; href: string; icon: typeof Home; module?: string }[] = [
     { labelKey: 'quickActions.addShopping', href: '/shopping', icon: ShoppingCart },

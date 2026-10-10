@@ -19,6 +19,9 @@ import Planning from './pages/Planning';
 import Recipes from './pages/Recipes';
 import MealPlanning from './pages/MealPlanning';
 import Budget from './pages/Budget';
+// FORK-START: custom-routes
+import { customRoutes } from './custom/routes.custom';
+// FORK-END: custom-routes
 import Family from './pages/Family';
 import Settings from './pages/Settings';
 import Join from './pages/Join';
@@ -80,6 +83,9 @@ function App() {
                 <Route path="/recipes" element={moduleRoute('recipes', <Recipes />)} />
                 <Route path="/meal-planning" element={moduleRoute('meals', <MealPlanning />)} />
                 <Route path="/budget" element={moduleRoute('budget', <Budget />)} />
+                {/* FORK-START: custom-routes */}
+                {customRoutes(isModuleEnabled)}
+                {/* FORK-END: custom-routes */}
                 <Route path="/family" element={<Family />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/integrations" element={moduleRoute('integrations', <Integrations />)} />

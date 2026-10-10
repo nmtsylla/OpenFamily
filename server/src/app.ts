@@ -26,6 +26,9 @@ import aiRoutes from './routes/ai';
 import categoriesRoutes from './routes/categories';
 import kakeiboRoutes from './routes/kakeibo';
 import postsRoutes from './routes/posts';
+// FORK-START: custom-routes
+import { registerCustomRoutes } from './custom/register.custom';
+// FORK-END: custom-routes
 import { loadEnv } from './config/loadEnv';
 import logger from './lib/logger';
 
@@ -118,6 +121,12 @@ app.use('/api/posts', express.json({ limit: '3mb' }));
 const defaultJsonParser = express.json({ limit: '1mb' });
 app.use((req, res, next) => (
     req.path.replace(/\/+$/, '').toLowerCase() === '/api/data/import'
+        // FORK-START: budget-custom
+        // Same reason as the data import above: the receipt import parses a
+        // whole scanned ticket with its own, larger limit INSIDE its router
+        // (routes/ai.ts), after the login check.
+        || req.path.replace(/\/+$/, '').toLowerCase() === '/api/ai/extract-receipt'
+        // FORK-END: budget-custom
         ? next()
         : defaultJsonParser(req, res, next)
 ));
@@ -171,6 +180,15 @@ app.get('/.well-known/assetlinks.json', (req, res) => {
     ]);
 });
 
+// FORK-START: custom-routes
+// Every custom router lives in custom/register.custom.ts. Registered above the
+// upstream routers AND limiters below: these surfaces do not fan out to a
+// user-supplied host (upstream's outboundRateLimiter guards exactly that), and
+// the dashboard widgets poll on every page load — the custom register applies
+// its own limiter to them.
+registerCustomRoutes(app);
+// FORK-END: custom-routes
+
 // API Routes
 app.use('/api/auth/login', authRateLimiter);
 app.use('/api/auth/register', authRateLimiter);
@@ -178,6 +196,7 @@ app.use('/api/auth/register', authRateLimiter);
 app.use('/api/ai', outboundRateLimiter);
 app.use('/api/recipes/import-url', outboundRateLimiter);
 app.use('/api/integrations', outboundRateLimiter);
+
 app.use('/api/auth', authRoutes);
 app.use('/api/auth', userSettingsRoutes);
 app.use('/api/shopping', shoppingRoutes);
