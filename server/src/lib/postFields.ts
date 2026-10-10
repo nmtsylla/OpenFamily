@@ -1,6 +1,10 @@
 // Field rules for family posts, shared by the posts route and the data import so
 // a post meets the same constraints whichever way it reaches the database.
 
+// FORK-START: media
+import { isMediaRef } from '../custom/lib/media.custom';
+// FORK-END: media
+
 const MAX_CONTENT = 5000;
 const MAX_IMAGE = 2_000_000;
 const MAX_LINK = 2000;
@@ -15,6 +19,12 @@ export const cleanImage = (value: unknown): string | null => {
     if (typeof value !== 'string' || !value.trim()) return null;
 
     const v = value.trim();
+
+    // FORK-START: media
+    // A reference to an image already on the object-storage bucket: the SPA
+    // hands its own URL back whenever a post is edited.
+    if (isMediaRef(v)) return v;
+    // FORK-END: media
 
     if (v.length > MAX_IMAGE) {
         throw new Error('IMAGE_TOO_LARGE');

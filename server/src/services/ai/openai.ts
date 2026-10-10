@@ -14,6 +14,11 @@ import {
     type TokenUsage,
 } from './index';
 
+// FORK-START: ai
+import { OPENFAMILY_VERSION } from '../../version';
+import { chatCompletionUrl, sessionIdFor, messageContent } from '../../custom/ai/openai.custom';
+// FORK-END: ai
+
 export async function openaiComplete(
     settings: AiSettings,
     request: AiCompletionRequest
@@ -32,18 +37,23 @@ export async function openaiComplete(
     }
 
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    // FORK-START: ai
+    // Identify the client rather than the HTTP library, as public gateways ask.
+    headers['User-Agent'] = `OpenFamily/${OPENFAMILY_VERSION}`;
+    headers['x-opencode-session'] = sessionIdFor(settings.api_key);
+    // FORK-END: ai
     if (settings.api_key) {
         headers['Authorization'] = `Bearer ${settings.api_key}`;
     }
 
-    const response = await aiFetch(`${baseUrl}/v1/chat/completions`, {
+    const response = await aiFetch(chatCompletionUrl(baseUrl), {
         method: 'POST',
         headers,
         body: JSON.stringify({
             model: settings.model,
             messages: [
                 { role: 'system', content: request.system },
-                { role: 'user', content: request.user },
+                { role: 'user', content: messageContent(request) },
             ],
             response_format: { type: 'json_object' },
         }),

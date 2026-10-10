@@ -19,14 +19,47 @@ export async function anthropicComplete(
 
     const client = new Anthropic({ apiKey: settings.api_key, maxRetries: 1 });
 
+    // FORK-START: ai
+    // Receipts and invoices arrive as attachments: images and PDFs are both
+    // native document blocks on this API. Without attachments the text form is
+    // kept (unchanged behaviour for the existing text-only features).
+    const attachments = request.attachments ?? [];
+    const content: string | Anthropic.ContentBlockParam[] = attachments.length === 0
+        ? request.user
+        : [
+              ...attachments.map((file): Anthropic.ContentBlockParam =>
+                  file.mediaType === 'application/pdf'
+                      ? {
+                            type: 'document',
+                            source: { type: 'base64', media_type: 'application/pdf', data: file.data },
+                        }
+                      : {
+                            type: 'image',
+                            source: {
+                                type: 'base64',
+                                media_type: file.mediaType as Anthropic.Base64ImageSource['media_type'],
+                                data: file.data,
+                            },
+                        }
+              ),
+              { type: 'text', text: request.user },
+          ];
+    // FORK-END: ai
+
     let message: Anthropic.Message;
     try {
         message = await client.messages.create(
             {
                 model: settings.model,
-                max_tokens: 2048,
+                // FORK-START: ai
+                // Receipts carry many line items: 2048 tokens truncates a long
+                // ticket and the structured output would come back invalid.
+                max_tokens: 4096,
+                // FORK-END: ai
                 system: request.system,
-                messages: [{ role: 'user', content: request.user }],
+                // FORK-START: ai
+                messages: [{ role: 'user', content }],
+                // FORK-END: ai
                 output_config: {
                     format: { type: 'json_schema', schema: request.jsonSchema },
                 },

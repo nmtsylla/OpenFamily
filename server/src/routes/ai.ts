@@ -1,4 +1,8 @@
 import { Router, Response } from 'express';
+// FORK-START: ai
+import express from 'express';
+import type { AiAttachment } from '../services/ai';
+// FORK-END: ai
 import { query } from '../db';
 import { authMiddleware, AuthRequest, requireParent } from '../middleware/auth';
 import { encryptCredentials, decryptCredentials } from '../utils/crypto';
@@ -14,9 +18,23 @@ import {
     REFINE_RECIPE_SCHEMA,
     buildRefineRecipePrompt,
     validateRefinedRecipe,
+    // FORK-START: ai
+    localToday,
+    // FORK-END: ai
     type FamilyMemberRef,
     type RecipeRef,
 } from '../services/ai/assistant';
+// FORK-START: ai
+import {
+    RECEIPT_SCHEMA,
+    RECEIPT_MEDIA_TYPES,
+    MAX_RECEIPT_FILES,
+    MAX_RECEIPT_FILE_BYTES,
+    buildReceiptPrompt,
+    receiptFingerprint,
+    validateReceipt,
+} from '../custom/ai/receipt.custom';
+// FORK-END: ai
 import { getFamilyCategories } from './categories';
 import logger from '../lib/logger';
 
@@ -400,5 +418,95 @@ router.post('/refine-recipe', async (req: AuthRequest, res) => {
         handleAiError(res, error, 'refine_recipe');
     }
 });
+
+// FORK-START: ai
+// One to five scans as base64 are far larger than the 1 MB the rest of the API
+// accepts. This parser runs on the receipt route only, after authMiddleware and
+// requireParent; app.ts skips its own JSON parser for this path so an anonymous
+// request never gets its body read at all.
+const receiptBodyParser = express.json({ limit: '12mb' });
+
+// POST /api/ai/extract-receipt — parents only: a ticket or an invoice (photo or
+// PDF, base64) → a validated draft: one document header + its line items, each
+// already mapped onto a family budget category. Nothing is saved here: the
+// client shows the draft for review, then POSTs one budget entry per line to
+// the existing /api/budget/entries endpoint.
+router.post('/extract-receipt', requireParent, receiptBodyParser, async (req: AuthRequest, res) => {
+    try {
+        const settings = await requireConfiguredAi(req, res);
+        if (!settings) return;
+
+        const rawFiles = Array.isArray(req.body?.files) ? (req.body.files as unknown[]) : [];
+        if (rawFiles.length === 0 || rawFiles.length > MAX_RECEIPT_FILES) {
+            return res.status(400).json({
+                success: false,
+                error: `files est requis (1 à ${MAX_RECEIPT_FILES} documents)`,
+            });
+        }
+
+        const attachments: AiAttachment[] = [];
+        for (const entry of rawFiles) {
+            const file = (entry ?? {}) as { mime_type?: unknown; data?: unknown; name?: unknown };
+            const mediaType = typeof file.mime_type === 'string' ? file.mime_type.trim().toLowerCase() : '';
+            const data = typeof file.data === 'string' ? file.data : '';
+            if (!(RECEIPT_MEDIA_TYPES as readonly string[]).includes(mediaType)) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Format non pris en charge : envoyez une image (JPEG, PNG, WebP) ou un PDF.',
+                });
+            }
+            // Shape before size: base64-decoding arbitrary junk is wasted work.
+            if (!/^[A-Za-z0-9+/]+={0,2}$/.test(data)) {
+                return res.status(400).json({ success: false, error: 'Fichier illisible (base64 attendu).' });
+            }
+            if (Buffer.byteLength(data, 'base64') > MAX_RECEIPT_FILE_BYTES) {
+                return res.status(413).json({ success: false, error: 'Document trop volumineux (8 Mo maximum).' });
+            }
+            attachments.push({
+                mediaType,
+                data,
+                name: typeof file.name === 'string' ? file.name.slice(0, 100) : undefined,
+            });
+        }
+
+        // Offer the family's own categories to the model, and the family currency
+        // as a reading hint (amounts stay plain numbers either way).
+        const familyCategories = await getFamilyCategories(req.userId!);
+        const currencyResult = await query('SELECT currency FROM users WHERE id = $1', [req.userId]);
+        const currency = (currencyResult.rows[0] as { currency?: string } | undefined)?.currency || 'EUR';
+
+        const { data: raw, usage } = await aiCompleteWithUsage(settings, {
+            system: buildReceiptPrompt(familyCategories.budget, localToday().iso, currency),
+            user: 'Analyse le document ci-joint et réponds uniquement avec le JSON demandé.',
+            jsonSchema: RECEIPT_SCHEMA,
+            attachments,
+        });
+
+        const receipt = validateReceipt(raw, familyCategories.budget, localToday().iso);
+
+        // Duplicate guard, first layer: the family already imported a ticket for
+        // the same merchant on the same day for the same amount. The client shows
+        // it and refuses to import again; the commit endpoint enforces it too.
+        // An undated ticket is stored on the day it is imported, so that is the
+        // date the fingerprint is built from (the client prefills the same one).
+        const fingerprint = receiptFingerprint(receipt.merchant, receipt.date || localToday().iso, receipt.total);
+        const existing = await query(
+            'SELECT id, merchant, date, total FROM budget_receipts WHERE user_id = $1 AND fingerprint = $2',
+            [req.userId, fingerprint]
+        );
+        const duplicate = existing.rows.length > 0
+            ? {
+                  id: existing.rows[0].id,
+                  merchant: existing.rows[0].merchant,
+                  date: existing.rows[0].date,
+              }
+            : null;
+
+        res.json({ success: true, data: { receipt, duplicate }, usage });
+    } catch (error) {
+        handleAiError(res, error, 'extract_receipt');
+    }
+});
+// FORK-END: ai
 
 export default router;

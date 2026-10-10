@@ -28,15 +28,38 @@ if (!process.env.POSTGRES_PASSWORD) {
     });
 }
 
+// FORK-START: db-config
+// TLS towards the database, named after libpq's sslmode so a managed Postgres
+// (Neon, RDS, …) needs no code change:
+//   disable (default) — plaintext, what a Postgres container on the same host wants
+//   require           — encrypted, certificate chain not checked
+//   verify-full       — encrypted and verified (hostname + trusted CA)
+const sslMode = (process.env.CUSTOM_POSTGRES_SSL || '').toLowerCase();
+const dbSsl =
+    sslMode === '' || sslMode === 'disable'
+        ? undefined
+        : { rejectUnauthorized: sslMode === 'verify-full' };
+
+// A suspended serverless compute (Neon scales to zero after a few idle minutes)
+// has to wake up before it accepts the connection, which is slower than a local
+// container's TCP accept.
+const connectTimeoutMs = parseInt(process.env.CUSTOM_POSTGRES_CONNECT_TIMEOUT_MS || '2000');
+// FORK-END: db-config
+
 const pool = new Pool({
     host: process.env.POSTGRES_HOST || 'localhost',
     port: parseInt(process.env.POSTGRES_PORT || '5432'),
     database: process.env.POSTGRES_DB || 'openfamily',
     user: process.env.POSTGRES_USER || 'openfamily',
     password: process.env.POSTGRES_PASSWORD || 'changeme',
+    // FORK-START: db-config
+    ssl: dbSsl,
+    // FORK-END: db-config
     max: 20,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000,
+    // FORK-START: db-config
+    connectionTimeoutMillis: connectTimeoutMs,
+    // FORK-END: db-config
 });
 
 pool.on('error', (err) => {

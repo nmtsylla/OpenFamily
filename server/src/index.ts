@@ -8,6 +8,9 @@ import { clients, broadcast } from './lib/broadcaster';
 import { startReminderScheduler } from './lib/reminderScheduler';
 import { startCalendarSubscriptionScheduler } from './lib/calendarSources';
 import { getJwtSecret } from './config/loadEnv';
+// FORK-START: media
+import { ensureBucket, isStorageConfigured } from './custom/lib/storage.custom';
+// FORK-END: media
 
 export { broadcast };
 
@@ -78,6 +81,21 @@ const startServer = async () => {
         // Test database connection
         await pool.query('SELECT NOW()');
         logger.info('server.database_connected');
+
+        // FORK-START: media
+        // Images go to object storage when a bucket is configured. An
+        // unreachable bucket is not fatal: the rest of the app works, only
+        // storing a new image fails, and the operator sees it here first.
+        if (isStorageConfigured()) {
+            try {
+                await ensureBucket();
+            } catch (err) {
+                logger.error('storage.bucket_unavailable', {
+                    error: err instanceof Error ? err.message : String(err),
+                });
+            }
+        }
+        // FORK-END: media
 
         startReminderScheduler();
         startCalendarSubscriptionScheduler();

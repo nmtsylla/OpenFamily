@@ -189,4 +189,69 @@ export const coreMigrations: readonly Migration[] = [
                AND EXISTS (SELECT 1 FROM jsonb_array_elements(instructions) e WHERE jsonb_typeof(e) = 'object')`,
         ],
     },
+    // FORK-START: custom-migrations
+    {
+        // Per-user location: city + geocoded coordinates, used by the dashboard
+        // weather / clothing / activities widgets. All four columns are
+        // nullable so existing accounts keep working; the widget shows an
+        // empty-state CTA until a city is set.
+        //
+        // The id is in the reserved `custom/` namespace on purpose: `core/` is
+        // upstream's sequence, and upstream ends at core/0006, so the next
+        // migration it ships takes core/0007.
+        id: 'custom/0001-users-location',
+        statements: [
+            'ALTER TABLE users ADD COLUMN IF NOT EXISTS city VARCHAR(120)',
+            'ALTER TABLE users ADD COLUMN IF NOT EXISTS country_code CHAR(2)',
+            'ALTER TABLE users ADD COLUMN IF NOT EXISTS latitude NUMERIC(8, 5)',
+            'ALTER TABLE users ADD COLUMN IF NOT EXISTS longitude NUMERIC(8, 5)',
+        ],
+    },
+    {
+        // Imported receipts and bills keep their line detail. The budget entries
+        // a user actually sees are linked to the receipt (receipt_id), so one
+        // row on the Budget page can be opened to show what was in the ticket,
+        // a receipt can be deleted with its entries in one go, and the lines
+        // stay available for later analysis.
+        //
+        // fingerprint is the duplicate guard: same merchant + date + total for
+        // the same family = the same ticket scanned twice.
+        id: 'custom/0002-budget-receipts',
+        statements: [
+            `CREATE TABLE IF NOT EXISTS budget_receipts (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                merchant VARCHAR(120) NOT NULL DEFAULT '',
+                date DATE NOT NULL,
+                total DECIMAL(10, 2) NOT NULL,
+                currency VARCHAR(3) NOT NULL DEFAULT 'EUR',
+                document_type VARCHAR(16) NOT NULL DEFAULT 'receipt',
+                category VARCHAR(50) NOT NULL,
+                import_mode VARCHAR(16) NOT NULL DEFAULT 'itemized',
+                source_name VARCHAR(160),
+                fingerprint VARCHAR(64) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (user_id, fingerprint)
+            )`,
+            `CREATE TABLE IF NOT EXISTS budget_receipt_items (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                receipt_id UUID NOT NULL REFERENCES budget_receipts(id) ON DELETE CASCADE,
+                position INTEGER NOT NULL DEFAULT 0,
+                label VARCHAR(160) NOT NULL,
+                quantity DECIMAL(10, 3) NOT NULL DEFAULT 1,
+                unit_price DECIMAL(10, 2) NOT NULL DEFAULT 0,
+                amount DECIMAL(10, 2) NOT NULL,
+                category VARCHAR(50) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )`,
+            'CREATE INDEX IF NOT EXISTS idx_budget_receipts_user_date ON budget_receipts(user_id, date)',
+            'CREATE INDEX IF NOT EXISTS idx_budget_receipt_items_receipt ON budget_receipt_items(receipt_id)',
+            // Deleting a receipt removes the entries it created: they are the
+            // same expense, grouped.
+            'ALTER TABLE budget_entries ADD COLUMN IF NOT EXISTS receipt_id UUID REFERENCES budget_receipts(id) ON DELETE CASCADE',
+            'CREATE INDEX IF NOT EXISTS idx_budget_entries_receipt ON budget_entries(receipt_id)',
+        ],
+    },
+    // FORK-END: custom-migrations
 ];

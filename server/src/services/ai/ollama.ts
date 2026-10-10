@@ -14,11 +14,30 @@ import {
     type TokenUsage,
 } from './index';
 
+// FORK-START: ai
+// Ollama's `images` field: base64 still images, one entry per image.
+const OLLAMA_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+// FORK-END: ai
+
 export async function ollamaComplete(
     settings: AiSettings,
     request: AiCompletionRequest
 ): Promise<{ data: Record<string, unknown>; usage: TokenUsage | null }> {
     const baseUrl = (settings.base_url || DEFAULT_BASE_URLS.ollama!).replace(/\/+$/, '');
+
+    // FORK-START: ai
+    // Ollama takes raw base64 images per message and has no PDF input: a
+    // document attachment is refused here rather than silently ignored.
+    const attachments = request.attachments ?? [];
+    const unsupported = attachments.find((file) => !OLLAMA_IMAGE_TYPES.includes(file.mediaType));
+    if (unsupported) {
+        throw new AiError(
+            'AI_UNSUPPORTED_MEDIA',
+            'Ollama ne lit que les images JPEG, PNG et WebP — envoyez une photo du document.'
+        );
+    }
+    const images = attachments.map((file) => file.data);
+    // FORK-END: ai
 
     try {
         // Private LAN targets are legitimate here (local Ollama is the whole point);
@@ -36,7 +55,9 @@ export async function ollamaComplete(
                 model: settings.model,
                 messages: [
                     { role: 'system', content: request.system },
-                    { role: 'user', content: request.user },
+                    // FORK-START: ai
+                    { role: 'user', content: request.user, ...(images.length > 0 ? { images } : {}) },
+                    // FORK-END: ai
                 ],
                 stream: false,
                 format,

@@ -1,0 +1,115 @@
+import { Router } from 'express';
+import { query } from '../../db';
+import { authMiddleware, AuthRequest } from '../../middleware/auth';
+import { formatDateOnly } from '../../lib/budgetRecurrence';
+import {
+    buildBudgetAnalytics,
+    toAnalyticsEntries,
+    type AnalyticsMember,
+} from '../lib/budgetAnalytics.custom';
+
+// Fine-grained budget analytics — a SIDECAR to the shipped budget feature.
+//
+// It deliberately lives in its own router under its own prefix instead of being
+// folded into routes/budget.ts: nothing here edits the existing handlers, SQL or
+// tables, so an upstream update to the budget module merges without touching
+// this file, and this file never has to be reconciled with upstream.
+//
+// Read-only: SELECTs over the family's own data, no writes, no new tables, no
+// schema changes — so it cannot conflict with an upstream budget migration.
+//
+//   GET /api/budget-analytics/overview?start=YYYY-MM-DD&end=YYYY-MM-DD
+//
+// `start` and `end` are both inclusive. The response is the pure
+// buildBudgetAnalytics() output plus the echoed range: totals, actual-vs-recurring
+// split, per category / month / day / weekday / member / merchant breakdowns and a
+// pace projection for the elapsed part of the range.
+const router = Router();
+router.use(authMiddleware);
+
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+// ~5 years: bounds the per-day series and the recurring expansion in one request.
+const MAX_RANGE_DAYS = 1830;
+
+const dateOnly = (value: unknown): string | null =>
+    typeof value === 'string' && DATE_ONLY.test(value) ? value : null;
+
+/** Inclusive `end` → exclusive upper bound, the shape a `date < $n` scan wants. */
+const dayAfter = (date: string) => formatDateOnly(new Date(Date.parse(`${date}T00:00:00Z`) + 86400000));
+
+const daysInclusive = (from: string, to: string) =>
+    Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000) + 1;
+
+/** The server's own calendar day: the pace projection is about this family's clock. */
+const localToday = () => {
+    const now = new Date();
+    const pad = (value: number) => String(value).padStart(2, '0');
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+};
+
+// ponytail: no index of its own. The family's table is small (tens to thousands
+// of rows) and a seq scan answers in milliseconds; the shipped per-column
+// indexes on budget_entries stay untouched. Add a composite (user_id, date)
+// index in a migration if a family ever grows past ~1M entries.
+router.get('/overview', async (req: AuthRequest, res) => {
+    try {
+        const start = dateOnly(req.query.start);
+        const end = dateOnly(req.query.end);
+
+        if (!start || !end) {
+            return res.status(400).json({ success: false, error: 'start and end are required (YYYY-MM-DD)' });
+        }
+        if (start > end) {
+            return res.status(400).json({ success: false, error: 'start must not be after end' });
+        }
+        if (daysInclusive(start, end) > MAX_RANGE_DAYS) {
+            return res.status(400).json({ success: false, error: `range too long (max ${MAX_RANGE_DAYS} days)` });
+        }
+
+        const [entriesResult, recurringResult, membersResult] = await Promise.all([
+            // Range predicate on the bare column: this is what the index above serves.
+            query(
+                `SELECT be.id, be.category, be.amount, be.is_expense, be.date, be.assigned_to,
+                        r.merchant
+                 FROM budget_entries be
+                 LEFT JOIN budget_receipts r ON r.id = be.receipt_id
+                 WHERE be.user_id = $1
+                   AND be.date >= $2::date
+                   AND be.date < $3::date`,
+                [req.userId, start, dayAfter(end)]
+            ),
+            query(
+                `SELECT * FROM recurring_expenses
+                 WHERE user_id = $1
+                   AND is_active = true
+                   AND start_date <= $3::date
+                   AND (recurrence_until IS NULL OR recurrence_until >= $2::date)`,
+                [req.userId, start, end]
+            ),
+            query('SELECT id, name, color FROM family_members WHERE user_id = $1 ORDER BY name', [req.userId]),
+        ]);
+
+        // Both sides include the end day: `date < end + 1 day` here, and an
+        // inclusive range end inside the expansion (see toAnalyticsEntries).
+        const entries = toAnalyticsEntries(entriesResult.rows, recurringResult.rows, start, end);
+
+        const members: AnalyticsMember[] = membersResult.rows.map((row) => ({
+            id: row.id,
+            name: row.name,
+            color: row.color ?? null,
+        }));
+
+        res.json({
+            success: true,
+            data: {
+                range: { start, end },
+                ...buildBudgetAnalytics({ entries, members, start, end, today: localToday() }),
+            },
+        });
+    } catch (error) {
+        console.error('Budget analytics error:', error);
+        res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+});
+
+export default router;

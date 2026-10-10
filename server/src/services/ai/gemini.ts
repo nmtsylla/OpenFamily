@@ -32,6 +32,18 @@ export async function geminiComplete(
 
     const url = `${GEMINI_API_BASE}/models/${encodeURIComponent(model)}:generateContent`;
 
+    // FORK-START: ai
+    // Attachments (receipt photos, invoice PDFs) travel as inline_data parts
+    // before the text; without any, the text-only shape is unchanged.
+    const attachments = request.attachments ?? [];
+    const requestParts: Array<Record<string, unknown>> = [
+        ...attachments.map((file) => ({
+            inline_data: { mime_type: file.mediaType, data: file.data },
+        })),
+        { text: request.user },
+    ];
+    // FORK-END: ai
+
     const response = await aiFetch(url, {
         method: 'POST',
         headers: {
@@ -40,7 +52,9 @@ export async function geminiComplete(
         },
         body: JSON.stringify({
             system_instruction: { parts: [{ text: request.system }] },
-            contents: [{ role: 'user', parts: [{ text: request.user }] }],
+            // FORK-START: ai
+            contents: [{ role: 'user', parts: requestParts }],
+            // FORK-END: ai
             generationConfig: {
                 responseMimeType: 'application/json',
                 responseJsonSchema: request.jsonSchema,

@@ -21,11 +21,31 @@ export interface AiSettings {
     model: string;
 }
 
+// FORK-START: ai
+/**
+ * A file sent along with the completion (receipt photo, invoice PDF…). Base64
+ * WITHOUT the `data:` prefix; the caller validates the size and the media type
+ * before building the request, each provider maps it to its own wire format.
+ */
+export interface AiAttachment {
+    /** e.g. image/jpeg, image/png, image/webp, application/pdf. */
+    mediaType: string;
+    /** Base64-encoded bytes. */
+    data: string;
+    /** Original file name, used by providers that label the document. */
+    name?: string;
+}
+// FORK-END: ai
+
 export interface AiCompletionRequest {
     system: string;
     user: string;
     /** JSON schema of the expected response object (additionalProperties:false everywhere). */
     jsonSchema: Record<string, unknown>;
+    // FORK-START: ai
+    /** Documents to analyse (vision/document models only). Empty = text-only call. */
+    attachments?: AiAttachment[];
+    // FORK-END: ai
 }
 
 export type AiErrorCode =
@@ -33,6 +53,9 @@ export type AiErrorCode =
     | 'AI_UNAUTHORIZED'
     | 'AI_MODEL_NOT_FOUND'
     | 'AI_INVALID_RESPONSE'
+    // FORK-START: ai
+    | 'AI_UNSUPPORTED_MEDIA'
+    // FORK-END: ai
     | 'AI_PROVIDER_ERROR';
 
 export class AiError extends Error {

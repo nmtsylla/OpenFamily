@@ -3,6 +3,9 @@
 // javascript: or a relative path, is refused rather than stored and rendered
 // in every family member's recipe list.
 // Returns the value to store (null to clear), or undefined when invalid.
+// FORK-START: media
+import { isMediaRef } from '../custom/lib/media.custom';
+// FORK-END: media
 const MAX_INLINE_IMAGE = 1_500_000;
 const MAX_IMAGE_URL = 2048;
 export const cleanImageUrl = (value: unknown): string | null | undefined => {
@@ -10,6 +13,10 @@ export const cleanImageUrl = (value: unknown): string | null | undefined => {
     if (typeof value !== 'string') return undefined;
     const v = value.trim();
     if (!v) return null;
+    // FORK-START: media
+    // An image already on the object-storage bucket, handed back by the SPA.
+    if (isMediaRef(v)) return v;
+    // FORK-END: media
     if (v.startsWith('data:')) {
         return /^data:image\/(png|jpeg|jpg|webp|gif);base64,/i.test(v) && v.length <= MAX_INLINE_IMAGE ? v : undefined;
     }

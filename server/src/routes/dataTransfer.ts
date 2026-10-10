@@ -7,6 +7,11 @@ import { withTextLines } from '../lib/recipeLines';
 import { OPENFAMILY_VERSION } from '../version';
 import { cleanContent, cleanImage, cleanLink } from '../lib/postFields';
 import { cleanImageUrl } from '../lib/recipeImage';
+// FORK-START: media
+import { storeInlineImages } from '../custom/lib/media.custom';
+import { StorageError } from '../custom/lib/storage-errors.custom';
+import logger from '../lib/logger';
+// FORK-END: media
 
 const PORTABLE_FORMAT = 'openfamily-portable';
 const PORTABLE_VERSION = '2.0';
@@ -380,6 +385,28 @@ router.get('/export', requireParent, async (req: AuthRequest, res) => {
 
 router.post('/import', requireParent, importBodyParser, async (req: AuthRequest, res) => {
     const userId = req.userId!;
+
+    // FORK-START: media
+    try {
+        // This body is parsed here, not by app.ts, so the media hook has to run
+        // explicitly: an export carries photos inline, and a restore should not
+        // put those megabytes back in the database.
+        await storeInlineImages(req.body);
+    } catch (err) {
+        // Answer here rather than rethrowing: an unhandled rejection in an async
+        // handler takes the process down, and a restore is not worth an outage.
+        const status = err instanceof StorageError ? err.status : 500;
+        logger.error('import.media_store_failed', {
+            status,
+            error: err instanceof Error ? err.message : String(err),
+        });
+        return res.status(status).json({
+            success: false,
+            error: err instanceof StorageError ? err.message : 'Import failed while storing images',
+        });
+    }
+    // FORK-END: media
+
     const importData = asRecord(req.body);
 
     if (!importData) {
