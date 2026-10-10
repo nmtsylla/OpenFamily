@@ -1,0 +1,121 @@
+{
+  "nav": {
+    "pantry": "Garde-manger",
+    "mobilePantry": "Garde-manger"
+  },
+  "title": "Garde-manger",
+  "subtitle": "Ce que vous avez à la maison, ce qui manque et ce qu'il faut finir — relié à la liste de courses, à vos tickets et à Grocy.",
+  "tabs": {
+    "all": "Tout",
+    "lowStock": "Stock bas",
+    "expiring": "À finir",
+    "cook": "Cuisiner"
+  },
+  "filters": {
+    "days": "Périme dans les {{days}} jours"
+  },
+  "locations": {
+    "pantry": "Garde-manger",
+    "fridge": "Réfrigérateur",
+    "freezer": "Congélateur",
+    "cellar": "Cave",
+    "other": "Autre"
+  },
+  "buckets": {
+    "none": "Aucun",
+    "main": "Plat",
+    "fruit": "Fruit / légumes",
+    "snack": "Collation",
+    "drink": "Boisson"
+  },
+  "form": {
+    "newTitle": "Ajouter un produit",
+    "editTitle": "Modifier le produit",
+    "name": "Nom",
+    "namePlaceholder": "ex. lait demi-écrémé",
+    "category": "Catégorie",
+    "quantity": "Quantité",
+    "unit": "Unité",
+    "location": "Où il est rangé",
+    "expiresOn": "À consommer avant",
+    "lowStockThreshold": "Seuil de stock bas",
+    "bucket": "Pour la boîte à lunch",
+    "notes": "Notes",
+    "save": "Enregistrer",
+    "saving": "Enregistrement…"
+  },
+  "list": {
+    "empty": "Rien ici pour l'instant.",
+    "quantity": "Qté",
+    "expiresToday": "Périme aujourd'hui",
+    "expiresIn": "dans {{days}} j",
+    "expired": "Périmé",
+    "lowStock": "Stock bas",
+    "source": {
+      "manual": "Manuel",
+      "receipt": "Ticket",
+      "shopping": "Courses",
+      "grocy": "Grocy"
+    }
+  },
+  "actions": {
+    "add": "Ajouter",
+    "sendLowStock": "Envoyer le stock bas aux courses",
+    "stockFromShopping": "Approvisionner depuis les courses",
+    "importGrocy": "Importer depuis Grocy",
+    "edit": "Modifier ce produit",
+    "delete": "Supprimer ce produit",
+    "loadFromPantry": "Charger depuis le garde-manger",
+    "loadFromPantryHint": "Les produits sans case de boîte à lunch sont ignorés."
+  },
+  "stockDialog": {
+    "title": "Approvisionner le garde-manger",
+    "description": "Les articles cochés sur la liste de courses. Ajustez les quantités, puis confirmez.",
+    "empty": "Aucun article coché sur la liste de courses.",
+    "confirm": "Ajouter au garde-manger"
+  },
+  "cook": {
+    "title": "Cuisiner avec ce que vous avez",
+    "subtitle": "Les recettes dont tous les ingrédients sont dans le garde-manger.",
+    "cover": "{{covered}}/{{total}} ingrédients",
+    "none": "Aucune recette entièrement couverte pour l'instant.",
+    "openRecipe": "Voir la recette"
+  },
+  "dashboard": {
+    "title": "À finir bientôt",
+    "empty": "Rien ne périme dans les prochains jours.",
+    "viewAll": "Ouvrir le garde-manger"
+  },
+  "toasts": {
+    "created": "Produit ajouté",
+    "updated": "Produit mis à jour",
+    "deleted": "Produit supprimé",
+    "sent": "{{count}} envoyés, {{skipped}} déjà sur la liste",
+    "stocked": "{{created}} nouveaux, {{updated}} mis à jour",
+    "importedReceipt": "Ticket importé dans le garde-manger",
+    "importedGrocy": "{{count}} produits importés depuis Grocy"
+  },
+  "errors": {
+    "load": "Impossible de charger le garde-manger.",
+    "save": "Impossible d'enregistrer ce produit.",
+    "delete": "Impossible de supprimer ce produit.",
+    "shopping": "Impossible d'envoyer le stock bas aux courses.",
+    "stock": "Impossible d'approvisionner le garde-manger.",
+    "importReceipt": "Impossible d'importer ce ticket.",
+    "importGrocy": "Impossible d'importer depuis Grocy.",
+    "grocyMissing": "Aucune intégration Grocy n'est configurée.",
+    "alreadyImported": "Ce ticket a déjà été importé.",
+    "duplicateName": "Ce produit est déjà dans le garde-manger."
+  },
+  "receipt": {
+    "addLine": "Ajouter une ligne",
+    "editLine": "Modifier la ligne",
+    "deleteLine": "Supprimer la ligne",
+    "lineLabel": "Libellé",
+    "lineAmount": "Montant",
+    "addToPantry": "Ajouter au garde-manger",
+    "lineQuantity": "Quantité",
+    "lineUnitPrice": "Prix unitaire",
+    "totalUnchanged": "Le total du ticket reste celui scanné : les lignes ne sont que du détail."
+  }
+}

@@ -1,0 +1,121 @@
+{
+  "nav": {
+    "pantry": "Despensa",
+    "mobilePantry": "Despensa"
+  },
+  "title": "Despensa",
+  "subtitle": "O que tem em casa, o que está a faltar e o que é preciso gastar — ligado à lista de compras, aos recibos e ao Grocy.",
+  "tabs": {
+    "all": "Tudo",
+    "lowStock": "Stock baixo",
+    "expiring": "Para gastar",
+    "cook": "Cozinhar"
+  },
+  "filters": {
+    "days": "Expira em {{days}} dias"
+  },
+  "locations": {
+    "pantry": "Despensa",
+    "fridge": "Frigorífico",
+    "freezer": "Congelador",
+    "cellar": "Cave",
+    "other": "Outro"
+  },
+  "buckets": {
+    "none": "Nenhum",
+    "main": "Prato",
+    "fruit": "Fruta / legumes",
+    "snack": "Lanche",
+    "drink": "Bebida"
+  },
+  "form": {
+    "newTitle": "Adicionar um produto",
+    "editTitle": "Editar o produto",
+    "name": "Nome",
+    "namePlaceholder": "ex.: leite meio-gordo",
+    "category": "Categoria",
+    "quantity": "Quantidade",
+    "unit": "Unidade",
+    "location": "Onde está guardado",
+    "expiresOn": "Consumir até",
+    "lowStockThreshold": "Limite de stock baixo",
+    "bucket": "Para a lancheira",
+    "notes": "Notas",
+    "save": "Guardar",
+    "saving": "A guardar…"
+  },
+  "list": {
+    "empty": "Ainda não há nada aqui.",
+    "quantity": "Qtd.",
+    "expiresToday": "Expira hoje",
+    "expiresIn": "em {{days}} d",
+    "expired": "Expirou",
+    "lowStock": "Stock baixo",
+    "source": {
+      "manual": "Manual",
+      "receipt": "Recibo",
+      "shopping": "Compras",
+      "grocy": "Grocy"
+    }
+  },
+  "actions": {
+    "add": "Adicionar",
+    "sendLowStock": "Enviar o stock baixo para as compras",
+    "stockFromShopping": "Abastecer a partir das compras",
+    "importGrocy": "Importar do Grocy",
+    "edit": "Editar este produto",
+    "delete": "Eliminar este produto",
+    "loadFromPantry": "Carregar da despensa",
+    "loadFromPantryHint": "Os produtos sem lugar na lancheira são ignorados."
+  },
+  "stockDialog": {
+    "title": "Abastecer a despensa",
+    "description": "Os artigos assinalados na lista de compras. Ajuste as quantidades e confirme.",
+    "empty": "Nenhum artigo assinalado na lista de compras.",
+    "confirm": "Adicionar à despensa"
+  },
+  "cook": {
+    "title": "Cozinhar com o que tem",
+    "subtitle": "As receitas cujos ingredientes estão todos na despensa.",
+    "cover": "{{covered}}/{{total}} ingredientes",
+    "none": "Ainda não há nenhuma receita completa.",
+    "openRecipe": "Ver a receita"
+  },
+  "dashboard": {
+    "title": "Para gastar em breve",
+    "empty": "Nada expira nos próximos dias.",
+    "viewAll": "Abrir a despensa"
+  },
+  "toasts": {
+    "created": "Produto adicionado",
+    "updated": "Produto atualizado",
+    "deleted": "Produto eliminado",
+    "sent": "{{count}} enviados, {{skipped}} já na lista",
+    "stocked": "{{created}} novos, {{updated}} atualizados",
+    "importedReceipt": "Recibo importado para a despensa",
+    "importedGrocy": "{{count}} produtos importados do Grocy"
+  },
+  "errors": {
+    "load": "Não foi possível carregar a despensa.",
+    "save": "Não foi possível guardar este produto.",
+    "delete": "Não foi possível eliminar este produto.",
+    "shopping": "Não foi possível enviar o stock baixo para as compras.",
+    "stock": "Não foi possível abastecer a despensa.",
+    "importReceipt": "Não foi possível importar este recibo.",
+    "importGrocy": "Não foi possível importar do Grocy.",
+    "grocyMissing": "Não há nenhuma integração Grocy configurada.",
+    "alreadyImported": "Este recibo já foi importado.",
+    "duplicateName": "Este produto já está na despensa."
+  },
+  "receipt": {
+    "addLine": "Adicionar uma linha",
+    "editLine": "Editar a linha",
+    "deleteLine": "Eliminar a linha",
+    "lineLabel": "Descrição",
+    "lineAmount": "Valor",
+    "addToPantry": "Adicionar à despensa",
+    "lineQuantity": "Quantidade",
+    "lineUnitPrice": "Preço unitário",
+    "totalUnchanged": "O total do recibo mantém-se o digitalizado: as linhas são apenas detalhe."
+  }
+}

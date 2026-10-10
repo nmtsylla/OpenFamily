@@ -2,7 +2,8 @@
   "customize": {
     "widgets": {
       "weather": "天气与穿搭",
-      "activities": "无屏活动"
+      "activities": "无屏活动",
+      "pantry": "尽快用完"
     }
   }
 }

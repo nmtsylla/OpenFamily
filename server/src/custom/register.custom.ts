@@ -18,6 +18,7 @@ import budgetReceiptsRoutes from './routes/budgetReceipts.custom';
 import lunchboxRoutes from './routes/lunchbox.custom';
 import mediaRoutes from './routes/media.custom';
 import outingsRoutes from './routes/outings.custom';
+import pantryRoutes from './routes/pantry.custom';
 import weatherRoutes from './routes/weather.custom';
 
 export const registerCustomRoutes = (app: Express): void => {
@@ -44,6 +45,15 @@ export const registerCustomRoutes = (app: Express): void => {
         // user-supplied host — only the two AI calls leave the server, and they
         // go to the family's own configured provider.
         app.use('/api/lunchbox', customRateLimiter, lunchboxRoutes);
+    }
+
+    if (isCustomFeatureEnabled('pantry')) {
+        // The pantry is the fork's own table; the shopping-list route behind it
+        // appends to upstream's list and writes to no other system. One route
+        // inside the router DOES leave the server — the Grocy import reads the
+        // family's stored Grocy URL — so it carries its own limiter (see
+        // middleware/rateLimit.custom.ts) on top of this one.
+        app.use('/api/pantry', customRateLimiter, pantryRoutes);
     }
 
     if (isCustomFeatureEnabled('outings')) {

@@ -15,6 +15,7 @@ export type CustomFeature =
     | 'budgetReceipts'
     | 'budgetAnalytics'
     | 'lunchbox'
+    | 'pantry'
     | 'outings'
     | 'aiWidgets';
 
@@ -24,6 +25,7 @@ const FLAGS: Record<CustomFeature, string> = {
     budgetReceipts: 'CUSTOM_FEATURE_BUDGET_RECEIPTS_ENABLED',
     budgetAnalytics: 'CUSTOM_FEATURE_BUDGET_ANALYTICS_ENABLED',
     lunchbox: 'CUSTOM_FEATURE_LUNCHBOX_ENABLED',
+    pantry: 'CUSTOM_FEATURE_PANTRY_ENABLED',
     outings: 'CUSTOM_FEATURE_OUTINGS_ENABLED',
     aiWidgets: 'CUSTOM_FEATURE_AI_WIDGETS_ENABLED',
 };
@@ -37,6 +39,7 @@ const MODULE_KEYS: Record<CustomFeature, readonly string[]> = {
     budgetReceipts: ['budgetReceipts'],
     budgetAnalytics: ['budgetAnalytics'],
     lunchbox: ['lunchbox'],
+    pantry: ['pantry'],
     outings: ['outings'],
     aiWidgets: [],
 };
@@ -53,13 +56,13 @@ const MODULE_KEYS: Record<CustomFeature, readonly string[]> = {
 // (which reports the key as disabled), not through a checkbox. Listing them
 // there would mean fork-owned label keys in six locales for a switch the env
 // flag already provides.
-export const CUSTOM_MODULE_KEYS = ['weather', 'activities', 'budgetReceipts', 'budgetAnalytics', 'lunchbox', 'outings'] as const;
+export const CUSTOM_MODULE_KEYS = ['weather', 'activities', 'budgetReceipts', 'budgetAnalytics', 'lunchbox', 'pantry', 'outings'] as const;
 
 // Dashboard widgets this fork adds. The server's own DASHBOARD_WIDGETS list
 // (routes/userSettings.ts) sanitises what a member may store, so a widget that
 // is missing there can never appear on the dashboard — the client list alone is
 // not enough.
-export const CUSTOM_DASHBOARD_WIDGETS = ['weather', 'activities'] as const;
+export const CUSTOM_DASHBOARD_WIDGETS = ['weather', 'activities', 'pantry'] as const;
 
 export const isCustomFeatureEnabled = (feature: CustomFeature): boolean =>
     process.env[FLAGS[feature]] !== 'false' && process.env[FLAGS[feature]] !== '0';

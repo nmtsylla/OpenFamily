@@ -2,7 +2,8 @@
   "customize": {
     "widgets": {
       "weather": "Weather & outfits",
-      "activities": "Things to do (screen-free)"
+      "activities": "Things to do (screen-free)",
+      "pantry": "Use it up soon"
     }
   }
 }

@@ -278,5 +278,70 @@ export const coreMigrations: readonly Migration[] = [
             'CREATE INDEX IF NOT EXISTS idx_custom_lunchboxes_member_date ON custom_lunchboxes(family_member_id, date)',
         ],
     },
+    {
+        // The pantry: what the household actually has at home, with an optional
+        // expiry date, a low-stock threshold and one optional lunchbox bucket.
+        //
+        // It is the source of truth the fork was missing. The lunchbox AI dialog
+        // kept its four chip lists in localStorage, the Grocy integration only
+        // imported the shopping list, and receipt lines were archived without
+        // ever feeding anything — all three now read or write this table instead.
+        //
+        // name_key is the folded name (lib/pantry.custom.ts) used for merging:
+        // 'Œufs', 'oeufs' and 'OEUFS ' are one row. custom_pantry_imports is the
+        // receipt-import guard (one import per receipt); the Grocy import is
+        // idempotent by name and needs no guard.
+        id: 'custom/0004-pantry',
+        statements: [
+            `CREATE TABLE IF NOT EXISTS custom_pantry_items (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                name VARCHAR(160) NOT NULL,
+                name_key VARCHAR(160) NOT NULL,
+                category VARCHAR(50) NOT NULL DEFAULT 'Autre',
+                quantity DECIMAL(10, 3) NOT NULL DEFAULT 1,
+                unit VARCHAR(50),
+                location VARCHAR(16) NOT NULL DEFAULT 'pantry',
+                expires_on DATE,
+                low_stock_threshold DECIMAL(10, 3),
+                lunchbox_bucket VARCHAR(16),
+                notes TEXT,
+                source VARCHAR(16) NOT NULL DEFAULT 'manual',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )`,
+            `CREATE TABLE IF NOT EXISTS custom_pantry_imports (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                source VARCHAR(16) NOT NULL,
+                source_ref VARCHAR(160) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (user_id, source, source_ref)
+            )`,
+            'CREATE INDEX IF NOT EXISTS idx_custom_pantry_user ON custom_pantry_items(user_id)',
+            'CREATE INDEX IF NOT EXISTS idx_custom_pantry_name ON custom_pantry_items(user_id, name_key)',
+            'CREATE INDEX IF NOT EXISTS idx_custom_pantry_expiry ON custom_pantry_items(user_id, expires_on)',
+        ],
+    },
+    {
+        // The merge invariant, enforced by the database instead of by a
+        // SELECT-then-INSERT: two concurrent merges (a double-clicked "stock from
+        // shopping", a retried import) used to both find no row and both insert,
+        // splitting one product's quantity across duplicates that later merges
+        // only half-updated.
+        //
+        // Two PARTIAL unique indexes, not one on (user_id, name_key): a Grocy row
+        // and a hand-kept row for the same product are meant to coexist (the
+        // Grocy sync matches `name_key` AND `source = 'grocy'` so it never
+        // touches what the family typed). 'manual', 'receipt' and 'shopping' rows
+        // share the other index.
+        id: 'custom/0005-pantry-name-unique',
+        statements: [
+            `CREATE UNIQUE INDEX IF NOT EXISTS idx_custom_pantry_name_owned
+                ON custom_pantry_items(user_id, name_key) WHERE source <> 'grocy'`,
+            `CREATE UNIQUE INDEX IF NOT EXISTS idx_custom_pantry_name_grocy
+                ON custom_pantry_items(user_id, name_key) WHERE source = 'grocy'`,
+        ],
+    },
     // FORK-END: custom-migrations
 ];

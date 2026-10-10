@@ -1,0 +1,121 @@
+{
+  "nav": {
+    "pantry": "Pantry",
+    "mobilePantry": "Pantry"
+  },
+  "title": "Pantry",
+  "subtitle": "What you have at home, what is running low and what to use up — shared with the shopping list, your receipts and Grocy.",
+  "tabs": {
+    "all": "All",
+    "lowStock": "Low stock",
+    "expiring": "Use it up",
+    "cook": "Cook"
+  },
+  "filters": {
+    "days": "Expiring within {{days}} days"
+  },
+  "locations": {
+    "pantry": "Pantry",
+    "fridge": "Fridge",
+    "freezer": "Freezer",
+    "cellar": "Cellar",
+    "other": "Other"
+  },
+  "buckets": {
+    "none": "No lunchbox",
+    "main": "Dish",
+    "fruit": "Fruit / vegetables",
+    "snack": "Snack",
+    "drink": "Drink"
+  },
+  "form": {
+    "newTitle": "Add a product",
+    "editTitle": "Edit the product",
+    "name": "Name",
+    "namePlaceholder": "e.g. semi-skimmed milk",
+    "category": "Category",
+    "quantity": "Quantity",
+    "unit": "Unit",
+    "location": "Where it is kept",
+    "expiresOn": "Best before",
+    "lowStockThreshold": "Low-stock threshold",
+    "bucket": "Lunchbox slot",
+    "notes": "Notes",
+    "save": "Save",
+    "saving": "Saving…"
+  },
+  "list": {
+    "empty": "Nothing here yet.",
+    "quantity": "Qty",
+    "expiresToday": "Expires today",
+    "expiresIn": "in {{days}} d",
+    "expired": "Expired",
+    "lowStock": "Low stock",
+    "source": {
+      "manual": "Manual",
+      "receipt": "Receipt",
+      "shopping": "Shopping",
+      "grocy": "Grocy"
+    }
+  },
+  "actions": {
+    "add": "Add",
+    "sendLowStock": "Send low stock to shopping",
+    "stockFromShopping": "Stock from shopping list",
+    "importGrocy": "Import from Grocy",
+    "edit": "Edit this product",
+    "delete": "Delete this product",
+    "loadFromPantry": "Load from pantry",
+    "loadFromPantryHint": "Items with no lunchbox slot are skipped."
+  },
+  "stockDialog": {
+    "title": "Stock the pantry",
+    "description": "The items ticked on the shopping list. Adjust the quantities, then confirm.",
+    "empty": "No ticked item on the shopping list.",
+    "confirm": "Add to the pantry"
+  },
+  "cook": {
+    "title": "Cook with what you have",
+    "subtitle": "Recipes whose every ingredient is in the pantry.",
+    "cover": "{{covered}}/{{total}} ingredients",
+    "none": "No recipe is fully covered yet.",
+    "openRecipe": "See the recipe"
+  },
+  "dashboard": {
+    "title": "Use it up soon",
+    "empty": "Nothing expires in the coming days.",
+    "viewAll": "Open the pantry"
+  },
+  "toasts": {
+    "created": "Product added",
+    "updated": "Product updated",
+    "deleted": "Product deleted",
+    "sent": "{{count}} sent, {{skipped}} already listed",
+    "stocked": "{{created}} new, {{updated}} updated",
+    "importedReceipt": "Receipt imported into the pantry",
+    "importedGrocy": "{{count}} products imported from Grocy"
+  },
+  "errors": {
+    "load": "Unable to load the pantry.",
+    "save": "Unable to save this product.",
+    "delete": "Unable to delete this product.",
+    "shopping": "Unable to send the low stock to the shopping list.",
+    "stock": "Unable to stock the pantry.",
+    "importReceipt": "Unable to import this receipt.",
+    "importGrocy": "Unable to import from Grocy.",
+    "grocyMissing": "No Grocy integration is configured.",
+    "alreadyImported": "This receipt has already been imported.",
+    "duplicateName": "This product is already in the pantry."
+  },
+  "receipt": {
+    "addLine": "Add a line",
+    "editLine": "Edit the line",
+    "deleteLine": "Delete the line",
+    "lineLabel": "Label",
+    "lineAmount": "Amount",
+    "addToPantry": "Add to pantry",
+    "lineQuantity": "Quantity",
+    "lineUnitPrice": "Unit price",
+    "totalUnchanged": "The receipt total stays as scanned: the lines are detail only."
+  }
+}

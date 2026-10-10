@@ -5,7 +5,7 @@
 // key: the family-level module setting and the CUSTOM_FEATURE_*_ENABLED flag
 // (reported as disabled through /api/auth/me) hide it without any extra work.
 
-import { BarChart3, Sandwich } from 'lucide-react';
+import { BarChart3, Package, Sandwich } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 export interface CustomNavEntry {
@@ -21,9 +21,11 @@ export const customNavigation: CustomNavEntry[] = [
     { labelKey: 'analytics.custom:nav.budgetAnalytics', href: '/budget-analytics', icon: BarChart3, module: 'budgetAnalytics' },
     // Same reason for /lunchboxes: the upstream Meals entry matches /meals.
     { labelKey: 'lunchbox.custom:nav.lunchboxes', href: '/lunchboxes', icon: Sandwich, module: 'lunchbox' },
+    { labelKey: 'pantry.custom:nav.pantry', href: '/pantry', icon: Package, module: 'pantry' },
 ];
 
 export const customMobileTabs: CustomNavEntry[] = [
     { labelKey: 'analytics.custom:nav.mobileBudgetAnalytics', href: '/budget-analytics', icon: BarChart3, module: 'budgetAnalytics' },
     { labelKey: 'lunchbox.custom:nav.mobileLunchboxes', href: '/lunchboxes', icon: Sandwich, module: 'lunchbox' },
+    { labelKey: 'pantry.custom:nav.mobilePantry', href: '/pantry', icon: Package, module: 'pantry' },
 ];

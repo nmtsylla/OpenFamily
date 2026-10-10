@@ -10,8 +10,11 @@ import {
     GlassWater,
     UtensilsCrossed,
     Check,
+    Package,
 } from 'lucide-react';
 import { api } from '../../lib/api';
+import { foldText } from '../../lib/textSearch';
+import { useAuth } from '../../contexts/AuthContext';
 import { aiErrorKey } from '../../components/app/MagicInput';
 import { Button, Dialog, Input, Select } from '../../components/ui';
 
@@ -154,7 +157,8 @@ const ChipListInput: React.FC<{
 };
 
 export const LunchboxAiDialog: React.FC<Props> = ({ open, onOpenChange, familyMember, onIdeaApplied }) => {
-    const { t } = useTranslation(['lunchbox.custom', 'ai']);
+    const { t } = useTranslation(['lunchbox.custom', 'ai', 'pantry.custom']);
+    const { isModuleEnabled } = useAuth();
     const [mains, setMains] = useState<string[]>([]);
     const [fruits, setFruits] = useState<string[]>([]);
     const [snacks, setSnacks] = useState<string[]>([]);
@@ -162,9 +166,45 @@ export const LunchboxAiDialog: React.FC<Props> = ({ open, onOpenChange, familyMe
     const [location, setLocation] = useState<LunchboxLocation>('school');
     const [context, setContext] = useState('');
     const [generating, setGenerating] = useState(false);
+    const [loadingPantry, setLoadingPantry] = useState(false);
     const [error, setError] = useState('');
     const [ideas, setIdeas] = useState<LunchboxIdea[]>([]);
     const [appliedIdx, setAppliedIdx] = useState<number | null>(null);
+
+    // The pantry is the seed now: one bucket per item decides which chip list it
+    // lands in. The four lists stay free text (the server endpoint is unchanged),
+    // so this only fills them; localStorage stays the manual fallback.
+    const loadFromPantry = async () => {
+        setLoadingPantry(true);
+        try {
+            const response = await api.get<{
+                success: boolean;
+                data: { items: Array<{ name: string; lunchbox_bucket: string | null }> };
+            }>('/api/pantry');
+            const items = response.data?.items ?? [];
+            const forBucket = (bucket: string) => {
+                const seen = new Set<string>();
+                const names: string[] = [];
+                for (const item of items) {
+                    if (item.lunchbox_bucket !== bucket) continue;
+                    const key = foldText(item.name);
+                    if (seen.has(key)) continue;
+                    seen.add(key);
+                    names.push(item.name);
+                }
+                return names;
+            };
+            setMains(forBucket('main'));
+            setFruits(forBucket('fruit'));
+            setSnacks(forBucket('snack'));
+            setDrinks(forBucket('drink'));
+            setError('');
+        } catch (err) {
+            setError(err instanceof Error ? err.message : t('pantry.custom:errors.load'));
+        } finally {
+            setLoadingPantry(false);
+        }
+    };
 
     // Hydrated once, deliberately not reset on each open: the family's usual
     // pantry stays sticky from one day to the next.
@@ -242,6 +282,17 @@ export const LunchboxAiDialog: React.FC<Props> = ({ open, onOpenChange, familyMe
             className="sm:max-w-3xl"
         >
             <div className="space-y-5">
+                {isModuleEnabled('pantry') && (
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button type="button" variant="secondary" onClick={() => void loadFromPantry()} disabled={loadingPantry}>
+                            <Package className="mr-2 h-4 w-4" />
+                            {t('pantry.custom:actions.loadFromPantry')}
+                        </Button>
+                        <span className="text-label-sm text-muted-foreground">
+                            {t('pantry.custom:actions.loadFromPantryHint')}
+                        </span>
+                    </div>
+                )}
                 <ChipListInput
                     label={t('lunchbox.custom:ai.mains')}
                     icon={<UtensilsCrossed className="h-4 w-4" />}

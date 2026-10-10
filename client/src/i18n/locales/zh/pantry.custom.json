@@ -1,0 +1,121 @@
+{
+  "nav": {
+    "pantry": "食品储藏",
+    "mobilePantry": "储藏"
+  },
+  "title": "食品储藏",
+  "subtitle": "家里有什么、什么快没了、什么该尽快用完 —— 与购物清单、小票和 Grocy 相连。",
+  "tabs": {
+    "all": "全部",
+    "lowStock": "库存不足",
+    "expiring": "尽快用完",
+    "cook": "做饭"
+  },
+  "filters": {
+    "days": "{{days}} 天内到期"
+  },
+  "locations": {
+    "pantry": "储物柜",
+    "fridge": "冰箱",
+    "freezer": "冷冻柜",
+    "cellar": "地窖",
+    "other": "其他"
+  },
+  "buckets": {
+    "none": "无",
+    "main": "主菜",
+    "fruit": "水果 / 蔬菜",
+    "snack": "点心",
+    "drink": "饮料"
+  },
+  "form": {
+    "newTitle": "添加食品",
+    "editTitle": "编辑食品",
+    "name": "名称",
+    "namePlaceholder": "例如：半脱脂牛奶",
+    "category": "分类",
+    "quantity": "数量",
+    "unit": "单位",
+    "location": "存放位置",
+    "expiresOn": "保质期至",
+    "lowStockThreshold": "库存不足阈值",
+    "bucket": "便当用途",
+    "notes": "备注",
+    "save": "保存",
+    "saving": "保存中…"
+  },
+  "list": {
+    "empty": "这里还没有任何东西。",
+    "quantity": "数量",
+    "expiresToday": "今天到期",
+    "expiresIn": "{{days}} 天后到期",
+    "expired": "已过期",
+    "lowStock": "库存不足",
+    "source": {
+      "manual": "手动",
+      "receipt": "小票",
+      "shopping": "购物",
+      "grocy": "Grocy"
+    }
+  },
+  "actions": {
+    "add": "添加",
+    "sendLowStock": "把不足的加入购物清单",
+    "stockFromShopping": "从购物清单入库",
+    "importGrocy": "从 Grocy 导入",
+    "edit": "编辑此食品",
+    "delete": "删除此食品",
+    "loadFromPantry": "从食品储藏加载",
+    "loadFromPantryHint": "未设置便当用途的食品会被忽略。"
+  },
+  "stockDialog": {
+    "title": "补充食品储藏",
+    "description": "购物清单中已勾选的商品。调整数量后确认。",
+    "empty": "购物清单中没有已勾选的商品。",
+    "confirm": "加入食品储藏"
+  },
+  "cook": {
+    "title": "用手头的东西做饭",
+    "subtitle": "所有食材都在储藏里的食谱。",
+    "cover": "{{covered}}/{{total}} 种食材",
+    "none": "目前还没有食材齐全的食谱。",
+    "openRecipe": "查看食谱"
+  },
+  "dashboard": {
+    "title": "尽快用完",
+    "empty": "未来几天没有快到期的东西。",
+    "viewAll": "打开食品储藏"
+  },
+  "toasts": {
+    "created": "已添加食品",
+    "updated": "已更新食品",
+    "deleted": "已删除食品",
+    "sent": "已发送 {{count}} 项，{{skipped}} 项已在清单中",
+    "stocked": "新增 {{created}} 项，更新 {{updated}} 项",
+    "importedReceipt": "小票已导入食品储藏",
+    "importedGrocy": "已从 Grocy 导入 {{count}} 项"
+  },
+  "errors": {
+    "load": "无法加载食品储藏。",
+    "save": "无法保存此食品。",
+    "delete": "无法删除此食品。",
+    "shopping": "无法把库存不足的商品加入购物清单。",
+    "stock": "无法补充食品储藏。",
+    "importReceipt": "无法导入这张小票。",
+    "importGrocy": "无法从 Grocy 导入。",
+    "grocyMissing": "尚未配置 Grocy 集成。",
+    "alreadyImported": "这张小票已经导入过了。",
+    "duplicateName": "食品储藏中已有这个食品。"
+  },
+  "receipt": {
+    "addLine": "添加明细",
+    "editLine": "编辑明细",
+    "deleteLine": "删除明细",
+    "lineLabel": "名称",
+    "lineAmount": "金额",
+    "addToPantry": "加入食品储藏",
+    "lineQuantity": "数量",
+    "lineUnitPrice": "单价",
+    "totalUnchanged": "小票总额仍以扫描结果为准：明细仅供参考。"
+  }
+}

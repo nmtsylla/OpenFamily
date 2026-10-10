@@ -1,0 +1,212 @@
+// =============================================================================
+// Pantry rules: what the household has at home (custom_pantry_items).
+//
+// Pure functions only — no database, no copy. The route keeps the SQL, these
+// keep the invariants: a name that fits the column, a quantity that is a real
+// number, an expiry date that is a date, and the folded `name_key` every merge
+// (receipt import, shopping bridge, Grocy import) compares on.
+//
+// The merge key is the folded name ONLY. Two rows for the same product in two
+// locations (one in the fridge, one in the cellar) therefore merge into one on
+// the next import — accepted ceiling, noted on the page, split manually.
+// =============================================================================
+
+/** Where the item is stored. The values are the client's Select options. */
+export const PANTRY_LOCATIONS = ['pantry', 'fridge', 'freezer', 'cellar', 'other'] as const;
+export type PantryLocation = (typeof PANTRY_LOCATIONS)[number];
+
+/** The bridge to the lunchbox AI: one optional bucket per item. */
+export const PANTRY_BUCKETS = ['main', 'fruit', 'snack', 'drink'] as const;
+export type PantryBucket = (typeof PANTRY_BUCKETS)[number];
+
+// Caps match the column widths in custom/0004-pantry.
+export const MAX_PANTRY_NAME = 160;
+export const MAX_PANTRY_UNIT = 50;
+export const MAX_PANTRY_CATEGORY = 50;
+export const MAX_PANTRY_NOTES = 1000;
+/** One import call never inserts more lines than this (receipts, Grocy stock). */
+export const MAX_IMPORT_LINES = 500;
+/** One shopping-list stock confirmation, same idea: a shopping list, not a dump. */
+export const MAX_STOCK_LINES = 100;
+
+/** The category the fork falls back to when the family's list has no match. */
+export const DEFAULT_PANTRY_CATEGORY = 'Autre';
+
+/**
+ * Merge key: diacritics, case and inner whitespace do not count, so 'Œufs',
+ * 'oeufs' and 'OEUFS ' are one row. Truncated to the column width so a long
+ * name cannot make two different rows look equal.
+ */
+export const pantryNameKey = (name: string): string =>
+    String(name ?? '')
+        .normalize('NFD')
+        .replace(/\p{Diacritic}/gu, '')
+        .replace(/œ/gi, 'oe')
+        .replace(/æ/gi, 'ae')
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, ' ')
+        .slice(0, MAX_PANTRY_NAME);
+
+const cleanText = (value: unknown, max: number): string | null => {
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim().slice(0, max);
+    return trimmed.length > 0 ? trimmed : null;
+};
+
+/**
+ * A real calendar day, not just four-two-two digits: '2026-13-45' matches the
+ * shape but PostgreSQL rejects it on the DATE column (SQLSTATE 22008), which
+ * would surface as a 500 instead of a stored row. Same round-trip check as
+ * ai/receipt.custom.ts.
+ */
+const isCalendarDate = (value: string): boolean => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+    const parsed = new Date(`${value}T00:00:00Z`);
+    return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+};
+
+/** `Number(value)`, or the fallback when it is not a finite number. */
+const toFinite = (value: unknown): number | null => {
+    if (value === null || value === undefined || value === '') return null;
+    const parsed = typeof value === 'number' ? value : Number(String(value));
+    return Number.isFinite(parsed) ? parsed : null;
+};
+
+export interface PantryItemInput {
+    name: string;
+    category: string;
+    quantity: number;
+    unit: string | null;
+    location: PantryLocation;
+    expires_on: string | null;
+    low_stock_threshold: number | null;
+    lunchbox_bucket: PantryBucket | null;
+    notes: string | null;
+}
+
+/**
+ * The one door into the table: every write goes through it, so a bad body can
+ * never reach a column. Returns null when there is no usable item at all —
+ * an empty name, or a quantity that is present but not a number >= 0.
+ */
+export const sanitizePantryItem = (raw: unknown): PantryItemInput | null => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    const body = raw as Record<string, unknown>;
+
+    const name = typeof body.name === 'string' ? body.name.trim().slice(0, MAX_PANTRY_NAME) : '';
+    if (name.length === 0) return null;
+
+    // Absent means 1 (the common case: "I have milk"); present but broken means
+    // no item, rather than silently storing 1 under a typo.
+    const parsedQuantity = body.quantity === undefined || body.quantity === null || body.quantity === ''
+        ? 1
+        : toFinite(body.quantity);
+    if (parsedQuantity === null || parsedQuantity < 0) return null;
+
+    const threshold = toFinite(body.low_stock_threshold);
+    const rawExpiry = typeof body.expires_on === 'string' ? body.expires_on.trim() : '';
+
+    return {
+        name,
+        category: cleanText(body.category, MAX_PANTRY_CATEGORY) ?? DEFAULT_PANTRY_CATEGORY,
+        quantity: parsedQuantity,
+        unit: cleanText(body.unit, MAX_PANTRY_UNIT),
+        location: PANTRY_LOCATIONS.includes(body.location as PantryLocation)
+            ? (body.location as PantryLocation)
+            : 'pantry',
+        expires_on: isCalendarDate(rawExpiry) ? rawExpiry : null,
+        low_stock_threshold: threshold !== null && threshold >= 0 ? threshold : null,
+        lunchbox_bucket: PANTRY_BUCKETS.includes(body.lunchbox_bucket as PantryBucket)
+            ? (body.lunchbox_bucket as PantryBucket)
+            : null,
+        notes: cleanText(body.notes, MAX_PANTRY_NOTES),
+    };
+};
+
+/** At or under the threshold the family set — no threshold, no alert. */
+export const isLowStock = (item: { quantity: unknown; low_stock_threshold: unknown }): boolean => {
+    const threshold = toFinite(item.low_stock_threshold);
+    if (threshold === null) return false;
+    const quantity = toFinite(item.quantity);
+    if (quantity === null) return false;
+    return quantity <= threshold;
+};
+
+/**
+ * `expiresOn` is a YYYY-MM-DD string and today <= expiresOn <= today + days,
+ * both ends inclusive (`days` = 0 means "expires today" only).
+ */
+export const isExpiringSoon = (expiresOn: string | null, today: Date, days: number): boolean => {
+    if (!expiresOn || !isCalendarDate(expiresOn)) return false;
+    const expiry = Date.parse(`${expiresOn}T00:00:00Z`);
+    const start = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+    const limit = start + Math.max(0, days) * 24 * 60 * 60 * 1000;
+    return expiry >= start && expiry <= limit;
+};
+
+export interface GrocyStockLine {
+    name: string;
+    quantity: number;
+    expires_on: string | null;
+}
+
+/**
+ * Grocy GET /api/stock answers
+ * `[{ product: { name }, amount, next_best_before_date }]` (zero-amount entries
+ * included). Keep only what can become a pantry row: a named product with a
+ * positive amount, capped at MAX_IMPORT_LINES.
+ */
+export const mapGrocyStock = (raw: unknown): GrocyStockLine[] => {
+    if (!Array.isArray(raw)) return [];
+    const lines: GrocyStockLine[] = [];
+    for (const entry of raw) {
+        if (lines.length >= MAX_IMPORT_LINES) break;
+        if (!entry || typeof entry !== 'object') continue;
+        const row = entry as Record<string, unknown>;
+        const product = row.product;
+        const name = product && typeof product === 'object'
+            ? cleanText((product as Record<string, unknown>).name, MAX_PANTRY_NAME)
+            : null;
+        if (!name) continue;
+        const amount = toFinite(row.amount);
+        if (amount === null || amount <= 0) continue;
+        const rawDate = typeof row.next_best_before_date === 'string' ? row.next_best_before_date.slice(0, 10) : '';
+        lines.push({
+            name,
+            quantity: amount,
+            expires_on: isCalendarDate(rawDate) ? rawDate : null,
+        });
+    }
+    return lines;
+};
+
+export interface PantryLineSeed {
+    name: string;
+    quantity: number;
+    category: string;
+    /** Optional: the receipt import has no unit, the shopping bridge may. */
+    unit?: string | null;
+}
+
+/**
+ * Receipt lines (`budget_receipt_items`) as pantry seeds: the label is the
+ * product name, the quantity the number bought, the category the line's own.
+ */
+export const mapReceiptItems = (
+    rows: { label: string; quantity: unknown; category: string }[],
+): PantryLineSeed[] => {
+    const seeds: PantryLineSeed[] = [];
+    for (const row of rows) {
+        if (seeds.length >= MAX_IMPORT_LINES) break;
+        const name = cleanText(row?.label, MAX_PANTRY_NAME);
+        if (!name) continue;
+        const quantity = toFinite(row?.quantity);
+        seeds.push({
+            name,
+            quantity: quantity !== null && quantity > 0 ? quantity : 1,
+            category: cleanText(row?.category, MAX_PANTRY_CATEGORY) ?? DEFAULT_PANTRY_CATEGORY,
+        });
+    }
+    return seeds;
+};

@@ -350,3 +350,25 @@ export function validateReceipt(
         items,
     };
 }
+
+/**
+ * One line typed by hand into a stored receipt (POST/PUT
+ * /api/budget/receipts/:id/items). Same rules as an extracted line: a label, a
+ * quantity (1 when absent or nonsense), a positive amount — or, absent, the
+ * quantity × unit price — and a category mapped onto the family's list.
+ * Returns null when nothing usable was sent.
+ */
+export function validateReceiptLine(
+    raw: Record<string, unknown>,
+    categories: readonly string[],
+): ReceiptLine | null {
+    const label = cleanString(raw.label, MAX_LABEL);
+    if (!label) return null;
+
+    const quantity = cleanQuantity(raw.quantity);
+    const unitPrice = cleanAmount(raw.unit_price, true);
+    const amount = cleanAmount(raw.amount, false) || Math.round(quantity * unitPrice * 100) / 100;
+    if (amount <= 0) return null;
+
+    return { label, quantity, unit_price: unitPrice, amount, category: resolveCategory(raw.category, categories) };
+}

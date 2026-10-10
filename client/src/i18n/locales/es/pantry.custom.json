@@ -1,0 +1,121 @@
+{
+  "nav": {
+    "pantry": "Despensa",
+    "mobilePantry": "Despensa"
+  },
+  "title": "Despensa",
+  "subtitle": "Lo que tienes en casa, lo que falta y lo que hay que gastar — conectado con la lista de la compra, tus tickets y Grocy.",
+  "tabs": {
+    "all": "Todo",
+    "lowStock": "Stock bajo",
+    "expiring": "Para gastar",
+    "cook": "Cocinar"
+  },
+  "filters": {
+    "days": "Caduca en {{days}} días"
+  },
+  "locations": {
+    "pantry": "Despensa",
+    "fridge": "Nevera",
+    "freezer": "Congelador",
+    "cellar": "Bodega",
+    "other": "Otro"
+  },
+  "buckets": {
+    "none": "Ninguno",
+    "main": "Plato",
+    "fruit": "Fruta / verduras",
+    "snack": "Merienda",
+    "drink": "Bebida"
+  },
+  "form": {
+    "newTitle": "Añadir un producto",
+    "editTitle": "Editar el producto",
+    "name": "Nombre",
+    "namePlaceholder": "p. ej. leche semidesnatada",
+    "category": "Categoría",
+    "quantity": "Cantidad",
+    "unit": "Unidad",
+    "location": "Dónde se guarda",
+    "expiresOn": "Consumir antes de",
+    "lowStockThreshold": "Umbral de stock bajo",
+    "bucket": "Para la fiambrera",
+    "notes": "Notas",
+    "save": "Guardar",
+    "saving": "Guardando…"
+  },
+  "list": {
+    "empty": "Aquí todavía no hay nada.",
+    "quantity": "Cant.",
+    "expiresToday": "Caduca hoy",
+    "expiresIn": "en {{days}} d",
+    "expired": "Caducado",
+    "lowStock": "Stock bajo",
+    "source": {
+      "manual": "Manual",
+      "receipt": "Ticket",
+      "shopping": "Compra",
+      "grocy": "Grocy"
+    }
+  },
+  "actions": {
+    "add": "Añadir",
+    "sendLowStock": "Enviar el stock bajo a la compra",
+    "stockFromShopping": "Aprovisionar desde la compra",
+    "importGrocy": "Importar desde Grocy",
+    "edit": "Editar este producto",
+    "delete": "Eliminar este producto",
+    "loadFromPantry": "Cargar desde la despensa",
+    "loadFromPantryHint": "Los productos sin hueco de fiambrera se omiten."
+  },
+  "stockDialog": {
+    "title": "Aprovisionar la despensa",
+    "description": "Los artículos marcados en la lista de la compra. Ajusta las cantidades y confirma.",
+    "empty": "Ningún artículo marcado en la lista de la compra.",
+    "confirm": "Añadir a la despensa"
+  },
+  "cook": {
+    "title": "Cocinar con lo que tienes",
+    "subtitle": "Las recetas cuyos ingredientes están todos en la despensa.",
+    "cover": "{{covered}}/{{total}} ingredientes",
+    "none": "Todavía no hay ninguna receta completa.",
+    "openRecipe": "Ver la receta"
+  },
+  "dashboard": {
+    "title": "Para gastar pronto",
+    "empty": "Nada caduca en los próximos días.",
+    "viewAll": "Abrir la despensa"
+  },
+  "toasts": {
+    "created": "Producto añadido",
+    "updated": "Producto actualizado",
+    "deleted": "Producto eliminado",
+    "sent": "{{count}} enviados, {{skipped}} ya en la lista",
+    "stocked": "{{created}} nuevos, {{updated}} actualizados",
+    "importedReceipt": "Ticket importado a la despensa",
+    "importedGrocy": "{{count}} productos importados desde Grocy"
+  },
+  "errors": {
+    "load": "No se pudo cargar la despensa.",
+    "save": "No se pudo guardar este producto.",
+    "delete": "No se pudo eliminar este producto.",
+    "shopping": "No se pudo enviar el stock bajo a la lista de la compra.",
+    "stock": "No se pudo aprovisionar la despensa.",
+    "importReceipt": "No se pudo importar este ticket.",
+    "importGrocy": "No se pudo importar desde Grocy.",
+    "grocyMissing": "No hay ninguna integración con Grocy configurada.",
+    "alreadyImported": "Este ticket ya se ha importado.",
+    "duplicateName": "Este producto ya está en la despensa."
+  },
+  "receipt": {
+    "addLine": "Añadir una línea",
+    "editLine": "Editar la línea",
+    "deleteLine": "Eliminar la línea",
+    "lineLabel": "Descripción",
+    "lineAmount": "Importe",
+    "addToPantry": "Añadir a la despensa",
+    "lineQuantity": "Cantidad",
+    "lineUnitPrice": "Precio unitario",
+    "totalUnchanged": "El total del ticket sigue siendo el escaneado: las líneas son solo detalle."
+  }
+}

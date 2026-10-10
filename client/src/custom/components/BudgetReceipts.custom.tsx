@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronDown, ChevronRight, Receipt, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Edit2, Package, Plus, Receipt, Trash2 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { api } from '../../lib/api';
 import { formatCurrency } from '../../lib/utils';
 import { dateLocale } from '../../i18n/format';
 import { useAuth } from '../../contexts/AuthContext';
+import { useCategories } from '../../hooks/useCategories';
 import { useAiEnabled } from '../../lib/aiStatus';
+import { Button, Dialog, Input, Select, useToast } from '../../components/ui';
 import { ReceiptImportDialog } from './ReceiptImport.custom';
 
 // Imported receipts on the Budget page — a sidecar to the upstream page.
@@ -57,11 +59,94 @@ const ReceiptRow: React.FC<{
     currency: string;
     canEdit: boolean;
     onDelete: (id: string) => void;
-}> = ({ receipt, currency, canEdit, onDelete }) => {
-    const { t } = useTranslation('budget.custom');
+    /** Re-fetches the receipt list after a line was added, edited or deleted. */
+    onChanged: () => void;
+}> = ({ receipt, currency, canEdit, onDelete, onChanged }) => {
+    const { t } = useTranslation(['budget.custom', 'pantry.custom']);
+    const { showToast } = useToast();
+    const { isModuleEnabled } = useAuth();
+    const { categories } = useCategories();
     const [open, setOpen] = useState(false);
+    const [lineEditing, setLineEditing] = useState<ReceiptItem | null>(null);
+    const [lineOpen, setLineOpen] = useState(false);
+    const [lineForm, setLineForm] = useState({ label: '', quantity: '1', unit_price: '', amount: '', category: '' });
+    const [savingLine, setSavingLine] = useState(false);
+    const [importing, setImporting] = useState(false);
     const dateStr = format(parseISO(receipt.date), 'dd MMM yyyy', { locale: dateLocale() });
     const Chevron = open ? ChevronDown : ChevronRight;
+
+    // Extraction can miss a product or answer "single" for a bill whose detail
+    // the family wants after all: these lines are editable one by one.
+    const openAddLine = () => {
+        setLineEditing(null);
+        setLineForm({ label: '', quantity: '1', unit_price: '', amount: '', category: categories.budget[0] ?? '' });
+        setLineOpen(true);
+    };
+
+    const openEditLine = (item: ReceiptItem) => {
+        setLineEditing(item);
+        setLineForm({
+            label: item.label,
+            quantity: String(item.quantity),
+            unit_price: item.unit_price === 0 ? '' : String(item.unit_price),
+            amount: String(item.amount),
+            category: item.category,
+        });
+        setLineOpen(true);
+    };
+
+    const lineBody = {
+        label: lineForm.label,
+        quantity: Number(lineForm.quantity) || 1,
+        unit_price: lineForm.unit_price === '' ? 0 : Number(lineForm.unit_price),
+        amount: lineForm.amount === '' ? 0 : Number(lineForm.amount),
+        category: lineForm.category,
+    };
+
+    const saveLine = async () => {
+        if (lineForm.label.trim() === '') return;
+        setSavingLine(true);
+        try {
+            if (lineEditing) {
+                await api.put(`/api/budget/receipts/${receipt.id}/items/${lineEditing.id}`, lineBody);
+            } else {
+                await api.post(`/api/budget/receipts/${receipt.id}/items`, lineBody);
+            }
+            setLineOpen(false);
+            onChanged();
+        } catch (err) {
+            showToast({ title: t('pantry.custom:errors.save'), description: err instanceof Error ? err.message : undefined });
+        } finally {
+            setSavingLine(false);
+        }
+    };
+
+    const removeLine = async (item: ReceiptItem) => {
+        if (!confirm(t('pantry.custom:receipt.deleteLine'))) return;
+        try {
+            await api.delete(`/api/budget/receipts/${receipt.id}/items/${item.id}`);
+            onChanged();
+        } catch (err) {
+            showToast({ title: t('pantry.custom:errors.delete'), description: err instanceof Error ? err.message : undefined });
+        }
+    };
+
+    const addToPantry = async () => {
+        setImporting(true);
+        try {
+            await api.post('/api/pantry/import/receipt', { receiptId: receipt.id });
+            showToast({ title: t('pantry.custom:toasts.importedReceipt') });
+        } catch (err) {
+            const message = err instanceof Error ? err.message : '';
+            showToast({
+                title: message.includes('ALREADY_IMPORTED')
+                    ? t('pantry.custom:errors.alreadyImported')
+                    : t('pantry.custom:errors.importReceipt'),
+            });
+        } finally {
+            setImporting(false);
+        }
+    };
 
     return (
         <div className="bg-surface-1 border border-border rounded-card shadow-sm overflow-hidden">
@@ -124,6 +209,26 @@ const ReceiptRow: React.FC<{
                                     <span className="flex-shrink-0 font-medium">
                                         {formatCurrency(item.amount, currency)}
                                     </span>
+                                    {canEdit && (
+                                        <>
+                                            <button
+                                                type="button"
+                                                onClick={() => openEditLine(item)}
+                                                aria-label={t('pantry.custom:receipt.editLine')}
+                                                className="flex-shrink-0 text-muted-foreground hover:text-foreground"
+                                            >
+                                                <Edit2 className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => removeLine(item)}
+                                                aria-label={t('pantry.custom:receipt.deleteLine')}
+                                                className="flex-shrink-0 text-muted-foreground hover:text-danger"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                        </>
+                                    )}
                                 </li>
                             ))}
                         </ul>
@@ -137,6 +242,27 @@ const ReceiptRow: React.FC<{
                     {canEdit && (
                         <button
                             type="button"
+                            onClick={openAddLine}
+                            className="flex items-center gap-1.5 text-xs font-medium text-primary"
+                        >
+                            <Plus className="w-3.5 h-3.5" />
+                            {t('pantry.custom:receipt.addLine')}
+                        </button>
+                    )}
+                    {isModuleEnabled('pantry') && (
+                        <button
+                            type="button"
+                            onClick={() => void addToPantry()}
+                            disabled={importing}
+                            className="flex items-center gap-1.5 text-xs font-medium text-primary disabled:opacity-50"
+                        >
+                            <Package className="w-3.5 h-3.5" />
+                            {t('pantry.custom:receipt.addToPantry')}
+                        </button>
+                    )}
+                    {canEdit && (
+                        <button
+                            type="button"
                             onClick={() => onDelete(receipt.id)}
                             className="flex items-center gap-1.5 text-xs font-medium text-danger"
                         >
@@ -146,6 +272,57 @@ const ReceiptRow: React.FC<{
                     )}
                 </div>
             )}
+
+            <Dialog
+                open={lineOpen}
+                onOpenChange={setLineOpen}
+                title={lineEditing ? t('pantry.custom:receipt.editLine') : t('pantry.custom:receipt.addLine')}
+            >
+                <div className="space-y-3">
+                    <Input
+                        label={t('pantry.custom:receipt.lineLabel')}
+                        value={lineForm.label}
+                        onChange={(event) => setLineForm({ ...lineForm, label: event.target.value })}
+                    />
+                    <div className="grid grid-cols-3 gap-3">
+                        <Input
+                            type="number"
+                            step="0.001"
+                            label={t('pantry.custom:receipt.lineQuantity')}
+                            value={lineForm.quantity}
+                            onChange={(event) => setLineForm({ ...lineForm, quantity: event.target.value })}
+                        />
+                        <Input
+                            type="number"
+                            step="0.01"
+                            label={t('pantry.custom:receipt.lineUnitPrice')}
+                            value={lineForm.unit_price}
+                            onChange={(event) => setLineForm({ ...lineForm, unit_price: event.target.value })}
+                        />
+                        <Input
+                            type="number"
+                            step="0.01"
+                            label={t('pantry.custom:receipt.lineAmount')}
+                            value={lineForm.amount}
+                            onChange={(event) => setLineForm({ ...lineForm, amount: event.target.value })}
+                        />
+                    </div>
+                    <Select
+                        value={lineForm.category}
+                        onValueChange={(value) => setLineForm({ ...lineForm, category: value })}
+                        options={categories.budget.map((name) => ({ value: name, label: name }))}
+                    />
+                    <p className="text-micro text-muted-foreground">{t('pantry.custom:receipt.totalUnchanged')}</p>
+                    <div className="flex justify-end gap-2 pt-1">
+                        <Button variant="secondary" onClick={() => setLineOpen(false)}>
+                            {t('common:actions.cancel')}
+                        </Button>
+                        <Button onClick={() => void saveLine()} disabled={savingLine || lineForm.label.trim() === ''}>
+                            {t('common:actions.save')}
+                        </Button>
+                    </div>
+                </div>
+            </Dialog>
         </div>
     );
 };
@@ -254,6 +431,7 @@ export const BudgetReceiptsSection: React.FC<{
                         currency={currency}
                         canEdit={canEdit}
                         onDelete={handleDelete}
+                        onChanged={() => void load()}
                     />
                 ))}
             </div>

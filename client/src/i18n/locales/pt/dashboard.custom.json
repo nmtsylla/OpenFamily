@@ -2,7 +2,8 @@
   "customize": {
     "widgets": {
       "weather": "Meteorologia e roupa",
-      "activities": "Atividades sem telas"
+      "activities": "Atividades sem telas",
+      "pantry": "Para gastar em breve"
     }
   }
 }

@@ -5,9 +5,11 @@ import { broadcast } from '../../lib/broadcaster';
 import {
     receiptFingerprint,
     validateReceiptImport,
+    validateReceiptLine,
     type ReceiptImportPayload,
 } from '../ai/receipt.custom';
 import { getFamilyCategories } from '../../routes/categories';
+import { isUuid } from '../lib/validation.custom';
 
 // Imported receipts and bills, with their line detail.
 //
@@ -281,6 +283,112 @@ router.delete('/:id', requireParent, async (req: AuthRequest, res) => {
         res.json({ success: true });
     } catch (error) {
         console.error('Delete budget receipt error:', error);
+        res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+});
+
+// The lines of a stored receipt, editable one by one. Extraction can miss a
+// product or answer "single" for a bill whose breakdown the family actually
+// wants; these three routes let them fix it after the import.
+//
+// The receipt's TOTAL is never recalculated: it is the amount printed on the
+// paper and the one the budget reflects. The lines are analytical detail, and
+// the pantry import reads them.
+
+// POST /api/budget/receipts/:id/items — parents only.
+router.post('/:id/items', requireParent, async (req: AuthRequest, res) => {
+    try {
+        // A malformed id would otherwise reach a UUID column and answer 500.
+        if (!isUuid(req.params.id)) {
+            return res.status(404).json({ success: false, error: 'NOT_FOUND' });
+        }
+
+        const owned = await query('SELECT id FROM budget_receipts WHERE id = $1 AND user_id = $2', [
+            req.params.id,
+            req.userId,
+        ]);
+        if (owned.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'NOT_FOUND' });
+        }
+
+        const categories = await getFamilyCategories(req.userId!);
+        const line = validateReceiptLine((req.body ?? {}) as Record<string, unknown>, categories.budget);
+        if (!line) {
+            return res.status(400).json({ success: false, error: 'INVALID_ITEM' });
+        }
+
+        const result = await query(
+            `INSERT INTO budget_receipt_items (receipt_id, position, label, quantity, unit_price, amount, category)
+             VALUES ($1, 1 + (SELECT COALESCE(MAX(position), 0) FROM budget_receipt_items WHERE receipt_id = $1), $2, $3, $4, $5, $6)
+             RETURNING *`,
+            [req.params.id, line.label, line.quantity, line.unit_price, line.amount, line.category]
+        );
+
+        broadcast(req.userId!, { type: 'update', entity: 'budget', action: 'updated' });
+        res.status(201).json({ success: true, data: { item: mapItem(result.rows[0] as ReceiptItemRow) } });
+    } catch (error) {
+        console.error('Create budget receipt item error:', error);
+        res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+});
+
+// PUT /api/budget/receipts/:id/items/:itemId — parents only.
+router.put('/:id/items/:itemId', requireParent, async (req: AuthRequest, res) => {
+    try {
+        if (!isUuid(req.params.id) || !isUuid(req.params.itemId)) {
+            return res.status(404).json({ success: false, error: 'NOT_FOUND' });
+        }
+
+        const categories = await getFamilyCategories(req.userId!);
+        const line = validateReceiptLine((req.body ?? {}) as Record<string, unknown>, categories.budget);
+        if (!line) {
+            return res.status(400).json({ success: false, error: 'INVALID_ITEM' });
+        }
+
+        // The receipt's owner is checked through the join: a line id alone must
+        // never be enough to edit another family's receipt.
+        const result = await query(
+            `UPDATE budget_receipt_items item SET
+                label = $3, quantity = $4, unit_price = $5, amount = $6, category = $7
+             FROM budget_receipts receipt
+             WHERE item.id = $1 AND item.receipt_id = $2 AND item.receipt_id = receipt.id AND receipt.user_id = $8
+             RETURNING item.*`,
+            [req.params.itemId, req.params.id, line.label, line.quantity, line.unit_price, line.amount, line.category, req.userId]
+        );
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'NOT_FOUND' });
+        }
+
+        broadcast(req.userId!, { type: 'update', entity: 'budget', action: 'updated' });
+        res.json({ success: true, data: { item: mapItem(result.rows[0] as ReceiptItemRow) } });
+    } catch (error) {
+        console.error('Update budget receipt item error:', error);
+        res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+});
+
+// DELETE /api/budget/receipts/:id/items/:itemId — parents only.
+router.delete('/:id/items/:itemId', requireParent, async (req: AuthRequest, res) => {
+    try {
+        if (!isUuid(req.params.id) || !isUuid(req.params.itemId)) {
+            return res.status(404).json({ success: false, error: 'NOT_FOUND' });
+        }
+
+        const result = await query(
+            `DELETE FROM budget_receipt_items item
+             USING budget_receipts receipt
+             WHERE item.id = $1 AND item.receipt_id = $2 AND item.receipt_id = receipt.id AND receipt.user_id = $3
+             RETURNING item.id`,
+            [req.params.itemId, req.params.id, req.userId]
+        );
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'NOT_FOUND' });
+        }
+
+        broadcast(req.userId!, { type: 'update', entity: 'budget', action: 'updated' });
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Delete budget receipt item error:', error);
         res.status(500).json({ success: false, error: 'Internal server error' });
     }
 });

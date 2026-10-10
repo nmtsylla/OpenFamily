@@ -22,4 +22,22 @@ const customRateLimiter = rateLimit({
     },
 });
 
+// The exception to the rule above: a custom route that DOES fan out to a
+// user-supplied host (the pantry's Grocy import reads the family's stored Grocy
+// base URL). Upstream keeps exactly this shape for the same class of route
+// (`outboundRateLimiter` in app.ts, 30 per 15 minutes, "to blunt abuse / SSRF
+// probing"), and that limiter is module-local there, so the fork mirrors its
+// budget here rather than letting the endpoint ride the 60-per-minute fixed-host
+// budget.
+export const integrationRateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+        success: false,
+        error: 'Too many requests. Please try again later.',
+    },
+});
+
 export default customRateLimiter;

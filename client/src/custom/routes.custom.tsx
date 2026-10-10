@@ -17,6 +17,7 @@ import React from 'react';
 import { Navigate, Route } from 'react-router-dom';
 import BudgetAnalytics from './pages/BudgetAnalytics.custom';
 import Lunchboxes from './pages/Lunchboxes.custom';
+import Pantry from './pages/Pantry.custom';
 
 export const customRoutes = (isModuleEnabled: (key: string) => boolean): React.ReactElement[] => [
     <Route
@@ -28,5 +29,12 @@ export const customRoutes = (isModuleEnabled: (key: string) => boolean): React.R
         key="lunchboxes"
         path="/lunchboxes"
         element={isModuleEnabled('lunchbox') ? <Lunchboxes /> : <Navigate to="/" replace />}
+    />,
+    // Flat href on purpose, like the two above: no upstream nav entry matches
+    // /pantry, so nothing else stays highlighted while this page is open.
+    <Route
+        key="pantry"
+        path="/pantry"
+        element={isModuleEnabled('pantry') ? <Pantry /> : <Navigate to="/" replace />}
     />,
 ];
