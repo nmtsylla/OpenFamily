@@ -18,6 +18,32 @@ deploy/up.sh logs -f server    # journaux (migrations, erreurs)
 deploy/up.sh ps
 ```
 
+Ce dépôt (`/home/bsylla/OpenFamily-fork`) est le déploiement actif depuis le
+2026-10-10 : l'ancien arbre (`/home/bsylla/OpenFamily`, branche `develop`) a été
+arrêté par `deploy/up.sh down` dans ce répertoire-là. Les noms de conteneurs sont
+fixes (`openfamily-server`, `openfamily-client`) : les deux stacks ne peuvent pas
+tourner en même temps, l'arrêt de l'ancienne doit précéder le démarrage de la
+nouvelle.
+
+**Retour arrière** (les images de l'ancien arbre existent toujours) :
+
+```bash
+cd /home/bsylla/OpenFamily-fork && deploy/up.sh down
+cd /home/bsylla/OpenFamily && deploy/up.sh up -d
+```
+
+**Ce qui a changé au basculement** :
+
+- Les variables propres au fork sont préfixées `CUSTOM_` (`CUSTOM_POSTGRES_SSL`,
+  `CUSTOM_POSTGRES_CONNECT_TIMEOUT_MS`, `CUSTOM_MINIO_*`) : `.env` a été renommé,
+  `docker-compose.override.yml` et `deploy/up.sh` les lisent sous ces noms.
+- Les deux migrations du fork ont été renommées `custom/0001-users-location` et
+  `custom/0002-budget-receipts` (elles occupaient `core/0007`/`core/0008`, la
+  séquence d'amont). Toutes leurs instructions sont idempotentes : elles se sont
+  rejouées une fois sur la base Neon, sans modifier le schéma, et les anciens
+  identifiants ont été supprimés de `openfamily_schema_migrations` (l'avertissement
+  `db.migrations_unknown` au démarrage venait de là).
+
 `deploy/up.sh` neutralise `COMPOSE_PROJECT_NAME` et les `POSTGRES_*` hérités du
 shell avant d'appeler Compose : Compose fait passer l'environnement du shell
 avant `.env`, et une session ouverte dans un autre dépôt (le stack maiky exporte
@@ -46,9 +72,12 @@ avant `.env`, et une session ouverte dans un autre dépôt (le stack maiky expor
   vérité des octets : le bucket l'est. Sauvegarder le bucket à part, ou `pg_dump`
   ci-dessous pour la base seule.
   ```bash
-  cd /home/bsylla/OpenFamily && set -a; . ./.env; set +a
-  PGPASSWORD="$POSTGRES_PASSWORD" pg_dump -h "$POSTGRES_HOST" -U "$POSTGRES_USER" \
-    -d "$POSTGRES_DB" -sslmode=verify-full -Fc -f ~/backup/openfamily-$(date +%F).dump
+  cd /home/bsylla/OpenFamily-fork && set -a; . ./.env; set +a
+  # sslrootcert=system: verify-full against the system trust store, otherwise psql
+  # looks for ~/.postgresql/root.crt and refuses to connect.
+  PGPASSWORD="$POSTGRES_PASSWORD" pg_dump \
+    "host=$POSTGRES_HOST port=$POSTGRES_PORT dbname=$POSTGRES_DB user=$POSTGRES_USER sslmode=verify-full sslrootcert=system" \
+    -Fc -f ~/backup/openfamily-$(date +%F).dump
   ```
   Neon conserve en plus 6 h d'historique (branche `main`).
 

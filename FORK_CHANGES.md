@@ -164,6 +164,30 @@ was verified in a browser instead (see "Verification" below).
 - `analytics.custom.json` exists for all six locales, but its `es`/`pt`/`ru`/`zh`
   files are English placeholders pending translation (required by `check-i18n`).
 
+## Deployment
+
+This checkout is the **live deployment** since 2026-10-10: `family.bsylla.com`
+(Cloudflare tunnel `navidrome`, host service `cloudflared.service`) → the client
+on `127.0.0.1:8200`, server reachable only inside the Compose network. Database:
+Neon `keurtonux`/`openfamily`, TLS `verify-full`. Images: S3 Scaleway bucket
+`openfamily-media`. Details and rollback: `deploy/README.md`.
+
+The previous checkout (`/home/bsylla/OpenFamily`, branch `develop`) was stopped
+with `deploy/up.sh down` in the same operation; its images are kept, so the
+rollback is two commands. Container names are fixed, so only one stack can run at
+a time.
+
+What the cutover exercised, on the live database:
+
+- the `CUSTOM_*` env renames — confirmed by `storage.bucket_ready` for
+  `openfamily-media` at startup, which only happens when `CUSTOM_MINIO_*` is read
+- the migration rename — `db.migrations_complete` reported
+  `applied: ["custom/0001-users-location", "custom/0002-budget-receipts"]`,
+  `alreadyApplied: 6`: the idempotent statements re-ran once, schema unchanged
+- the two stale `core/0007`/`core/0008` rows were then deleted from
+  `openfamily_schema_migrations` (the `db.migrations_unknown` warning), and the
+  next restart reported `alreadyApplied: 8` with no warning
+
 ## Local development
 
 `npm ci` at the root installs every workspace from the lockfile (772 packages).
