@@ -85,7 +85,7 @@ otherwise.
 | `server/src/lib/postFields.ts`, `server/src/lib/recipeImage.ts` | `media` | Keeps an `s3:` media reference intact instead of treating it as a data URL |
 | `server/src/routes/dataTransfer.ts` | `media` | Stores inline images on import and answers with JSON instead of rethrowing |
 | `server/src/routes/ai.ts` | `ai` | Adds the `extract-receipt` endpoint and the attachment type |
-| `server/src/services/ai/index.ts` | `ai` | Adds the `AiAttachment` type and the `AI_UNSUPPORTED_MEDIA` code |
+| `server/src/services/ai/index.ts` | `ai`, `ai-no-deliberation` | Adds the `AiAttachment` type and the `AI_UNSUPPORTED_MEDIA` code; appends one no-deliberation line to every completion's system prompt (a JSON-only call, and a reasoning model left alone spent most of its completion tokens thinking, see "Measured latency" below) |
 | `server/src/services/ai/{openai,anthropic,gemini,ollama}.ts` | `ai` | Sends attachments to each provider; OpenAI-compatible gateways that need a session |
 | `server/src/db.ts` | `db-config` | Database TLS and connect timeout from `CUSTOM_POSTGRES_*` |
 | `client/src/App.tsx` | `custom-routes` | Mounts `customRoutes(isModuleEnabled)` inside `<Routes>` |

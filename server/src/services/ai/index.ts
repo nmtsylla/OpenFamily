@@ -143,20 +143,39 @@ export async function aiComplete(
     return data;
 }
 
+// FORK-START: ai-no-deliberation
+/**
+ * Every call here wants a JSON object, not an essay. A reasoning model left to
+ * itself spends most of its completion tokens deliberating before it writes the
+ * first character of one. Measured against the fork's gateway with
+ * deepseek-v4.1-flash and the same prompt either way, four concurrent runs gave
+ * 1974 reasoning tokens of 2813 in English and 5078 of 5971 in French, about
+ * 61 s of wall time each; with this line the same prompts gave 0 of 760 and 384
+ * of 1305, in 12 to 18 s. Prefill is untouched (533 prompt tokens, 256 of them
+ * cached), the JSON stays valid, and the system prompt stays byte-stable so the
+ * gateway's prompt cache keeps hitting.
+ */
+const NO_DELIBERATION =
+    '\n- Answer immediately, in one pass: write the JSON directly, without deliberating or planning first.';
+// FORK-END: ai-no-deliberation
+
 /** Variant of aiComplete that also returns token usage metrics alongside the data object. */
 export async function aiCompleteWithUsage(
     settings: AiSettings,
     request: AiCompletionRequest
 ): Promise<AiCompletionWithUsageResult> {
+    // FORK-START: ai-no-deliberation
+    const instruction = { ...request, system: `${request.system}${NO_DELIBERATION}` };
+    // FORK-END: ai-no-deliberation
     switch (settings.provider) {
         case 'ollama':
-            return ollamaComplete(settings, request);
+            return ollamaComplete(settings, instruction);
         case 'openai':
-            return openaiComplete(settings, request);
+            return openaiComplete(settings, instruction);
         case 'anthropic':
-            return anthropicComplete(settings, request);
+            return anthropicComplete(settings, instruction);
         case 'gemini':
-            return geminiComplete(settings, request);
+            return geminiComplete(settings, instruction);
         default:
             throw new AiError('AI_PROVIDER_ERROR', `Fournisseur IA inconnu: ${settings.provider}`);
     }
