@@ -38,7 +38,8 @@
     "successTitle": "Reçu importé",
     "successDescription": "{{count}} écriture(s) ajoutée(s) au budget.",
     "errors": {
-      "unsupported": "{{name}} : format non pris en charge ou fichier trop volumineux (JPEG, PNG, WebP ou PDF, 8 Mo maximum).",
+      "unsupported": "{{name}} : format non pris en charge ou fichier trop volumineux (JPEG, PNG, WebP jusqu'à 25 Mo ; PDF jusqu'à 8 Mo).",
+      "payload": "Documents trop volumineux pour être envoyés ensemble (8 Mo maximum au total).",
       "analyze": "L'analyse a échoué. Réessayez avec une photo plus nette.",
       "save": "Le reçu n'a pas pu être enregistré.",
       "duplicate": "Ce reçu a déjà été importé.",

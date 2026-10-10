@@ -54,12 +54,18 @@ interface Props {
     onImported: () => void;
 }
 
-// Mirrors the server limits: 5 documents, JPEG/PNG/WebP/PDF, 8 MB each. The
-// total is capped at 8 MB too, because base64 inflates by 4/3 (→ ~10.7 MB) and
-// the route's JSON body limit is 12 MB.
+// Mirrors the server limits: 5 documents, JPEG/PNG/WebP/PDF.
 const MAX_FILES = 5;
-const MAX_FILE_BYTES = 8 * 1024 * 1024;
-const MAX_TOTAL_BYTES = 8 * 1024 * 1024;
+// A PDF reaches the model as-is, so the route's own per-file ceiling applies to
+// it. An image is re-encoded to a ≤1600px JPEG first (a few hundred KB whatever
+// the camera wrote), so its original size only costs a client-side decode: this
+// second bound is a sanity limit on absurd files, not an upload limit.
+const MAX_PDF_BYTES = 8 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
+// The route's JSON parser takes 12 MB. The encoded attachments (base64, so 4/3
+// of the uploaded bytes) are checked against that in analyze(), where their real
+// size is known: the picked photos' own sizes say nothing about it.
+const MAX_PAYLOAD_BYTES = 11 * 1024 * 1024;
 // HEIC/HEIF come from iOS cameras: accepted here and re-encoded to JPEG by the
 // canvas below (Safari decodes them; a browser that cannot is reported locally).
 const SUPPORTED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'image/heic', 'image/heif'];
@@ -182,18 +188,12 @@ export const ReceiptImportDialog: React.FC<Props> = ({ open, onOpenChange, curre
         const chosen = Array.from(picked);
         let rejected: File | undefined;
         const accepted: File[] = [];
-        let total = files.reduce((sum, file) => sum + file.size, 0);
         for (const file of chosen) {
             const usable = SUPPORTED_TYPES.includes(file.type)
-                && file.size <= MAX_FILE_BYTES
-                && total + file.size <= MAX_TOTAL_BYTES
+                && file.size <= (file.type === 'application/pdf' ? MAX_PDF_BYTES : MAX_IMAGE_BYTES)
                 && files.length + accepted.length < MAX_FILES;
-            if (usable) {
-                accepted.push(file);
-                total += file.size;
-            } else {
-                rejected ??= file;
-            }
+            if (usable) accepted.push(file);
+            else rejected ??= file;
         }
         setError(rejected ? t('budget.custom:receipt.errors.unsupported', { name: rejected.name }) : '');
         setFiles((previous) => [...previous, ...accepted]);
@@ -218,6 +218,16 @@ export const ReceiptImportDialog: React.FC<Props> = ({ open, onOpenChange, curre
                     }
                     return;
                 }
+            }
+            // One body carries every document: five big invoices can pass the
+            // per-file checks and still make the route refuse the request.
+            const payload = attachments.reduce((sum, file) => sum + file.data.length, 0);
+            if (payload > MAX_PAYLOAD_BYTES) {
+                if (analysisId.current === run) {
+                    setError(t('budget.custom:receipt.errors.payload'));
+                    setAnalyzing(false);
+                }
+                return;
             }
             const response = await api.post<{
                 success: boolean;
