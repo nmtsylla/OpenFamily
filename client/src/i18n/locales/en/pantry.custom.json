@@ -74,6 +74,17 @@
     "empty": "No ticked item on the shopping list.",
     "confirm": "Add to the pantry"
   },
+  "pending": {
+    "title": "{{count}} products to put away",
+    "subtitle": "Receipt lines the AI could not name: confirm them or ignore them.",
+    "review": "Review them",
+    "dialogTitle": "Products to put away",
+    "dialogHint": "Fix the name and the category, then add it to the pantry — or ignore what is not a product to keep.",
+    "label": "On the receipt: {{label}}",
+    "add": "Add to the pantry",
+    "ignore": "Ignore",
+    "empty": "Nothing left waiting."
+  },
   "cook": {
     "title": "Cook with what you have",
     "subtitle": "Recipes whose every ingredient is in the pantry.",
@@ -93,6 +104,8 @@
     "sent": "{{count}} sent, {{skipped}} already listed",
     "stocked": "{{created}} new, {{updated}} updated",
     "importedReceipt": "Receipt imported into the pantry",
+    "receiptPending": "{{count}} products to put away in the pantry",
+    "pendingIgnored": "Line ignored",
     "importedGrocy": "{{count}} products imported from Grocy"
   },
   "errors": {
@@ -105,7 +118,8 @@
     "importGrocy": "Unable to import from Grocy.",
     "grocyMissing": "No Grocy integration is configured.",
     "alreadyImported": "This receipt has already been imported.",
-    "duplicateName": "This product is already in the pantry."
+    "duplicateName": "This product is already in the pantry.",
+    "pending": "Unable to handle this line."
   },
   "receipt": {
     "addLine": "Add a line",

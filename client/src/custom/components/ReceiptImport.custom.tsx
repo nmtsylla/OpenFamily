@@ -16,6 +16,16 @@ interface ReceiptLine {
     unit_price: number;
     amount: number;
     category: string;
+    /** Brand-free name of the same purchase, for the pantry ('LAIT BIO 1L' → 'Lait'). */
+    pantry_item: string;
+    /** Unit the ticket showed ('L', 'kg', 'pièce'…), '' when it showed none. */
+    pantry_unit: string;
+    /**
+     * The model's verdict: true only for lines that are plainly household stock
+     * with a clear generic name. Those are stocked by the import; the others are
+     * queued on the pantry page for the family to name.
+     */
+    pantry_stock: boolean;
 }
 
 interface ReceiptDraft {
@@ -43,6 +53,11 @@ interface ReviewLine {
     /** Read from the ticket, kept as-is for the archived detail (not edited here). */
     quantity: number;
     unit_price: number;
+    /** What the pantry will store for this line (the label when the AI saw none). */
+    pantry_item: string;
+    pantry_unit: string;
+    /** Stocked by the import, or queued for the pantry page. */
+    pantry_stock: boolean;
 }
 
 interface Props {
@@ -117,12 +132,13 @@ const toAmount = (value: string): number => {
 
 /**
  * Receipt / invoice import: pick scans, let the AI draft the lines, review them
- * (each line carries its own budget category), then create ONE BUDGET ENTRY PER
- * LINE through the ordinary endpoint — the totals and the per-category charts
- * stay consistent, and a receipt is never double-counted.
+ * (each line carries its own budget category), then store the reviewed receipt
+ * and its budget entries in one call — the totals and the per-category charts
+ * stay consistent, a receipt is never double-counted, and the same call stocks
+ * the pantry with the lines' brand-free names.
  */
 export const ReceiptImportDialog: React.FC<Props> = ({ open, onOpenChange, currency, onImported }) => {
-    const { t } = useTranslation(['budget', 'common']);
+    const { t } = useTranslation(['budget', 'common', 'pantry.custom']);
     const { showToast } = useToast();
     const { categories } = useCategories();
     const fileInput = useRef<HTMLInputElement>(null);
@@ -253,6 +269,9 @@ export const ReceiptImportDialog: React.FC<Props> = ({ open, onOpenChange, curre
                     include: true,
                     quantity: item.quantity,
                     unit_price: item.unit_price,
+                    pantry_item: item.pantry_item ?? '',
+                    pantry_unit: item.pantry_unit ?? '',
+                    pantry_stock: item.pantry_stock === true,
                 }))
             );
             setNextLineId(draft.items.length + 1);
@@ -282,6 +301,11 @@ export const ReceiptImportDialog: React.FC<Props> = ({ open, onOpenChange, curre
                 include: true,
                 quantity: 1,
                 unit_price: 0,
+                // Nothing was read from a ticket: the line is queued on the
+                // pantry page rather than stocked under a name nobody checked.
+                pantry_item: '',
+                pantry_unit: '',
+                pantry_stock: false,
             },
         ]);
         setNextLineId((id) => id + 1);
@@ -324,8 +348,12 @@ export const ReceiptImportDialog: React.FC<Props> = ({ open, onOpenChange, curre
 
         setSaving(true);
         setError('');
+        let pantry: { created: number; updated: number; pending: number } | null = null;
         try {
-            await api.post('/api/budget/receipts', {
+            const response = await api.post<{
+                success: boolean;
+                data: { pantry?: { created: number; updated: number; pending: number } | null };
+            }>('/api/budget/receipts', {
                 merchant: descriptionBase,
                 date: entryDate,
                 total: singleLine ? draftTotal : includedTotal,
@@ -343,9 +371,16 @@ export const ReceiptImportDialog: React.FC<Props> = ({ open, onOpenChange, curre
                     unit_price: line.unit_price,
                     amount: toAmount(line.amount),
                     category: line.category,
+                    // What the pantry stores: the brand-free name the model read off
+                    // the ticket (empty → the label above), and whether it is stock
+                    // the import may add without asking.
+                    pantry_item: line.pantry_item,
+                    pantry_unit: line.pantry_unit,
+                    pantry_stock: line.pantry_stock,
                 })).filter((item) => item.amount > 0),
                 entries,
             });
+            pantry = response.data?.pantry ?? null;
         } catch (err) {
             setSaving(false);
             setError(errorText(err));
@@ -358,6 +393,21 @@ export const ReceiptImportDialog: React.FC<Props> = ({ open, onOpenChange, curre
             title: t('budget.custom:receipt.successTitle'),
             description: t('budget.custom:receipt.successDescription', { count: entries.length }),
         });
+        // The server feeds the pantry with the same call (same transaction, one
+        // guard per ticket): say what was stocked, and what is waiting for a
+        // name on the pantry page. Nothing when the pantry feature is off.
+        if (pantry && pantry.created + pantry.updated > 0) {
+            showToast({
+                title: t('pantry.custom:toasts.importedReceipt'),
+                description: t('pantry.custom:toasts.stocked', { created: pantry.created, updated: pantry.updated }),
+            });
+        }
+        if (pantry && pantry.pending > 0) {
+            showToast({
+                title: t('pantry.custom:toasts.receiptPending', { count: pantry.pending }),
+                description: t('pantry.custom:pending.subtitle'),
+            });
+        }
         close();
     };
 
@@ -544,7 +594,12 @@ export const ReceiptImportDialog: React.FC<Props> = ({ open, onOpenChange, curre
                                                 <div className="min-w-0 flex-1 space-y-2">
                                                     <input
                                                         value={line.label}
-                                                        onChange={(event) => patchLine(line.id, { label: event.target.value })}
+                                                        onChange={(event) => patchLine(line.id, {
+                                                            label: event.target.value,
+                                                            // The AI's pantry name described the label it read:
+                                                            // a corrected label is what the pantry should store.
+                                                            pantry_item: '',
+                                                        })}
                                                         placeholder={t('budget.custom:receipt.lineLabel')}
                                                         className="input-nexus py-0 text-caption"
                                                     />

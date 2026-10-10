@@ -185,28 +185,96 @@ export interface PantryLineSeed {
     name: string;
     quantity: number;
     category: string;
-    /** Optional: the receipt import has no unit, the shopping bridge may. */
+    /** Optional: only when the source knows one (a ticket unit, a shopping item). */
     unit?: string | null;
 }
 
 /**
- * Receipt lines (`budget_receipt_items`) as pantry seeds: the label is the
- * product name, the quantity the number bought, the category the line's own.
+ * Receipt lines (`budget_receipt_items`) as pantry seeds. The name is the AI's
+ * brand-free `pantry_item` when the line has one, the label otherwise — a line
+ * typed by hand, or archived before the extraction asked for that field, keeps
+ * its printed text. Quantity is the number bought (1 when the ticket did not
+ * say), the category the line's own, and the unit only what the ticket showed.
  */
 export const mapReceiptItems = (
-    rows: { label: string; quantity: unknown; category: string }[],
+    rows: {
+        label: string;
+        quantity: unknown;
+        category: string;
+        pantry_item?: string;
+        pantry_unit?: string;
+    }[],
 ): PantryLineSeed[] => {
     const seeds: PantryLineSeed[] = [];
     for (const row of rows) {
         if (seeds.length >= MAX_IMPORT_LINES) break;
-        const name = cleanText(row?.label, MAX_PANTRY_NAME);
+        const name = cleanText(row?.pantry_item, MAX_PANTRY_NAME) ?? cleanText(row?.label, MAX_PANTRY_NAME);
         if (!name) continue;
         const quantity = toFinite(row?.quantity);
         seeds.push({
             name,
             quantity: quantity !== null && quantity > 0 ? quantity : 1,
             category: cleanText(row?.category, MAX_PANTRY_CATEGORY) ?? DEFAULT_PANTRY_CATEGORY,
+            unit: cleanText(row?.pantry_unit, MAX_PANTRY_UNIT),
         });
     }
     return seeds;
+};
+
+export interface PendingReceiptLine {
+    /** The printed text of the ticket line, as the family will see it. */
+    label: string;
+    /** The model's brand-free name, '' when it had none to propose. */
+    item: string;
+    quantity: number;
+    unit: string | null;
+    category: string;
+}
+
+/**
+ * The split every receipt import goes through.
+ *
+ * `stock` — the lines the model called plainly household stock AND named: they
+ * are merged into the pantry without asking, because asking per line is what
+ * makes people stop importing tickets.
+ * `pending` — everything else: a service, a fee, fuel, an abbreviation nobody
+ * can name, or a line the model was unsure about. Those wait on the pantry page
+ * for the family to name and categorise them; nothing is stocked silently.
+ *
+ * The rule is deliberately strict — a boolean AND a usable generic name — so an
+ * unreadable line can never be stocked under whatever the ticket happened to
+ * print.
+ */
+export const splitReceiptLines = (
+    rows: {
+        label: string;
+        quantity: unknown;
+        category: string;
+        pantry_item?: string;
+        pantry_unit?: string;
+        pantry_stock?: boolean;
+    }[],
+): { stock: PantryLineSeed[]; pending: PendingReceiptLine[] } => {
+    const stock: PantryLineSeed[] = [];
+    const pending: PendingReceiptLine[] = [];
+
+    for (const row of rows) {
+        if (stock.length + pending.length >= MAX_IMPORT_LINES) break;
+        const label = cleanText(row?.label, MAX_PANTRY_NAME);
+        const item = cleanText(row?.pantry_item, MAX_PANTRY_NAME);
+        const name = label ?? item;
+        if (!name) continue;
+
+        const quantity = toFinite(row?.quantity);
+        const shared = {
+            quantity: quantity !== null && quantity > 0 ? quantity : 1,
+            category: cleanText(row?.category, MAX_PANTRY_CATEGORY) ?? DEFAULT_PANTRY_CATEGORY,
+            unit: cleanText(row?.pantry_unit, MAX_PANTRY_UNIT),
+        };
+
+        if (item && row?.pantry_stock === true) stock.push({ name: item, ...shared });
+        else pending.push({ label: name, item: item ?? '', ...shared });
+    }
+
+    return { stock, pending };
 };

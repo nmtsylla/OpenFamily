@@ -74,6 +74,17 @@
     "empty": "Aucun article coché sur la liste de courses.",
     "confirm": "Ajouter au garde-manger"
   },
+  "pending": {
+    "title": "{{count}} produits à ranger",
+    "subtitle": "Des lignes de vos tickets que l'IA n'a pas su nommer : confirmez-les ou ignorez-les.",
+    "review": "Passer en revue",
+    "dialogTitle": "Produits à ranger",
+    "dialogHint": "Corrigez le nom et la catégorie, puis ajoutez au garde-manger — ou ignorez ce qui n'est pas un produit à garder.",
+    "label": "Sur le ticket : {{label}}",
+    "add": "Ajouter au garde-manger",
+    "ignore": "Ignorer",
+    "empty": "Plus rien en attente."
+  },
   "cook": {
     "title": "Cuisiner avec ce que vous avez",
     "subtitle": "Les recettes dont tous les ingrédients sont dans le garde-manger.",
@@ -93,6 +104,8 @@
     "sent": "{{count}} envoyés, {{skipped}} déjà sur la liste",
     "stocked": "{{created}} nouveaux, {{updated}} mis à jour",
     "importedReceipt": "Ticket importé dans le garde-manger",
+    "receiptPending": "{{count}} produits à ranger dans le garde-manger",
+    "pendingIgnored": "Ligne ignorée",
     "importedGrocy": "{{count}} produits importés depuis Grocy"
   },
   "errors": {
@@ -105,7 +118,8 @@
     "importGrocy": "Impossible d'importer depuis Grocy.",
     "grocyMissing": "Aucune intégration Grocy n'est configurée.",
     "alreadyImported": "Ce ticket a déjà été importé.",
-    "duplicateName": "Ce produit est déjà dans le garde-manger."
+    "duplicateName": "Ce produit est déjà dans le garde-manger.",
+    "pending": "Impossible de traiter cette ligne."
   },
   "receipt": {
     "addLine": "Ajouter une ligne",

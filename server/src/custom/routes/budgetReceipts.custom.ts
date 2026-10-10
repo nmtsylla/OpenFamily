@@ -10,6 +10,9 @@ import {
 } from '../ai/receipt.custom';
 import { getFamilyCategories } from '../../routes/categories';
 import { isUuid } from '../lib/validation.custom';
+import { isCustomFeatureEnabled } from '../features.custom';
+import { splitReceiptLines } from '../lib/pantry.custom';
+import { mergeIntoPantry } from '../lib/pantryMerge.custom';
 
 // Imported receipts and bills, with their line detail.
 //
@@ -21,6 +24,13 @@ import { isUuid } from '../lib/validation.custom';
 // An import is "itemized" (one entry per line, each in its own category) or
 // "single" (one entry for the whole amount, for a bill whose breakdown is
 // useless). The lines are archived in both cases.
+//
+// When the pantry feature is on, the same transaction also stocks the pantry
+// with the lines the model called plainly stockable, under their brand-free
+// `pantry_item` (ai/receipt.custom.ts); the rest wait in `custom_pantry_pending`
+// for the family to name on the pantry page. The guard in
+// `custom_pantry_imports` is keyed on the ticket's fingerprint, so scanning the
+// same ticket again never counts its products twice.
 const router = Router();
 router.use(authMiddleware);
 
@@ -42,6 +52,7 @@ interface ReceiptRow {
     import_mode: string;
     source_name: string | null;
     entry_count: unknown;
+    pantry_imported?: boolean;
     created_at: unknown;
 }
 
@@ -75,9 +86,18 @@ const mapReceipt = (row: ReceiptRow, items: ReceiptItemRow[]) => ({
     import_mode: row.import_mode,
     source_name: row.source_name,
     entry_count: toNumber(row.entry_count),
+    /** Already in the pantry: the manual "add to pantry" button has nothing to do. */
+    pantry_imported: row.pantry_imported === true,
     created_at: row.created_at,
     items: items.map(mapItem),
 });
+
+/** What the pantry side of an import did: rows merged, lines left to review. */
+interface PantryImportResult {
+    created: number;
+    updated: number;
+    pending: number;
+}
 
 /** SQLSTATE of a pg error, '' for anything else ("23505" = unique_violation). */
 const sqlStateOf = (error: unknown): string => {
@@ -94,12 +114,19 @@ const sqlStateOf = (error: unknown): string => {
  * at all. The unique index on (user_id, fingerprint) is the real duplicate
  * guard (it also holds when two imports race); the pre-check below only exists
  * to answer with a friendly 409 instead of a constraint violation.
+ *
+ * The pantry is fed in that same transaction when the feature is on: the
+ * obviously stockable lines merge straight in (brand-free names the model read
+ * off the ticket), the others are queued in `custom_pantry_pending` for the
+ * pantry page. The guard row is keyed on the TICKET's fingerprint, so a ticket
+ * deleted and scanned again does not count its groceries twice. `pantry` is null
+ * when the feature is off or that ticket was already processed.
  */
 const insertReceipt = async (
     userId: string,
     payload: ReceiptImportPayload,
     fingerprint: string,
-): Promise<string | null> => {
+): Promise<{ id: string; pantry: PantryImportResult | null } | null> => {
     const client = await getClient();
     try {
         await client.query('BEGIN');
@@ -142,8 +169,45 @@ const insertReceipt = async (
             );
         }
 
+        // The pantry, in the same transaction: the cart that fed the budget also
+        // feeds what the household has at home. The guard is inserted inside the
+        // transaction too, so a rolled-back import leaves no guard behind and can
+        // be retried; when the guard already exists (this ticket was imported
+        // before, even if its receipt was deleted since) the products are already
+        // counted, so nothing is merged or queued again.
+        //
+        // A receipt with no usable line (a bill whose breakdown is useless — the
+        // family may add its lines by hand afterwards) takes NO guard: there is
+        // nothing to record, and the guard would both hide the manual "add to
+        // pantry" button and make it answer 409 for the lines added later.
+        let pantry: PantryImportResult | null = null;
+        if (isCustomFeatureEnabled('pantry')) {
+            const { stock, pending } = splitReceiptLines(payload.items);
+            if (stock.length + pending.length > 0) {
+                const guard = await client.query(
+                    `INSERT INTO custom_pantry_imports (user_id, source, source_ref)
+                     VALUES ($1, 'receipt', $2)
+                     ON CONFLICT (user_id, source, source_ref) DO NOTHING
+                     RETURNING id`,
+                    [userId, fingerprint]
+                );
+                if (guard.rows.length > 0) {
+                    const merged = await mergeIntoPantry(client, userId, stock, 'receipt');
+                    for (const line of pending) {
+                        await client.query(
+                            `INSERT INTO custom_pantry_pending
+                                (user_id, receipt_id, label, item, quantity, unit, category)
+                             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                            [userId, receiptId, line.label, line.item, line.quantity, line.unit, line.category]
+                        );
+                    }
+                    pantry = { ...merged, pending: pending.length };
+                }
+            }
+        }
+
         await client.query('COMMIT');
-        return receiptId;
+        return { id: receiptId, pantry };
     } catch (error) {
         await client.query('ROLLBACK').catch(() => {});
         // 23505 = unique_violation, i.e. the same receipt is already stored.
@@ -192,17 +256,24 @@ router.post('/', requireParent, async (req: AuthRequest, res) => {
             });
         }
 
-        const receiptId = await insertReceipt(req.userId!, payload, fingerprint);
-        if (!receiptId) {
+        const imported = await insertReceipt(req.userId!, payload, fingerprint);
+        if (!imported) {
             return res.status(409).json({ success: false, error: 'RECEIPT_DUPLICATE' });
         }
 
         broadcast(req.userId!, { type: 'update', entity: 'budget', action: 'created' });
+        // The pantry page and its dashboard widget live on another entity's
+        // events: same event the /api/pantry bridges fire after a merge. Sent
+        // for queued lines too — the review list changed even when nothing was
+        // merged.
+        if (imported.pantry && imported.pantry.created + imported.pantry.updated + imported.pantry.pending > 0) {
+            broadcast(req.userId!, { type: 'update', entity: 'shopping', action: 'updated' });
+        }
         res.status(201).json({
             success: true,
             data: {
                 receipt: {
-                    id: receiptId,
+                    id: imported.id,
                     merchant: payload.merchant,
                     date: payload.date,
                     total: payload.total,
@@ -215,6 +286,10 @@ router.post('/', requireParent, async (req: AuthRequest, res) => {
                     items: payload.items.map((item, index) => ({ id: String(index), ...item })),
                 },
                 entry_count: payload.entries.length,
+                // { created, updated, pending } when this import also fed the
+                // pantry, null when the pantry feature is off or this ticket was
+                // already processed (see insertReceipt).
+                pantry: imported.pantry,
             },
         });
     } catch (error) {
@@ -230,7 +305,11 @@ router.get('/', async (req: AuthRequest, res) => {
         const { start_date, end_date } = req.query;
         const params: unknown[] = [req.userId];
         let queryText = `SELECT r.*,
-                   (SELECT count(*) FROM budget_entries be WHERE be.receipt_id = r.id) AS entry_count
+                   (SELECT count(*) FROM budget_entries be WHERE be.receipt_id = r.id) AS entry_count,
+                   EXISTS (
+                       SELECT 1 FROM custom_pantry_imports pi
+                       WHERE pi.user_id = r.user_id AND pi.source = 'receipt' AND pi.source_ref = r.fingerprint
+                   ) AS pantry_imported
             FROM budget_receipts r
             WHERE r.user_id = $1`;
 

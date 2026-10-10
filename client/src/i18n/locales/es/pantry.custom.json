@@ -74,6 +74,17 @@
     "empty": "Ningún artículo marcado en la lista de la compra.",
     "confirm": "Añadir a la despensa"
   },
+  "pending": {
+    "title": "{{count}} productos por guardar",
+    "subtitle": "Líneas de tus tickets que la IA no supo nombrar: confírmalas o ignóralas.",
+    "review": "Revisarlas",
+    "dialogTitle": "Productos por guardar",
+    "dialogHint": "Corrige el nombre y la categoría y añádelo a la despensa — o ignora lo que no sea un producto que guardar.",
+    "label": "En el ticket: {{label}}",
+    "add": "Añadir a la despensa",
+    "ignore": "Ignorar",
+    "empty": "Ya no queda nada pendiente."
+  },
   "cook": {
     "title": "Cocinar con lo que tienes",
     "subtitle": "Las recetas cuyos ingredientes están todos en la despensa.",
@@ -93,6 +104,8 @@
     "sent": "{{count}} enviados, {{skipped}} ya en la lista",
     "stocked": "{{created}} nuevos, {{updated}} actualizados",
     "importedReceipt": "Ticket importado a la despensa",
+    "receiptPending": "{{count}} productos por guardar en la despensa",
+    "pendingIgnored": "Línea ignorada",
     "importedGrocy": "{{count}} productos importados desde Grocy"
   },
   "errors": {
@@ -105,7 +118,8 @@
     "importGrocy": "No se pudo importar desde Grocy.",
     "grocyMissing": "No hay ninguna integración con Grocy configurada.",
     "alreadyImported": "Este ticket ya se ha importado.",
-    "duplicateName": "Este producto ya está en la despensa."
+    "duplicateName": "Este producto ya está en la despensa.",
+    "pending": "No se pudo procesar esta línea."
   },
   "receipt": {
     "addLine": "Añadir una línea",

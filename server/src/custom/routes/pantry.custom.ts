@@ -39,6 +39,7 @@ import {
     type PantryLineSeed,
     type PantryLocation,
 } from '../lib/pantry.custom';
+import { mergeIntoPantry } from '../lib/pantryMerge.custom';
 
 const router = Router();
 router.use(authMiddleware);
@@ -93,52 +94,6 @@ const clampDays = (raw: unknown): number => {
     const parsed = typeof raw === 'string' && raw.trim() !== '' ? Number(raw) : NaN;
     if (!Number.isFinite(parsed)) return DEFAULT_EXPIRY_DAYS;
     return Math.max(0, Math.min(Math.trunc(parsed), MAX_EXPIRY_DAYS));
-};
-
-/**
- * The one merge rule, shared by the shopping bridge and the receipt import:
- * one non-Grocy row per folded name, quantities add up, and a unit only ever
- * fills a hole (the row's own unit wins).
- *
- * A single `INSERT … ON CONFLICT DO UPDATE` on the partial unique index
- * (`custom/0005-pantry-name-unique`), so two concurrent merges cannot both
- * insert: one of them waits and updates. The conflict target deliberately
- * excludes Grocy rows — those are the sync's own, and a hand-typed 'Riz' must
- * not have its quantity overwritten by the next Grocy import.
- *
- * `xmax = 0` is how PostgreSQL reports "this RETURNING row was inserted", which
- * is what tells created from updated.
- */
-const mergeIntoPantry = async (
-    client: { query: (text: string, values?: unknown[]) => Promise<{ rows: Array<Record<string, unknown>> }> },
-    userId: string,
-    seeds: PantryLineSeed[],
-    source: string,
-): Promise<{ created: number; updated: number }> => {
-    let created = 0;
-    let updated = 0;
-
-    for (const seed of seeds) {
-        const key = pantryNameKey(seed.name);
-        if (key.length === 0) continue;
-
-        const result = await client.query(
-            `INSERT INTO custom_pantry_items
-                (user_id, name, name_key, category, quantity, unit, location, source)
-             VALUES ($1, $2, $3, $4, $5, $6, 'pantry', $7)
-             ON CONFLICT (user_id, name_key) WHERE source <> 'grocy'
-             DO UPDATE SET
-                quantity = custom_pantry_items.quantity + EXCLUDED.quantity,
-                unit = COALESCE(custom_pantry_items.unit, EXCLUDED.unit),
-                updated_at = CURRENT_TIMESTAMP
-             RETURNING (xmax = 0) AS inserted`,
-            [userId, seed.name, key, seed.category, seed.quantity, seed.unit ?? null, source],
-        );
-        if (result.rows[0]?.inserted) created += 1;
-        else updated += 1;
-    }
-
-    return { created, updated };
 };
 
 // GET /api/pantry?location=&filter=low_stock|expiring&days=14
@@ -393,7 +348,11 @@ router.post('/stock', async (req: AuthRequest, res) => {
 });
 
 // POST /api/pantry/import/receipt — the lines of a stored receipt become pantry
-// rows. The guard table makes it once per receipt: the second press answers 409.
+// rows. The guard table makes it once per TICKET (its fingerprint), the same key
+// the receipt import uses: the second press answers 409. This is the path left
+// for receipts imported before the import itself fed the pantry, so it merges
+// every line under its printed label — the AI's per-line names and its "is this
+// stock?" verdict were never stored for those.
 router.post('/import/receipt', async (req: AuthRequest, res) => {
     const body = (req.body ?? {}) as Record<string, unknown>;
     const receiptId = typeof body.receiptId === 'string' ? body.receiptId : '';
@@ -406,7 +365,7 @@ router.post('/import/receipt', async (req: AuthRequest, res) => {
         await client.query('BEGIN');
 
         const owned = await client.query(
-            'SELECT id FROM budget_receipts WHERE id = $1 AND user_id = $2',
+            'SELECT fingerprint FROM budget_receipts WHERE id = $1 AND user_id = $2',
             [receiptId, req.userId],
         );
         if (owned.rows.length === 0) {
@@ -421,7 +380,7 @@ router.post('/import/receipt', async (req: AuthRequest, res) => {
              VALUES ($1, 'receipt', $2)
              ON CONFLICT (user_id, source, source_ref) DO NOTHING
              RETURNING id`,
-            [req.userId, receiptId],
+            [req.userId, (owned.rows[0] as { fingerprint: string }).fingerprint],
         );
         if (guard.rows.length === 0) {
             await client.query('ROLLBACK');
@@ -448,6 +407,119 @@ router.post('/import/receipt', async (req: AuthRequest, res) => {
         res.status(500).json({ success: false, error: 'Internal server error' });
     } finally {
         client.release();
+    }
+});
+
+// The receipt lines the import did NOT stock by itself (a service, a fee, an
+// unreadable line): they wait here until the family names and categorises them.
+
+// GET /api/pantry/pending — the queue, newest first, with the ticket it came
+// from so the family can recognise the line.
+router.get('/pending', async (req: AuthRequest, res) => {
+    try {
+        const result = await query(
+            `SELECT p.*, r.merchant, r.date
+               FROM custom_pantry_pending p
+               JOIN budget_receipts r ON r.id = p.receipt_id
+              WHERE p.user_id = $1
+              ORDER BY p.created_at DESC, p.id`,
+            [req.userId],
+        );
+        res.json({
+            success: true,
+            data: {
+                items: result.rows.map((row) => ({
+                    id: row.id,
+                    receipt_id: row.receipt_id,
+                    label: row.label,
+                    item: row.item,
+                    quantity: toNumber(row.quantity),
+                    unit: row.unit,
+                    category: row.category,
+                    merchant: row.merchant,
+                    date: row.date ? String(row.date).slice(0, 10) : null,
+                    created_at: row.created_at,
+                })),
+            },
+        });
+    } catch (error) {
+        logger.error('pantry.pending_list_failed', {
+            error: error instanceof Error ? error.message : String(error),
+        });
+        res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+});
+
+// POST /api/pantry/pending/:id/confirm — the family's own name and category for
+// a queued line: it joins the pantry (merged by folded name, like every other
+// import) and leaves the queue. Body: { name, category?, quantity?, unit? } —
+// the same shape as POST /api/pantry, so the page reuses one form.
+router.post('/pending/:id/confirm', async (req: AuthRequest, res) => {
+    const id = req.params.id;
+    if (!isUuid(id)) {
+        return res.status(404).json({ success: false, error: 'NOT_FOUND' });
+    }
+    const input = sanitizePantryItem(req.body);
+    if (!input) {
+        return res.status(400).json({ success: false, error: 'INVALID_ITEM' });
+    }
+
+    const client = await getClient();
+    try {
+        await client.query('BEGIN');
+
+        const owned = await client.query(
+            'SELECT id FROM custom_pantry_pending WHERE id = $1 AND user_id = $2',
+            [id, req.userId],
+        );
+        if (owned.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(404).json({ success: false, error: 'NOT_FOUND' });
+        }
+
+        const { created, updated } = await mergeIntoPantry(
+            client,
+            req.userId!,
+            [{ name: input.name, quantity: input.quantity, category: input.category, unit: input.unit }],
+            'receipt',
+        );
+        await client.query('DELETE FROM custom_pantry_pending WHERE id = $1 AND user_id = $2', [id, req.userId]);
+        await client.query('COMMIT');
+
+        broadcast(req.userId!, { type: 'update', entity: 'shopping', action: 'updated' });
+        res.json({ success: true, data: { created, updated } });
+    } catch (error) {
+        await client.query('ROLLBACK').catch(() => {});
+        logger.error('pantry.pending_confirm_failed', {
+            error: error instanceof Error ? error.message : String(error),
+        });
+        res.status(500).json({ success: false, error: 'Internal server error' });
+    } finally {
+        client.release();
+    }
+});
+
+// DELETE /api/pantry/pending/:id — the line is not a product (a service, a fee):
+// it leaves the queue without entering the pantry.
+router.delete('/pending/:id', async (req: AuthRequest, res) => {
+    const id = req.params.id;
+    if (!isUuid(id)) {
+        return res.status(404).json({ success: false, error: 'NOT_FOUND' });
+    }
+    try {
+        const result = await query(
+            'DELETE FROM custom_pantry_pending WHERE id = $1 AND user_id = $2 RETURNING id',
+            [id, req.userId],
+        );
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'NOT_FOUND' });
+        }
+        res.json({ success: true });
+    } catch (error) {
+        logger.error('pantry.pending_dismiss_failed', {
+            error: error instanceof Error ? error.message : String(error),
+        });
+        res.status(500).json({ success: false, error: 'Internal server error' });
     }
 });
 

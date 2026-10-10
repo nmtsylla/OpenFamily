@@ -74,6 +74,17 @@
     "empty": "购物清单中没有已勾选的商品。",
     "confirm": "加入食品储藏"
   },
+  "pending": {
+    "title": "{{count}} 项待归置",
+    "subtitle": "AI 无法命名的小票条目：确认或忽略它们。",
+    "review": "去处理",
+    "dialogTitle": "待归置的食品",
+    "dialogHint": "修正名称和分类后加入储藏，或忽略不需要保留的项目。",
+    "label": "小票上：{{label}}",
+    "add": "加入食品储藏",
+    "ignore": "忽略",
+    "empty": "没有待处理的条目了。"
+  },
   "cook": {
     "title": "用手头的东西做饭",
     "subtitle": "所有食材都在储藏里的食谱。",
@@ -93,6 +104,8 @@
     "sent": "已发送 {{count}} 项，{{skipped}} 项已在清单中",
     "stocked": "新增 {{created}} 项，更新 {{updated}} 项",
     "importedReceipt": "小票已导入食品储藏",
+    "receiptPending": "{{count}} 项待归置到食品储藏",
+    "pendingIgnored": "已忽略该条目",
     "importedGrocy": "已从 Grocy 导入 {{count}} 项"
   },
   "errors": {
@@ -105,7 +118,8 @@
     "importGrocy": "无法从 Grocy 导入。",
     "grocyMissing": "尚未配置 Grocy 集成。",
     "alreadyImported": "这张小票已经导入过了。",
-    "duplicateName": "食品储藏中已有这个食品。"
+    "duplicateName": "食品储藏中已有这个食品。",
+    "pending": "无法处理该条目。"
   },
   "receipt": {
     "addLine": "添加明细",

@@ -14,16 +14,20 @@ upstream tree (that tree is kept for reference at `/home/bsylla/OpenFamily-budge
 where the same features were spread over 50 upstream files and ~9000 inserted
 lines). Here they live in `custom/` locations with a single hook per upstream file.
 
-Measured divergence of this port: **34 upstream files touched, 1504 insertions,
-24 modified lines** (measured 2026-10-10, `git diff --numstat upstream/main` over
-the files that exist upstream; the two-phase dashboard fix added 25 insertions and
-four modified lines to the previous 1479/20, which itself followed the lunchbox
-port at 1224/19). The AI outing planner adds a **35th upstream file** —
-`client/src/pages/Planning.tsx`, 13 inserted lines (one marker-wrapped import, one
-marker-wrapped element), no modified line. Every touched upstream file carries
-`FORK-START/END` markers except the three that cannot hold comments
-(`.env.example`, `package-lock.json`, `server/package.json` — each explained
-below).
+Measured divergence of this port, recorded pass by pass: **35 upstream files
+touched, 24 modified lines**, **1517 inserted lines** after the AI outing planner
+(1504 before it; the chain reads 1224 → 1479 → 1504 → +13 for
+`client/src/pages/Planning.tsx`). The insertion count is the noisy part of that
+tally — every pass adds to the same shared files without re-measuring the absolute
+— so treat it as a floor: a fresh `git diff --numstat upstream/main` today, on the
+basis those figures used (excluding `package-lock.json`, 396 lines, and
+`DOCUMENTATION.md`, 106), reads 1509. The receipt→pantry pass below contributed
+**158** of them: `client/src/demo/mockApi.ts` +102,
+`server/src/migrations/registry.ts` +48, `.env.example` +8 — all fork-owned lines
+inside files upstream owns, so the 24 modified upstream-authored lines are
+unchanged. Every touched upstream file carries `FORK-START/END` markers except the
+three that cannot hold comments (`.env.example`, `package-lock.json`,
+`server/package.json` — each explained below).
 
 ## Custom features (new files only)
 
@@ -34,7 +38,7 @@ below).
 | Receipt / bill import with line detail | `server/src/custom/routes/budgetReceipts.custom.ts`, `server/src/custom/ai/receipt.custom.ts`, `client/src/custom/components/{ReceiptImport,BudgetReceipts}.custom.tsx` | `CUSTOM_FEATURE_BUDGET_RECEIPTS_ENABLED` |
 | Budget analytics page | `server/src/custom/lib/budgetAnalytics.custom.ts`, `server/src/custom/routes/budgetAnalytics.custom.ts`, `client/src/custom/pages/BudgetAnalytics.custom.tsx` | `CUSTOM_FEATURE_BUDGET_ANALYTICS_ENABLED` |
 | Lunchboxes + weekly nutritional read (ported from KeurTonux) | `server/src/custom/lib/lunchbox.custom.ts`, `server/src/custom/lib/aiSettings.custom.ts`, `server/src/custom/lib/promptLanguage.custom.ts`, `server/src/custom/ai/{lunchbox,nutrition}.custom.ts`, `server/src/custom/routes/lunchbox.custom.ts`, `client/src/custom/pages/Lunchboxes.custom.tsx`, `client/src/custom/components/{LunchboxAiDialog,NutritionAnalysisDialog}.custom.tsx` | `CUSTOM_FEATURE_LUNCHBOX_ENABLED` |
-| Smart pantry — what the household has at home (locations, expiry, low stock), bridging the shopping list both ways, receipt lines and Grocy stock in, lunchbox AI and a "cook from what you have" tab out | `server/src/custom/lib/pantry.custom.ts`, `server/src/custom/lib/validation.custom.ts`, `server/src/custom/routes/pantry.custom.ts`, `client/src/custom/pages/Pantry.custom.tsx`, `client/src/custom/components/PantryExpiryCard.custom.tsx`, `client/src/custom/lib/pantryMatch.custom.ts` | `CUSTOM_FEATURE_PANTRY_ENABLED` |
+| Smart pantry — what the household has at home (locations, expiry, low stock), bridging the shopping list both ways, Grocy stock in, and the receipt import feeding it: the obviously stockable lines merge in under the brand-free name the AI read off the ticket, the rest wait in a review queue on the page; lunchbox AI and a "cook from what you have" tab out | `server/src/custom/lib/pantry.custom.ts`, `server/src/custom/lib/pantryMerge.custom.ts`, `server/src/custom/lib/validation.custom.ts`, `server/src/custom/routes/pantry.custom.ts`, `client/src/custom/pages/Pantry.custom.tsx`, `client/src/custom/components/PantryExpiryCard.custom.tsx`, `client/src/custom/lib/pantryMatch.custom.ts` | `CUSTOM_FEATURE_PANTRY_ENABLED` |
 | AI outing planner on the Planning page — real places around the family (OpenStreetMap/Overpass) ranked by the family's own model for the day, the weather, the people coming (whole family / with the kids / parents only) and what the children's cards say, plus place-less activity ideas; the chosen outing is added to the planning through upstream's own `/api/planning` | `server/src/custom/lib/places.custom.ts`, `server/src/custom/lib/{location,kids}.custom.ts` (extracted from the dashboard route when this needed the same answers), `server/src/custom/ai/outings.custom.ts`, `server/src/custom/routes/outings.custom.ts`, `client/src/custom/components/OutingPlanner.custom.tsx`, `client/src/custom/hooks/useOutings.custom.ts` | `CUSTOM_FEATURE_OUTINGS_ENABLED` |
 | Feature flags / registration point | `server/src/custom/features.custom.ts`, `server/src/custom/register.custom.ts`, `server/src/custom/middleware/rateLimit.custom.ts` | — |
 | Client hooks for custom code | `client/src/custom/{nav.custom.ts,routes.custom.tsx}` | — |
@@ -101,7 +105,7 @@ otherwise.
 | `client/src/pages/Planning.tsx` | `outings` | Renders the custom outing planner below the week grid (one import + one element, both marker-wrapped); the outcome is added through the page's own `/api/planning` endpoint |
 | `client/src/contexts/AuthContext.tsx` | `weather, pantry` | The `DASHBOARD_WIDGETS` line carries the fork's widget keys (weather, activities, pantry); one marker pair wraps that modified line itself, so an upstream change to it is re-applied from here |
 | `client/src/components/app/MagicInput.tsx` | `budget-custom` | Adds the `AI_UNSUPPORTED_MEDIA` error code |
-| `client/src/demo/mockApi.ts` | `budget-custom`, `demo-prefs`, `lunchbox`, `pantry`, `outings` | Demo handlers for receipts, receipt extraction, analytics, lunchboxes and the pantry (seeded rows, the shopping-list bridge, the receipt import, and the two answers the page reacts to: `DUPLICATE_NAME`, `NO_GROCY_INTEGRATION`); plus the two object-shaped endpoints upstream's demo never answers (`dashboard-prefs`, `posts/latest`), whose `ok([])` catch-all crashed the demo's default route. The `demo-prefs` block's default widget order also carries `pantry`; the `outings` block answers the planner with a fixed set (a demo has no OpenStreetMap and no model) |
+| `client/src/demo/mockApi.ts` | `budget-custom`, `demo-prefs`, `lunchbox`, `pantry`, `outings` | Demo handlers for receipts, receipt extraction, analytics, lunchboxes and the pantry (seeded rows, the shopping-list bridge, the receipt import — which splits its lines exactly like the server: obvious products merged, the rest queued — the review queue with its `confirm`/`ignore` calls, and the two answers the page reacts to: `DUPLICATE_NAME`, `NO_GROCY_INTEGRATION`); plus the two object-shaped endpoints upstream's demo never answers (`dashboard-prefs`, `posts/latest`), whose `ok([])` catch-all crashed the demo's default route. The `demo-prefs` block's default widget order also carries `pantry`; the `outings` block answers the planner with a fixed set (a demo has no OpenStreetMap and no model) |
 | `client/nginx.conf` | `media` | Dedicated `location ^~ /api/media/` block (upstream's `location /api/` line untouched) |
 | `scripts/smoke-api.sh` | `budget-custom`, `lunchbox` | Smoke calls for the custom endpoints |
 | `.env.example` | (section) | `# --- Custom ---` section at the end of the file |
@@ -191,10 +195,21 @@ next migration takes `core/0007`):
   same product coexist, which is the Grocy sync's contract.
 - `custom/0004-pantry` — `custom_pantry_items` (`name_key` = the folded name every merge
   compares on, `expires_on`, `low_stock_threshold`, `lunchbox_bucket`, `source`),
-  `custom_pantry_imports` (`UNIQUE (user_id, source, source_ref)` — the per-receipt import
-  guard), three indexes. The pantry is the fork's own table like the two above: upstream
-  has a shopping list, not a stock, and the Grocy integration only ever imported the
-  shopping list.
+  `custom_pantry_imports` (`UNIQUE (user_id, source, source_ref)` — the import guard,
+  once per ticket), three indexes. The pantry is the fork's own table like the two above:
+  upstream has a shopping list, not a stock, and the Grocy integration only ever imported
+  the shopping list.
+- `custom/0006-pantry-pending` — `custom_pantry_pending`: the receipt lines the import
+  refuses to stock on its own (a fee, an abbreviation nobody can name), with the printed
+  label, the proposed name, the quantity and the unit, until someone confirms or ignores
+  them on the pantry page. `receipt_id` is a FK `ON DELETE CASCADE`: the queue came from
+  that ticket, while the products already merged into the pantry stay (they are real stock).
+- `custom/0007-pantry-guard-fingerprint` — remaps the existing receipt guard rows from the
+  receipt id to `budget_receipts.fingerprint` (merchant + date + total). Keyed on the id, a
+  ticket whose receipt was deleted and scanned again made a fresh id, missed the guard and
+  counted the same groceries into the pantry twice. Rows whose receipt was already deleted
+  cannot be mapped (the id is all they hold) and stay inert — the products they counted are
+  still in the pantry, which is the point.
 
 Every statement is idempotent (`IF NOT EXISTS`), and the ids must never be renamed
 or their SQL edited: the runner records `id` + SQL checksum in
@@ -236,13 +251,17 @@ upstream locale file:
 
 ## Tests
 
-`server/test/{weather,aiProvider,budgetAnalytics,aiPrompt,lunchbox,pantry,outings}.custom.test.ts` — matched by the
+`server/test/{weather,aiProvider,budgetAnalytics,aiPrompt,lunchbox,pantry,receipt,outings}.custom.test.ts` — matched by the
 server's `tsx --test test/*.test.ts`. `aiPrompt` covers the activities user prompt
 and the cache-key digest it shares a normalizer with: what the family wrote on a
 child's card has to reach the model, and two children with different notes must
 never share a cached idea list. `pantry` covers the merge key (accents, case,
 whitespace, the 160-char cap), the item sanitiser, low-stock and expiry
-boundaries, and the two import mappers (Grocy stock, receipt lines). `outings`
+boundaries, the two import mappers (Grocy stock, receipt lines) and the split that
+decides which lines are stocked without asking. `receipt` covers the pantry half of
+the extraction: the brand-free name, the unit and the "is this stock?" verdict
+survive validation, a non-boolean verdict never reads as yes, and a line typed by
+hand carries neither. `outings`
 covers the Overpass answer (categories, unnamed and duplicated places, a `ref`
 pointing at a place that was never offered) and the outing window (the model's
 suggestion when it fits inside a day, the requested length otherwise). The client
@@ -566,4 +585,86 @@ and `tsx --test test/*.test.ts` is **55/55** (13 new).
   the nearest places, which the module's own header comment promises;
 - the flags reach the container (see the environment section), so the kill switch
   documented in `.env.example` works on a Docker install too.
+
+### Receipt import feeding the pantry (2026-10-10)
+
+The import now stocks the pantry itself, under the brand-free name the model reads
+off the ticket, and queues what it refuses to guess at. Checked against the same
+**throwaway** Postgres 16 container on `127.0.0.1:5433` (`docker run
+postgres:16-alpine`), never the live Neon database, with the server pinned as the
+"Local development" snippet above plus `POSTGRES_PORT=5433 SERVER_PORT=3001`, a
+test account, and — for the AI leg — an **OpenAI-compatible stub** on
+`127.0.0.1:4010` (`POST /v1/chat/completions` answering a canned draft), stored
+through `PUT /api/ai/settings` (`provider: openai`, that base URL). No real model
+was called, so the *prompt text* is what was verified, not a model's judgement:
+
+- the request the stub received carries the new instructions
+  (`"pantry_item"`, `"pantry_unit"`, `"pantry_stock"`, with `response_format:
+  json_object`), and `/api/ai/extract-receipt` returns the three fields per line —
+  so the prompt, the schema and `validateReceipt` agree end to end
+- `npm test` (server) is **61/61**, including the new `receipt.custom.test.ts` and
+  the `splitReceiptLines` cases; `npm run build` (shared + server + client) passes
+  with `check:i18n` (6 languages, 31 namespaces)
+- `custom/0006-pantry-pending` and `custom/0007-pantry-guard-fingerprint` applied
+  on the existing schema (`applied` listed both, `alreadyApplied: 11`); the next
+  start reported `applied: []`, `alreadyApplied: 13`
+- the guard remap did its job on real rows: the pre-change guard row (36-char
+  receipt id) whose receipt still exists came back as its 64-char fingerprint, and
+  `/api/budget/receipts` now reports `pantry_imported: true` for it
+- import with one stockable line and one fee → `pantry: {created:1, updated:0,
+  pending:1}`; the pantry got `Yaourt nature` (1 `pot`) and the queue got
+  `FRAIS DE DOSSIER` with the ticket's merchant and date
+- `GET /api/pantry/pending` lists it; `POST …/:id/confirm` with
+  `{name:"Frais de dossier", category:"Autre"}` merges it into the pantry
+  (`created:1`), empties the queue, and stores the family's own category;
+  a second confirm is 404, a blank name is 400 `INVALID_ITEM`
+- `DELETE /api/pantry/pending/:id` removes a line without writing anything to the
+  pantry (verified: no `Vitamine` row appeared); the second delete is 404
+- **the bug this pass found**: deleting an imported receipt and scanning the same
+  ticket again re-merged its products (`Lait demi-écrémé` 2 → 4), because the
+  guard was keyed on the receipt row. With the fingerprint key the same sequence
+  answers `pantry: null` and the pantry is untouched; the queue is not refilled
+  either (the ticket was already processed)
+- with `CUSTOM_FEATURE_PANTRY_ENABLED=false`: `/api/pantry` and
+  `/api/pantry/pending` answer 404, `/api/auth/me` reports `pantry` as disabled,
+  and the receipt import still answers 201 while writing nothing (`pantry: null`,
+  no rows, queue empty)
+- browser, French UI against the Vite dev server on `:5173` (real API + the stub
+  model): the import dialog reads the scan, the review lists the three lines,
+  `Importer (3)` shows the three toasts — "Reçu importé", "Ticket importé dans le
+  garde-manger 0 nouveaux, 2 mis à jour" and "1 produits à ranger dans le
+  garde-manger" — the pantry page then shows the "1 produits à ranger" banner,
+  the review dialog prefills the printed label, the ticket and its category, and
+  "Ajouter au garde-manger" (disabled while the name is empty) stores
+  `Cotisation mutuelle` under `Santé`; "Ignorer" removes the next line, shows
+  "Ligne ignorée" and leaves the pantry unchanged
+- the review dialog's category select now also offers the line's own category: it
+  comes from the BUDGET list, so `Santé` used to render as an empty field
+- demo mode (`VITE_DEMO=1` on `:5199`): the seeded queue shows the banner, the
+  dialog adds `Trash bags` (row appears with the `Receipt` source) and ignores the
+  second line; importing a receipt from the demo's canned ticket answers
+  "Receipt imported into the pantry — 3 new, 0 updated" + "1 products to put away",
+  matching the server's split
+
+Follow-up pass (review notes), each with its check:
+
+- **A receipt with no usable line took the guard anyway.** A bill imported as
+  `single` with `items: []` (rent, a subscription) recorded the once-per-ticket
+  guard while stocking and queueing nothing — so the manual "add to pantry" button
+  was hidden, and had it been reachable it would have answered 409 for the lines
+  the family adds later. The guard is now inserted only when there is something to
+  record (`stock.length + pending.length > 0`). Verified on a fresh database: the
+  line-less bill answers `pantry: null`, `pantry_imported: false`, `SELECT count(*)
+  FROM custom_pantry_imports` is 0; two lines added by hand afterwards merge
+  through `POST /api/pantry/import/receipt` (`created: 2`) and the second press is
+  409
+- **the realtime refresh of the review banner** was re-checked properly, after a
+  first attempt that proved nothing: that run's dev server had silently moved to
+  `:5174` (5173 was still held), so the browser was talking to a build without
+  `VITE_WS_URL` and the app's socket never opened (the server log showed no
+  `ws.connection_open` for the page). With one dev server pinned on `:5173` and
+  `VITE_WS_URL=ws://127.0.0.1:3001`, a receipt imported through `fetch` from inside
+  the page moved the banner from **0 to 1 without a reload** — the page re-read
+  `/api/pantry/pending` off the `shopping` broadcast, which the server sends for
+  queued lines even when nothing was merged
 

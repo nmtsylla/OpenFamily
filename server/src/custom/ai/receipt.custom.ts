@@ -14,8 +14,20 @@
 // so "Alimentation" lines and "Maison" lines of the same ticket must land in
 // their own category. A bill with no itemised lines (rent, electricity,
 // subscription) yields items: [] and a single entry for its total.
+//
+// Every line also carries `pantry_item` / `pantry_unit`: the same purchase with
+// the brand, the format and the promo text dropped, plus the unit the document
+// shows. That is what the pantry import stores, so the next ticket with the same
+// product adds up to the same row instead of opening a second one under a brand
+// name. The `label` stays the printed text (it describes the budget entry).
+//
+// `pantry_stock` is the model's verdict on whether that line is plainly
+// household stock: only those lines are stocked automatically, the rest wait on
+// the pantry page for the family to name and categorise them
+// (lib/pantry.custom.ts, splitReceiptLines).
 
 import { createHash } from 'node:crypto';
+import { MAX_PANTRY_NAME, MAX_PANTRY_UNIT } from '../lib/pantry.custom';
 
 /** Accepted for both the analyse route and the client-side pre-checks. */
 export const RECEIPT_MEDIA_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'] as const;
@@ -47,13 +59,16 @@ export const RECEIPT_SCHEMA: Record<string, unknown> = {
             items: {
                 type: 'object',
                 additionalProperties: false,
-                required: ['label', 'quantity', 'unit_price', 'amount', 'category'],
+                required: ['label', 'quantity', 'unit_price', 'amount', 'category', 'pantry_item', 'pantry_unit', 'pantry_stock'],
                 properties: {
                     label: { type: 'string' },
                     quantity: { type: 'number' },
                     unit_price: { type: 'number' },
                     amount: { type: 'number' },
                     category: { type: 'string' },
+                    pantry_item: { type: 'string' },
+                    pantry_unit: { type: 'string' },
+                    pantry_stock: { type: 'boolean' },
                 },
             },
         },
@@ -69,6 +84,23 @@ export interface ReceiptLine {
     /** Line total, 2 decimals, always > 0 — a line without an amount is dropped. */
     amount: number;
     category: string;
+    /**
+     * The same purchase as a pantry item: the brand, the format and the promo
+     * text dropped, so 'LAIT DEMI-ECREME BIO VILLAGE 1L' becomes 'Lait
+     * demi-écrémé' and a second ticket adds up to the same row instead of
+     * creating a brand-named one. '' when the label is already the plain item.
+     */
+    pantry_item: string;
+    /** Packaging/content unit the document shows ('L', 'kg', 'pièce'…), else ''. */
+    pantry_unit: string;
+    /**
+     * True only when this line is clearly household stock with an unambiguous
+     * generic name: those go straight into the pantry. Everything else (a
+     * service, a fee, fuel, an abbreviation nobody can name, a line the model is
+     * unsure about) is kept for the family to sort out on the pantry page — see
+     * lib/pantry.custom.ts, splitReceiptLines.
+     */
+    pantry_stock: boolean;
 }
 
 export interface ReceiptExtraction {
@@ -113,6 +145,9 @@ export function buildReceiptPrompt(
         `  "unit_price" = prix unitaire (0 si non précisé),`,
         `  "amount" = montant total de la ligne, remises déjà déduites,`,
         `  "category" = EXACTEMENT l'une de : ${categories.join(', ')}.`,
+        `  "pantry_item" = le MÊME article réduit à ce qu'on stocke à la maison : enlève la marque, l'enseigne, le format, le poids, le volume et tout texte promotionnel ("LAIT DEMI-ECREME BIO VILLAGE 1L" → "Lait demi-écrémé", "POULET FERMIER S/O PESEE" → "Poulet", "LESSIVE LIQUIDE X 40D" → "Lessive"). Garde la langue du ticket et un nom court et générique : c'est ce qui sera additionné au garde-manger quand un autre ticket contiendra le même produit. "" si le libellé est déjà ce nom générique.`,
+        `  "pantry_unit" = l'unité de conditionnement ou de contenu que le ticket précise ("L", "kg", "pièce", "pot", "paquet"…), "" sinon.`,
+        `  "pantry_stock" = true UNIQUEMENT si cette ligne est clairement un produit que le foyer garde chez lui (alimentaire, boisson, entretien, hygiène…) ET que "pantry_item" est un nom générique net. false pour un service, une taxe, une consigne, du carburant, une ligne illisible ou abrégée, et dès que tu as un doute : ces lignes seront proposées à la famille, qui décidera elle-même.`,
         ``,
         `Règles :`,
         `- Ignore tout ce qui n'est pas un achat : rendu de monnaie, sous-total, TVA, moyens de paiement, points de fidélité, remises globales, remerciements, mentions légales.`,
@@ -207,6 +242,9 @@ export function validateReceiptImport(
             unit_price: cleanAmount(line.unit_price, true),
             amount,
             category: resolveCategory(line.category, categories),
+            pantry_item: cleanString(line.pantry_item, MAX_PANTRY_NAME),
+            pantry_unit: cleanString(line.pantry_unit, MAX_PANTRY_UNIT),
+            pantry_stock: line.pantry_stock === true,
         });
     }
 
@@ -325,7 +363,16 @@ export function validateReceipt(
             || Math.round(quantity * unitPrice * 100) / 100;
         if (amount <= 0) continue;
 
-        items.push({ label, quantity, unit_price: unitPrice, amount, category: resolveCategory(line.category, categories) });
+        items.push({
+            label,
+            quantity,
+            unit_price: unitPrice,
+            amount,
+            category: resolveCategory(line.category, categories),
+            pantry_item: cleanString(line.pantry_item, MAX_PANTRY_NAME),
+            pantry_unit: cleanString(line.pantry_unit, MAX_PANTRY_UNIT),
+            pantry_stock: line.pantry_stock === true,
+        });
     }
 
     const date = cleanString(raw.date, 10);
@@ -370,5 +417,17 @@ export function validateReceiptLine(
     const amount = cleanAmount(raw.amount, false) || Math.round(quantity * unitPrice * 100) / 100;
     if (amount <= 0) return null;
 
-    return { label, quantity, unit_price: unitPrice, amount, category: resolveCategory(raw.category, categories) };
+    // A line typed by hand was never seen by the model: there is no pantry name
+    // to propose and no verdict on whether it is stock, so the pantry import
+    // sends it to the pending list (the label is its stand-in name).
+    return {
+        label,
+        quantity,
+        unit_price: unitPrice,
+        amount,
+        category: resolveCategory(raw.category, categories),
+        pantry_item: '',
+        pantry_unit: '',
+        pantry_stock: false,
+    };
 }

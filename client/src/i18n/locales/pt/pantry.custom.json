@@ -74,6 +74,17 @@
     "empty": "Nenhum artigo assinalado na lista de compras.",
     "confirm": "Adicionar à despensa"
   },
+  "pending": {
+    "title": "{{count}} produtos para arrumar",
+    "subtitle": "Linhas dos seus recibos que a IA não soube nomear: confirme-as ou ignore-as.",
+    "review": "Rever",
+    "dialogTitle": "Produtos para arrumar",
+    "dialogHint": "Corrija o nome e a categoria e adicione à despensa — ou ignore o que não for um produto a guardar.",
+    "label": "No recibo: {{label}}",
+    "add": "Adicionar à despensa",
+    "ignore": "Ignorar",
+    "empty": "Já não há nada em espera."
+  },
   "cook": {
     "title": "Cozinhar com o que tem",
     "subtitle": "As receitas cujos ingredientes estão todos na despensa.",
@@ -93,6 +104,8 @@
     "sent": "{{count}} enviados, {{skipped}} já na lista",
     "stocked": "{{created}} novos, {{updated}} atualizados",
     "importedReceipt": "Recibo importado para a despensa",
+    "receiptPending": "{{count}} produtos para arrumar na despensa",
+    "pendingIgnored": "Linha ignorada",
     "importedGrocy": "{{count}} produtos importados do Grocy"
   },
   "errors": {
@@ -105,7 +118,8 @@
     "importGrocy": "Não foi possível importar do Grocy.",
     "grocyMissing": "Não há nenhuma integração Grocy configurada.",
     "alreadyImported": "Este recibo já foi importado.",
-    "duplicateName": "Este produto já está na despensa."
+    "duplicateName": "Este produto já está na despensa.",
+    "pending": "Não foi possível processar esta linha."
   },
   "receipt": {
     "addLine": "Adicionar uma linha",

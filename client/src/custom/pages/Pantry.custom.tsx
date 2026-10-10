@@ -54,6 +54,22 @@ interface Recipe {
     ingredients: string[];
 }
 
+/**
+ * A receipt line the import did NOT stock by itself: the family names it (or
+ * ignores it) here. The printed label is shown as-is, the fields are the ones
+ * the AI proposed, editable.
+ */
+interface PendingLine {
+    id: string;
+    label: string;
+    item: string;
+    quantity: string;
+    unit: string;
+    category: string;
+    merchant: string | null;
+    date: string | null;
+}
+
 // Mirrors server/src/custom/lib/pantry.custom.ts: the client never imports server code.
 const LOCATIONS = ['pantry', 'fridge', 'freezer', 'cellar', 'other'] as const;
 const BUCKETS = ['main', 'fruit', 'snack', 'drink'] as const;
@@ -279,7 +295,31 @@ const Pantry: React.FC = () => {
         Array<{ id: string; name: string; quantity: string; unit: string | null; category: string }>
     >([]);
 
+    // Receipt lines waiting for a name: the import stocks the obvious products
+    // and queues the rest here, so nothing enters the pantry on a guess.
+    const [pendingOpen, setPendingOpen] = useState(false);
+    const [pending, setPending] = useState<PendingLine[]>([]);
+    const [pendingBusy, setPendingBusy] = useState<string | null>(null);
+
     const reload = () => setToken((previous) => previous + 1);
+
+    useEffect(() => {
+        api.get<{ success: boolean; data: { items: PendingLine[] } }>('/api/pantry/pending')
+            .then((response) => {
+                setPending((response.data?.items ?? []).map((line) => ({
+                    ...line,
+                    quantity: String(line.quantity),
+                    unit: line.unit ?? '',
+                })));
+            })
+            // A queue nobody can read is not worth an error banner: the pantry
+            // itself already reports its own failures.
+            .catch(() => undefined);
+    }, [token]);
+
+    // A receipt imported in another tab (or on another device) feeds this pantry
+    // and this queue on the same event the panels already listen to.
+    useWebSocketUpdates('shopping', reload);
 
     const categoryOptions = useMemo(
         () => categories.shopping.map((name) => ({ value: name, label: name })),
@@ -374,6 +414,38 @@ const Pantry: React.FC = () => {
             showToast({ title: t('pantry.custom:errors.shopping'), description: err instanceof Error ? err.message : undefined });
         } finally {
             setBusy(false);
+        }
+    };
+
+    const confirmPending = async (line: PendingLine) => {
+        setPendingBusy(line.id);
+        try {
+            await api.post(`/api/pantry/pending/${line.id}/confirm`, {
+                name: line.item.trim(),
+                category: line.category,
+                quantity: line.quantity === '' ? 1 : Number(line.quantity),
+                unit: line.unit,
+            });
+            showToast({ title: t('pantry.custom:toasts.created') });
+            setPending((previous) => previous.filter((entry) => entry.id !== line.id));
+            reload();
+        } catch (err) {
+            showToast({ title: t('pantry.custom:errors.pending'), description: err instanceof Error ? err.message : undefined });
+        } finally {
+            setPendingBusy(null);
+        }
+    };
+
+    const dismissPending = async (line: PendingLine) => {
+        setPendingBusy(line.id);
+        try {
+            await api.delete(`/api/pantry/pending/${line.id}`);
+            showToast({ title: t('pantry.custom:toasts.pendingIgnored') });
+            setPending((previous) => previous.filter((entry) => entry.id !== line.id));
+        } catch (err) {
+            showToast({ title: t('pantry.custom:errors.pending'), description: err instanceof Error ? err.message : undefined });
+        } finally {
+            setPendingBusy(null);
         }
     };
 
@@ -485,6 +557,27 @@ const Pantry: React.FC = () => {
                     )}
                 </div>
             </div>
+
+            {/* Receipt lines the import refused to guess at. Shown before the
+                tabs: it is a to-do, not a view of the stock. */}
+            {pending.length > 0 && (
+                <Card>
+                    <CardContent className="flex flex-wrap items-center justify-between gap-3 pt-5">
+                        <div className="flex items-start gap-2">
+                            <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                            <div>
+                                <p className="text-caption font-medium text-foreground">
+                                    {t('pantry.custom:pending.title', { count: pending.length })}
+                                </p>
+                                <p className="text-micro text-muted-foreground">{t('pantry.custom:pending.subtitle')}</p>
+                            </div>
+                        </div>
+                        <Button variant="secondary" onClick={() => setPendingOpen(true)}>
+                            {t('pantry.custom:pending.review')}
+                        </Button>
+                    </CardContent>
+                </Card>
+            )}
 
             <Tabs
                 defaultValue="all"
@@ -667,6 +760,108 @@ const Pantry: React.FC = () => {
                                 {t('pantry.custom:stockDialog.confirm')}
                             </Button>
                         </div>
+                    </div>
+                )}
+            </Dialog>
+            <Dialog
+                open={pendingOpen}
+                onOpenChange={setPendingOpen}
+                title={t('pantry.custom:pending.dialogTitle')}
+                description={t('pantry.custom:pending.dialogHint')}
+            >
+                {pending.length === 0 ? (
+                    <p className="py-6 text-center text-caption text-muted-foreground">
+                        {t('pantry.custom:pending.empty')}
+                    </p>
+                ) : (
+                    <div className="space-y-3">
+                        {pending.map((line) => (
+                            <div key={line.id} className="space-y-2 rounded-input border border-border p-3">
+                                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                                    <span className="text-caption font-medium text-foreground">
+                                        {t('pantry.custom:pending.label', { label: line.label })}
+                                    </span>
+                                    {line.merchant && (
+                                        <span className="text-micro text-muted-foreground">
+                                            {line.date ? `${line.merchant} · ${line.date}` : line.merchant}
+                                        </span>
+                                    )}
+                                </div>
+                                <Input
+                                    label={t('pantry.custom:form.name')}
+                                    placeholder={t('pantry.custom:form.namePlaceholder')}
+                                    value={line.item}
+                                    onChange={(event) =>
+                                        setPending((previous) =>
+                                            previous.map((entry) =>
+                                                entry.id === line.id ? { ...entry, item: event.target.value } : entry,
+                                            ),
+                                        )
+                                    }
+                                />
+                                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                                    <Select
+                                        value={line.category}
+                                        onValueChange={(value) =>
+                                            setPending((previous) =>
+                                                previous.map((entry) =>
+                                                    entry.id === line.id ? { ...entry, category: value } : entry,
+                                                ),
+                                            )
+                                        }
+                                        placeholder={t('pantry.custom:form.category')}
+                                        // The line's category comes from the BUDGET list (it
+                                        // was read off the ticket): keep it selectable even when
+                                        // the pantry's own list does not have it, instead of
+                                        // showing an empty field.
+                                        options={
+                                            categoryOptions.some((option) => option.value === line.category)
+                                                ? categoryOptions
+                                                : [{ value: line.category, label: line.category }, ...categoryOptions]
+                                        }
+                                    />
+                                    <Input
+                                        type="number"
+                                        step="0.001"
+                                        label={t('pantry.custom:form.quantity')}
+                                        value={line.quantity}
+                                        onChange={(event) =>
+                                            setPending((previous) =>
+                                                previous.map((entry) =>
+                                                    entry.id === line.id ? { ...entry, quantity: event.target.value } : entry,
+                                                ),
+                                            )
+                                        }
+                                    />
+                                    <Input
+                                        label={t('pantry.custom:form.unit')}
+                                        value={line.unit}
+                                        onChange={(event) =>
+                                            setPending((previous) =>
+                                                previous.map((entry) =>
+                                                    entry.id === line.id ? { ...entry, unit: event.target.value } : entry,
+                                                ),
+                                            )
+                                        }
+                                    />
+                                </div>
+                                <div className="flex justify-end gap-2">
+                                    <Button
+                                        variant="secondary"
+                                        onClick={() => void dismissPending(line)}
+                                        disabled={pendingBusy === line.id}
+                                    >
+                                        {t('pantry.custom:pending.ignore')}
+                                    </Button>
+                                    <Button
+                                        onClick={() => void confirmPending(line)}
+                                        disabled={pendingBusy === line.id || line.item.trim() === ''}
+                                    >
+                                        {t('pantry.custom:pending.add')}
+                                    </Button>
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 )}
             </Dialog>

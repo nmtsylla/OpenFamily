@@ -8,6 +8,7 @@ import {
     mapReceiptItems,
     pantryNameKey,
     sanitizePantryItem,
+    splitReceiptLines,
 } from '../src/custom/lib/pantry.custom';
 import { isUuid } from '../src/custom/lib/validation.custom';
 
@@ -153,11 +154,63 @@ test('mapReceiptItems defaults the quantity and drops unlabelled lines', () => {
             { label: 'Savon', quantity: null, category: '' },
         ]),
         [
-            { name: 'Lait', quantity: 2, category: 'Alimentation' },
-            { name: 'Pain', quantity: 1, category: 'Alimentation' },
-            { name: 'Savon', quantity: 1, category: 'Autre' },
+            { name: 'Lait', quantity: 2, category: 'Alimentation', unit: null },
+            { name: 'Pain', quantity: 1, category: 'Alimentation', unit: null },
+            { name: 'Savon', quantity: 1, category: 'Autre', unit: null },
         ],
     );
+});
+
+// The AI reads the brand off the ticket; the pantry must store what it proposes,
+// or every supermarket creates a second row for the same product.
+test('mapReceiptItems prefers the model pantry name and its unit', () => {
+    assert.deepEqual(
+        mapReceiptItems([
+            { label: 'LAIT DEMI-ECREME BIO VILLAGE 1L', quantity: 2, category: 'Alimentation', pantry_item: 'Lait demi-écrémé', pantry_unit: 'L' },
+            // A line the model left empty (or one typed by hand) keeps its label.
+            { label: 'Pain complet', quantity: 1, category: 'Alimentation', pantry_item: '', pantry_unit: '' },
+            { label: 'Lessive', quantity: 1, category: 'Maison' },
+            // Spaces only: not a name, so the label is used.
+            { label: 'Riz basmati', quantity: 1, category: 'Alimentation', pantry_item: '   ', pantry_unit: '  ' },
+        ]),
+        [
+            { name: 'Lait demi-écrémé', quantity: 2, category: 'Alimentation', unit: 'L' },
+            { name: 'Pain complet', quantity: 1, category: 'Alimentation', unit: null },
+            { name: 'Lessive', quantity: 1, category: 'Maison', unit: null },
+            { name: 'Riz basmati', quantity: 1, category: 'Alimentation', unit: null },
+        ],
+    );
+});
+
+// The split decides what enters the pantry unasked: only a line the model both
+// called stock AND named. Everything else waits on the pantry page.
+test('splitReceiptLines stocks the obvious lines and queues the rest', () => {
+    const { stock, pending } = splitReceiptLines([
+        {
+            label: 'LAIT DEMI-ECREME BIO VILLAGE 1L', quantity: 2, category: 'Alimentation',
+            pantry_item: 'Lait demi-écrémé', pantry_unit: 'L', pantry_stock: true,
+        },
+        // Named but not called stock: the family decides.
+        {
+            label: 'DOLIPRANE 1000MG', quantity: 1, category: 'Santé',
+            pantry_item: 'Paracétamol', pantry_unit: '', pantry_stock: false,
+        },
+        // Stock but no generic name: nothing to store, so it waits for a name.
+        { label: 'TRUC BIZARRE', quantity: 1, category: 'Autre', pantry_item: '', pantry_stock: true },
+        // A line typed by hand: no verdict at all.
+        { label: 'Yaourts', quantity: 4, category: 'Alimentation' },
+        // No label and no name: not a line anyone can act on.
+        { label: '   ', quantity: 1, category: 'Autre', pantry_item: '', pantry_stock: true },
+    ]);
+
+    assert.deepEqual(stock, [
+        { name: 'Lait demi-écrémé', quantity: 2, category: 'Alimentation', unit: 'L' },
+    ]);
+    assert.deepEqual(pending, [
+        { label: 'DOLIPRANE 1000MG', item: 'Paracétamol', quantity: 1, category: 'Santé', unit: null },
+        { label: 'TRUC BIZARRE', item: '', quantity: 1, category: 'Autre', unit: null },
+        { label: 'Yaourts', item: '', quantity: 4, category: 'Alimentation', unit: null },
+    ]);
 });
 
 test('isUuid accepts a UUID and rejects what would reach the column', () => {

@@ -41,6 +41,8 @@ interface BudgetReceipt {
     import_mode: 'itemized' | 'single';
     source_name?: string | null;
     entry_count: number;
+    /** The import already put this receipt's products in the pantry. */
+    pantry_imported?: boolean;
     items: ReceiptItem[];
 }
 
@@ -249,7 +251,11 @@ const ReceiptRow: React.FC<{
                             {t('pantry.custom:receipt.addLine')}
                         </button>
                     )}
-                    {isModuleEnabled('pantry') && (
+                    {/* The import already stocks the pantry, so this is the path
+                        left for receipts imported before that (and the retry, if
+                        the pantry write ever failed): hidden once the lines are
+                        there. */}
+                    {isModuleEnabled('pantry') && !receipt.pantry_imported && (
                         <button
                             type="button"
                             onClick={() => void addToPantry()}
