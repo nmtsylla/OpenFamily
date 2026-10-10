@@ -750,6 +750,54 @@ async function route(method: string, path: string, q: Record<string, string>, bo
         if (method === 'PUT') return ok(lunchboxWithMember({ ...(demoLunchboxes.find((lb) => lb.id === seg[2]) || {}), ...body }));
         if (method === 'DELETE') { demoLunchboxes = demoLunchboxes.filter((lb) => lb.id !== seg[2]); return ok({}); }
     }
+    // FORK-START: outings
+    // The demo has no OpenStreetMap and no model, so the planner is answered with
+    // a fixed, plausible set (the page's own "add to the planning" button then
+    // goes through the mock /api/planning above, like any other entry).
+    if (path === '/api/outings/suggest' && method === 'POST') {
+        const date = typeof body.date === 'string' ? body.date : new Date().toISOString().slice(0, 10);
+        const party = typeof body.party === 'string' ? body.party : 'family';
+        // Two-phase like the server: the instant call carries the places and says
+        // the ranking is still to come, so the demo exercises the same panel path.
+        const instant = body.instant === true;
+        return ok({
+            date,
+            party,
+            duration: typeof body.duration === 'string' ? body.duration : 'half_day',
+            city: 'Sint-Niklaas',
+            weather: { label: 'Partiellement nuageux', tempMin: 11, tempMax: 17, weatherCode: 2, precipitationProbability: 20 },
+            ai: instant ? 'pending' : 'ok',
+            placesSource: 'osm',
+            places: [
+                {
+                    id: 'osm:way/demo-1', name: 'Parc communal', category: 'park',
+                    latitude: 51.16, longitude: 4.14, distanceKm: 1.2,
+                    openingHours: '24/7', website: null, fee: 'no',
+                    why: 'À dix minutes à pied : de la place pour courir et un banc à l’ombre pour les parents.',
+                    startTime: '10:00', endTime: '14:00',
+                },
+                {
+                    id: 'osm:node/demo-2', name: 'Musée communal', category: 'museum',
+                    latitude: 51.17, longitude: 4.15, distanceKm: 2.4,
+                    openingHours: 'Tu-Su 10:00-17:00', website: 'https://example.org', fee: 'yes',
+                    why: 'Couvert, donc parfait si le ciel se gâte, et les enfants paient demi-tarif.',
+                    startTime: '10:00', endTime: '14:00',
+                },
+                {
+                    id: 'osm:node/demo-3', name: 'Aire de jeux du Beestenmarkt', category: 'playground',
+                    latitude: 51.165, longitude: 4.142, distanceKm: 0.8,
+                    openingHours: null, website: null, fee: null,
+                    why: 'Le plus proche : idéal pour une sortie courte avant le déjeuner.',
+                    startTime: '10:00', endTime: '12:00',
+                },
+            ],
+            ideas: [
+                { title: 'Chasse au trésor dans le quartier', description: 'Une liste de dix choses à photographier, à faire à pied autour de la maison.', indoor: false },
+                { title: 'Après-midi jeux de société', description: 'Sortir les jeux oubliés, un goûter, et pas d’écran jusqu’au dîner.', indoor: true },
+            ],
+        });
+    }
+    // FORK-END: outings
     if (seg[1] === 'lunchbox' && seg[2] === 'history' && seg[3]) {
         return ok(demoLunchboxes
             .filter((lb) => lb.family_member_id === seg[3])

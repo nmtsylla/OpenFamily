@@ -59,6 +59,25 @@ services:
       CUSTOM_WEATHER_DEFAULT_LANG: ${CUSTOM_WEATHER_DEFAULT_LANG:-fr}
       CUSTOM_WEATHER_CACHE_TTL_MS: ${CUSTOM_WEATHER_CACHE_TTL_MS:-600000}
       CUSTOM_WEATHER_REQUEST_TIMEOUT_MS: ${CUSTOM_WEATHER_REQUEST_TIMEOUT_MS:-8000}
+      # Outing planner (OpenStreetMap Overpass) — key-less too. The default is
+      # the public instance; a household that hits its rate limit points these at
+      # a mirror, shortens the radius or lengthens the (12 h) cache instead.
+      CUSTOM_OVERPASS_URL: ${CUSTOM_OVERPASS_URL:-https://overpass-api.de/api/interpreter}
+      CUSTOM_OVERPASS_TIMEOUT_MS: ${CUSTOM_OVERPASS_TIMEOUT_MS:-20000}
+      CUSTOM_OUTINGS_RADIUS_KM: ${CUSTOM_OUTINGS_RADIUS_KM:-10}
+      CUSTOM_OUTINGS_CACHE_TTL_MS: ${CUSTOM_OUTINGS_CACHE_TTL_MS:-43200000}
+      # Feature kill switches. Listed here for the same reason as the block
+      # above: a variable set in .env only reaches the container through this
+      # `environment:` map, so without these lines a Docker install could not
+      # turn a fork feature off (unset = enabled, the server's own default).
+      CUSTOM_FEATURE_WEATHER_ENABLED: ${CUSTOM_FEATURE_WEATHER_ENABLED:-true}
+      CUSTOM_FEATURE_AI_WIDGETS_ENABLED: ${CUSTOM_FEATURE_AI_WIDGETS_ENABLED:-true}
+      CUSTOM_FEATURE_MEDIA_ENABLED: ${CUSTOM_FEATURE_MEDIA_ENABLED:-true}
+      CUSTOM_FEATURE_BUDGET_RECEIPTS_ENABLED: ${CUSTOM_FEATURE_BUDGET_RECEIPTS_ENABLED:-true}
+      CUSTOM_FEATURE_BUDGET_ANALYTICS_ENABLED: ${CUSTOM_FEATURE_BUDGET_ANALYTICS_ENABLED:-true}
+      CUSTOM_FEATURE_LUNCHBOX_ENABLED: ${CUSTOM_FEATURE_LUNCHBOX_ENABLED:-true}
+      CUSTOM_FEATURE_PANTRY_ENABLED: ${CUSTOM_FEATURE_PANTRY_ENABLED:-true}
+      CUSTOM_FEATURE_OUTINGS_ENABLED: ${CUSTOM_FEATURE_OUTINGS_ENABLED:-true}
       # FORK-END: deploy
       APP_PUBLIC_URL: ${APP_PUBLIC_URL:-}
       ANDROID_CERT_SHA256: ${ANDROID_CERT_SHA256:-}

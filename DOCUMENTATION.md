@@ -68,6 +68,35 @@ OpenFamily centralise l'ensemble de l'organisation d'un foyer en un seul outil. 
 - Créneaux horaires par jour de la semaine (lundi → dimanche)
 - Indication du lieu pour chaque créneau
 
+<!-- FORK-START: docs -->
+#### 🧭 Planificateur de sorties (IA)
+
+Sous le planning, un panneau propose des sorties pour un jour donné :
+
+- **Des lieux réels**, pas inventés : la liste vient d'OpenStreetMap (aires de jeux, parcs,
+  zoos, aquariums, musées, parcs d'attractions, piscines, bibliothèques, points de vue) dans
+  un rayon de 10 km autour de la ville enregistrée — ou de la position partagée par le
+  navigateur. Un lieu sans nom est ignoré, deux fois le même lieu n'apparaît qu'une fois.
+- **L'assistant IA classe ces lieux** selon la journée : météo prévue (pluie, vent, froid →
+  lieux couverts), **qui participe** (toute la famille, avec les enfants, ou les parents
+  seuls), la durée souhaitée, l'âge des enfants et ce qui est écrit sur leur fiche
+  (allergies, limitations — contraintes dures). Chaque choix arrive avec sa raison en une
+  phrase, une heure de départ et une durée.
+- **Des idées sans lieu précis** (1 à 3) pour les journées où l'on ne sort pas.
+- **Deux temps** : les lieux s'affichent d'abord, sans modèle, puis sont remplacés par le
+  classement de l'assistant — jamais un écran vide pendant que le modèle travaille.
+- **Sans modèle IA configuré** (ou s'il ne répond pas), la liste reste : les lieux les plus
+  proches, à l'intérieur d'abord s'il pleut, sans commentaire.
+- **« Ajouter au planning »** inscrit la sortie choisie dans la semaine, avec les bons
+  participants — c'est l'endpoint de planning habituel, donc les conflits d'horaires sont
+  signalés comme partout ailleurs.
+- OpenStreetMap est un service public mutualisé : les réponses sont mises en cache 12 h côté
+  serveur, et une requête en échec est retentée une fois (`CUSTOM_OVERPASS_*` pour pointer
+  un miroir).
+
+<!-- FORK-END: docs -->
+
+
 ### 🍳 Bibliothèque de recettes
 - Ajout de recettes avec ingrédients, instructions pas à pas et photo
 - **Catégories** : Entrée, Plat, Dessert, Snack

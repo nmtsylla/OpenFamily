@@ -23,6 +23,11 @@ import { dateLocale, offsetForIsoWeekday, orderIsoWeekdays, weekStartsOn } from 
 import { api } from '../lib/api';
 import { useWebSocketUpdates } from '../hooks/useWebSocketUpdates';
 import { Button, Card, CardContent, CardHeader, CardTitle, Dialog, Input, Select, Textarea } from '../components/ui';
+// FORK-START: outings
+// The AI outing planner (custom component) is appended to the rendered page
+// below, next to the week it feeds. See FORK_CHANGES.md.
+import OutingPlanner from '../custom/components/OutingPlanner.custom';
+// FORK-END: outings
 
 interface FamilyMember {
     id: string;
@@ -799,6 +804,14 @@ const Planning: React.FC = () => {
                     );
                 })}
             </div>
+
+            {/* FORK-START: outings */}
+            {/* The AI outing planner: proposes real places around the family for
+                a given day, ranked for who is coming, and adds the chosen one to
+                this week through the same /api/planning endpoint the dialog uses.
+                Renders nothing when CUSTOM_FEATURE_OUTINGS_ENABLED=false. */}
+            <OutingPlanner />
+            {/* FORK-END: outings */}
 
             <Dialog
                 open={dialogOpen}

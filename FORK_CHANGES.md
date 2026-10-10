@@ -18,9 +18,12 @@ Measured divergence of this port: **34 upstream files touched, 1504 insertions,
 24 modified lines** (measured 2026-10-10, `git diff --numstat upstream/main` over
 the files that exist upstream; the two-phase dashboard fix added 25 insertions and
 four modified lines to the previous 1479/20, which itself followed the lunchbox
-port at 1224/19). Every touched upstream file carries
+port at 1224/19). The AI outing planner adds a **35th upstream file** —
+`client/src/pages/Planning.tsx`, 13 inserted lines (one marker-wrapped import, one
+marker-wrapped element), no modified line. Every touched upstream file carries
 `FORK-START/END` markers except the three that cannot hold comments
 (`.env.example`, `package-lock.json`, `server/package.json` — each explained
+below).
 below).
 
 ## Custom features (new files only)
@@ -32,6 +35,7 @@ below).
 | Receipt / bill import with line detail | `server/src/custom/routes/budgetReceipts.custom.ts`, `server/src/custom/ai/receipt.custom.ts`, `client/src/custom/components/{ReceiptImport,BudgetReceipts}.custom.tsx` | `CUSTOM_FEATURE_BUDGET_RECEIPTS_ENABLED` |
 | Budget analytics page | `server/src/custom/lib/budgetAnalytics.custom.ts`, `server/src/custom/routes/budgetAnalytics.custom.ts`, `client/src/custom/pages/BudgetAnalytics.custom.tsx` | `CUSTOM_FEATURE_BUDGET_ANALYTICS_ENABLED` |
 | Lunchboxes + weekly nutritional read (ported from KeurTonux) | `server/src/custom/lib/lunchbox.custom.ts`, `server/src/custom/lib/aiSettings.custom.ts`, `server/src/custom/lib/promptLanguage.custom.ts`, `server/src/custom/ai/{lunchbox,nutrition}.custom.ts`, `server/src/custom/routes/lunchbox.custom.ts`, `client/src/custom/pages/Lunchboxes.custom.tsx`, `client/src/custom/components/{LunchboxAiDialog,NutritionAnalysisDialog}.custom.tsx` | `CUSTOM_FEATURE_LUNCHBOX_ENABLED` |
+| AI outing planner on the Planning page — real places around the family (OpenStreetMap/Overpass) ranked by the family's own model for the day, the weather, the people coming (whole family / with the kids / parents only) and what the children's cards say, plus place-less activity ideas; the chosen outing is added to the planning through upstream's own `/api/planning` | `server/src/custom/lib/places.custom.ts`, `server/src/custom/lib/{location,kids}.custom.ts` (extracted from the dashboard route when this needed the same answers), `server/src/custom/ai/outings.custom.ts`, `server/src/custom/routes/outings.custom.ts`, `client/src/custom/components/OutingPlanner.custom.tsx`, `client/src/custom/hooks/useOutings.custom.ts` | `CUSTOM_FEATURE_OUTINGS_ENABLED` |
 | Feature flags / registration point | `server/src/custom/features.custom.ts`, `server/src/custom/register.custom.ts`, `server/src/custom/middleware/rateLimit.custom.ts` | — |
 | Client hooks for custom code | `client/src/custom/{nav.custom.ts,routes.custom.tsx}` | — |
 | Deploy assets | `deploy/README.md`, `deploy/up.sh`, `docker-compose.override.yml` | — |
@@ -41,7 +45,7 @@ Gating: a feature's `CUSTOM_FEATURE_*_ENABLED=false` unmounts its API routes and
 adds its module keys to `disabled_modules` in `/api/auth/me`, which hides the
 matching nav entry, page and dashboard widget through the client's existing module
 filter. Module keys: `weather`, `activities`, `budgetReceipts`, `budgetAnalytics`,
-`lunchbox`.
+`lunchbox`, `outings`.
 
 ## Ported from KeurTonux (`tonux/KeurTonux`, local checkout `/home/bsylla/keurtonux`)
 
@@ -94,9 +98,10 @@ otherwise.
 | `client/src/pages/Dashboard.tsx` | `weather` | Renders the two custom dashboard widgets |
 | `client/src/pages/Settings.tsx` | `weather`, `budget-custom` | Weather location card, vision-model hint |
 | `client/src/pages/Budget.tsx` | `budget-custom` | Mounts the receipt import button and the imported-receipts section |
+| `client/src/pages/Planning.tsx` | `outings` | Renders the custom outing planner below the week grid (one import + one element, both marker-wrapped); the outcome is added through the page's own `/api/planning` endpoint |
 | `client/src/contexts/AuthContext.tsx` | `weather` | Adds the two custom widget keys to the client's `DASHBOARD_WIDGETS` |
 | `client/src/components/app/MagicInput.tsx` | `budget-custom` | Adds the `AI_UNSUPPORTED_MEDIA` error code |
-| `client/src/demo/mockApi.ts` | `budget-custom`, `demo-prefs`, `lunchbox` | Demo handlers for receipts, receipt extraction, analytics and lunchboxes; plus the two object-shaped endpoints upstream's demo never answers (`dashboard-prefs`, `posts/latest`), whose `ok([])` catch-all crashed the demo's default route |
+| `client/src/demo/mockApi.ts` | `budget-custom`, `demo-prefs`, `lunchbox`, `outings` | Demo handlers for receipts, receipt extraction, analytics and lunchboxes; plus the two object-shaped endpoints upstream's demo never answers (`dashboard-prefs`, `posts/latest`), whose `ok([])` catch-all crashed the demo's default route. The `outings` block answers the planner with a fixed set (a demo has no OpenStreetMap and no model) |
 | `client/nginx.conf` | `media` | Dedicated `location ^~ /api/media/` block (upstream's `location /api/` line untouched) |
 | `scripts/smoke-api.sh` | `budget-custom`, `lunchbox` | Smoke calls for the custom endpoints |
 | `.env.example` | (section) | `# --- Custom ---` section at the end of the file |
@@ -196,7 +201,13 @@ instance from the earlier fork tree, rename these in your `.env`:
 | `MINIO_ENDPOINT` / `_ACCESS_KEY` / `_SECRET_KEY` / `_BUCKET` / `_REGION` | `CUSTOM_MINIO_*` |
 | `OPEN_METEO_BASE_URL` / `OPEN_METEO_GEOCODING_URL` | `CUSTOM_OPEN_METEO_*` |
 | `WEATHER_DEFAULT_LANG` / `_CACHE_TTL_MS` / `_REQUEST_TIMEOUT_MS` | `CUSTOM_WEATHER_*` |
-| — (new) | `CUSTOM_FEATURE_{WEATHER,MEDIA,BUDGET_RECEIPTS,BUDGET_ANALYTICS,AI_WIDGETS}_ENABLED` |
+| — (new) | `CUSTOM_FEATURE_{WEATHER,MEDIA,BUDGET_RECEIPTS,BUDGET_ANALYTICS,LUNCHBOX,OUTINGS,AI_WIDGETS}_ENABLED` |
+| — (new) | `CUSTOM_OVERPASS_URL`, `CUSTOM_OVERPASS_TIMEOUT_MS`, `CUSTOM_OUTINGS_RADIUS_KM`, `CUSTOM_OUTINGS_CACHE_TTL_MS` |
+
+All eight flags are listed in `docker-compose.yml`'s `FORK-START: deploy` block, so an
+operator on a Docker install can switch any of them off from `.env` (they were absent
+before the outing planner; unset still means enabled, so nothing changed for an
+existing `.env`).
 
 ## Translations
 
@@ -209,13 +220,17 @@ upstream locale file:
   `client/scripts/check-i18n.mjs` fails the build on any namespace missing from a
   locale)
 - `dashboard.custom`, `budget.custom`, `ai.custom` (six locales)
+- `outings.custom` (six locales)
 
 ## Tests
 
-`server/test/{weather,aiProvider,budgetAnalytics,aiPrompt}.custom.test.ts` — matched by the
+`server/test/{weather,aiProvider,budgetAnalytics,aiPrompt,outings}.custom.test.ts` — matched by the
 server's `tsx --test test/*.test.ts`. `aiPrompt` covers the activities user prompt
 and the cache-key digest it shares a normalizer with: what the family wrote on a
 child's card has to reach the model, and two children with different notes must
+covers the Overpass answer (categories, unnamed and duplicated places, a `ref`
+pointing at a place that was never offered) and the outing window (the model's
+suggestion when it fits inside a day, the requested length otherwise). The client
 never share a cached idea list. The client has no test runner; the custom UI
 was verified in a browser instead (see "Verification" below).
 
@@ -338,3 +353,89 @@ dotenv never overrides a variable that is already set, so pinning is enough.
   and its link to the family page were checked in the browser, and the deployed
   instance serves the build that was verified (`/tmp/poteto/shot-personal-hint.webp`,
   `/tmp/poteto/shot-family-from-hint.webp`)
+
+### AI outing planner (2026-10-10)
+
+Not deployed yet: the code is on this checkout, verified as below.
+
+**OpenStreetMap is the half that had to be measured, not assumed.** The first
+query shape — one clause per tag, on nodes and ways separately, 22 sub-queries in
+one request — was answered with a **504** by the public instance every time. The
+shipped shape groups the values of each OSM key into one `nwr` regex clause (3
+sub-queries, measured 200 every time). Two more findings from the same probes:
+the public instance answers **406 without a `User-Agent`**, and its load
+fluctuates enough that a query in three came back 429/504 during the evening's
+testing — hence one retry that asks for a **half-radius** area rather than
+retrying the same load (verified against a stub: attempt radii `10000 -> 5000`,
+recovered). Live result for the family's coordinates (51.165, 4.1407): **53 real
+places in 8.3 s cold**, 17 playgrounds / 13 parks / 11 museums / 7 libraries /
+2 zoos / 1 each aquarium-swimming-attraction-viewpoint; the second call for the
+same cell costs **0 ms** (cache).
+
+**The route was run end to end** against the live database with a minted token,
+through the real router (read-only: it reads `users`, `family_members`,
+`ai_settings`):
+
+- `{"party":"kids","duration":"short"}` → `ai=ok`, `placesSource=osm`,
+  weather `Pluie modérée 10.2–15.2 °C, 95 %` (95 % rain → the three picks are
+  all **indoor**: the three museums 0.2–0.4 km away, each with a one-sentence
+  reason naming the children and an opening time the place actually has),
+  plus 3 place-less ideas in the reader's language;
+- `{"party":"parents","duration":"half_day"}` → same places, and every reason
+  says "for two adults" / "without children" — the audience really reaches the
+  prompt;
+- `{"instant":true}` → `ai=pending` with the nearest places only: the first phase
+  needs no model;
+- **with Overpass down** (a real 504 during the run) → 200, `placesSource:
+  unavailable`, `ai: pending`, `places: []` — the panel then shows the note and
+  the ideas, never an error banner.
+
+**The cap, and a 200 that means failure.** `out center N` is applied by Overpass
+*before* any distance sort, so `N` decides whether "nearest first" is true. With
+`N=200` this household's 10 km returned exactly 200 raw elements of which only
+**53 were named** — 75 % of the cap spent on unnamed things the parser drops
+anyway. Raised to 400: **78 named places**, same request cost class (measured
+200 OK in 5.9 s). Filtering server-side with `["name"]` — the obvious way to stop
+wasting the cap — is a trap: Overpass cannot index it and answers **HTTP 200 with
+`remark: "runtime error: Query timed out"` and an empty `elements`**. Taken at
+face value that reads as "no place here", and the result would have been cached
+for 12 h. It is now recognised as a failure (`overpassFailure`), retried once at
+half radius, and never cached — the route answers `placesSource: unavailable` and
+the panel shows its note instead of "nothing around you". A failed request now
+also carries Overpass's own words (tags stripped) into the error message.
+
+**Latency, and why the answer is two-phase.** The model phase took **43 s, 44 s
+and 55 s** on this instance's configured model (openai-compatible gateway,
+`deepseek-v4.1-flash`) — measured on three calls. That is the same order as the
+dashboard widgets' model phase, and it is the reason the panel asks for the
+places first (`instant: true`, ~0.3 s warm, 4.6–8.3 s while Overpass is queried)
+and shows them with a "the model is ranking these places…" note until the ranking
+replaces them. Without that, pressing the button would be a 40-second blank
+spinner.
+
+**Client, verified in the browser** (`VITE_DEMO=1`, `/#/planning`): the panel
+renders below the week grid, its "no location yet" state, the position button
+(`navigator.geolocation`), the form (party / day / length), the ranked answer with
+category, distance, window, reason, opening hours, fee and website, the idea list
+with indoor/outdoor badges, and **"Add to the planning"** → toast "Added to the
+planning" with the button switching to its added state. Both phases were observed
+by temporarily slowing the demo's ranked answer (2.5 s): pending note + spinner
+over the already-visible places, then the ranked answer with its reasons replacing
+them; the temporary delay was reverted. `npm run build` (i18n check + tsc + vite)
+passes, `check:i18n` reports 6 languages / 31 namespaces with structure parity,
+and `tsx --test test/*.test.ts` is **55/55** (13 new).
+
+**Fixed after the first review pass**, each with the check that showed it:
+
+- the panel no longer shows the previous answer under a form the user has since
+  changed — the hook reports the key its `data` belongs to, and the button label
+  follows what is on screen ("Suggest outings" again once the answer is hidden);
+  verified in the browser by switching the party mid-answer;
+- `outingWindow` refuses a window ending at exactly midnight (`24:00` is not a
+  time upstream's planner accepts, so that one outing would have 400'd on "add to
+  the planning") — it now falls back to the requested window, with a test;
+- the AI catch no longer rethrows `AiError`: a provider outage has to degrade to
+  the nearest places, which the module's own header comment promises;
+- the flags reach the container (see the environment section), so the kill switch
+  documented in `.env.example` works on a Docker install too.
+
