@@ -38,7 +38,8 @@
     "successTitle": "Recibo importado",
     "successDescription": "{{count}} movimiento(s) añadido(s) al presupuesto.",
     "errors": {
-      "unsupported": "{{name}}: formato no admitido o demasiado grande (JPEG, PNG, WebP o PDF, 8 MB máximo).",
+      "unsupported": "{{name}}: formato no admitido o demasiado grande (JPEG, PNG, WebP hasta 25 MB; PDF hasta 8 MB).",
+      "payload": "Demasiados documentos a la vez: 8 MB como máximo en total.",
       "analyze": "El análisis ha fallado. Inténtalo de nuevo con una foto más nítida.",
       "save": "No se ha podido guardar el recibo.",
       "duplicate": "Este recibo ya se ha importado.",
