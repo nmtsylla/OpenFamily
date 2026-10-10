@@ -253,5 +253,30 @@ export const coreMigrations: readonly Migration[] = [
             'CREATE INDEX IF NOT EXISTS idx_budget_entries_receipt ON budget_entries(receipt_id)',
         ],
     },
+    {
+        // Lunchboxes: one row per child per day, four free-text components. The
+        // fork keeps them in its own table (upstream's meal_plans has one row
+        // per date+meal type and no notion of "for whom"), which is also why the
+        // upstream meal planner needs no change at all.
+        id: 'custom/0003-lunchboxes',
+        statements: [
+            `CREATE TABLE IF NOT EXISTS custom_lunchboxes (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                family_member_id UUID NOT NULL REFERENCES family_members(id) ON DELETE CASCADE,
+                date DATE NOT NULL,
+                main VARCHAR(200),
+                fruit VARCHAR(200),
+                snack VARCHAR(200),
+                drink VARCHAR(200),
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (user_id, family_member_id, date)
+            )`,
+            'CREATE INDEX IF NOT EXISTS idx_custom_lunchboxes_user_date ON custom_lunchboxes(user_id, date)',
+            'CREATE INDEX IF NOT EXISTS idx_custom_lunchboxes_member_date ON custom_lunchboxes(family_member_id, date)',
+        ],
+    },
     // FORK-END: custom-migrations
 ];

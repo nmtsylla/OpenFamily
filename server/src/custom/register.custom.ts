@@ -11,10 +11,11 @@
 import type { Express } from 'express';
 import { isCustomFeatureEnabled } from './features.custom';
 import { resolveOutgoingImages, storeIncomingImages } from './middleware/media.custom';
-import customWeatherRateLimiter from './middleware/rateLimit.custom';
+import customRateLimiter from './middleware/rateLimit.custom';
 import aiDashboardRoutes from './routes/aiDashboard.custom';
 import budgetAnalyticsRoutes from './routes/budgetAnalytics.custom';
 import budgetReceiptsRoutes from './routes/budgetReceipts.custom';
+import lunchboxRoutes from './routes/lunchbox.custom';
 import mediaRoutes from './routes/media.custom';
 import weatherRoutes from './routes/weather.custom';
 
@@ -29,11 +30,19 @@ export const registerCustomRoutes = (app: Express): void => {
     }
 
     if (isCustomFeatureEnabled('weather')) {
-        app.use('/api/weather', customWeatherRateLimiter, weatherRoutes);
+        app.use('/api/weather', customRateLimiter, weatherRoutes);
     }
 
     if (isCustomFeatureEnabled('aiWidgets')) {
-        app.use('/api/ai/dashboard', customWeatherRateLimiter, aiDashboardRoutes);
+        app.use('/api/ai/dashboard', customRateLimiter, aiDashboardRoutes);
+    }
+
+    if (isCustomFeatureEnabled('lunchbox')) {
+        // Its own page and its own table (custom_lunchboxes): the upstream meal
+        // planner keeps working untouched, and these routes never fan out to a
+        // user-supplied host — only the two AI calls leave the server, and they
+        // go to the family's own configured provider.
+        app.use('/api/lunchbox', customRateLimiter, lunchboxRoutes);
     }
 
     if (isCustomFeatureEnabled('budgetReceipts')) {

@@ -1,5 +1,6 @@
-// Rate limiter for the custom surfaces that read a FIXED public host (Open-Meteo
-// through the weather service, and the two dashboard widgets that wrap it).
+// Rate limiter for the custom surfaces that talk to a FIXED host: Open-Meteo
+// through the weather service, the two dashboard widgets that wrap it, and the
+// lunchbox AI calls (same fixed provider the /api/ai routes use).
 //
 // Upstream's outboundRateLimiter guards paths that fan out to a USER-SUPPLIED
 // host (AI providers, recipe import, integrations) — nothing to probe here — and
@@ -10,7 +11,7 @@
 
 import rateLimit from 'express-rate-limit';
 
-const customWeatherRateLimiter = rateLimit({
+const customRateLimiter = rateLimit({
     windowMs: 60 * 1000,
     max: 60,
     standardHeaders: true,
@@ -21,4 +22,4 @@ const customWeatherRateLimiter = rateLimit({
     },
 });
 
-export default customWeatherRateLimiter;
+export default customRateLimiter;
