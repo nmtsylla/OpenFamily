@@ -9,9 +9,10 @@ import {
 } from '../weather/WeatherService.custom';
 import { WeatherError } from '../weather/errors.custom';
 import { resolveTargetDay, type DayContext } from '../lib/dayContext.custom';
-import { AiError, type AiProvider, type AiSettings } from '../../services/ai';
+import { handleAiError, loadEnabledAiSettings } from '../lib/aiSettings.custom';
+import { resolvePromptLanguage } from '../lib/promptLanguage.custom';
+import { AiError } from '../../services/ai';
 import {
-    resolveWidgetLanguage,
     suggestActivitiesForKids,
     suggestClothingForKids,
     type ActivityKidInput,
@@ -20,7 +21,6 @@ import {
     type FamilyDayContext,
 } from '../ai/widgets.custom';
 import { pickFallbackActivities } from '../ai/activityBank.custom';
-import { decryptCredentials } from '../../utils/crypto';
 import logger from '../../lib/logger';
 
 // =============================================================================
@@ -40,49 +40,6 @@ const router = Router();
 router.use(authMiddleware);
 
 const MAX_EXCLUDE = 20;
-
-interface AiSettingsRow {
-    provider: AiProvider;
-    base_url: string | null;
-    encrypted_api_key: string | null;
-    model: string;
-    enabled: boolean;
-}
-
-/**
- * Enabled AI settings, or null when the family has no model configured — the
- * widgets degrade to their offline content instead of failing, so they need
- * `null` rather than the 4xx the /api/ai routes answer with.
- */
-const loadEnabledAiSettings = async (userId: string): Promise<AiSettings | null> => {
-    const result = await query(
-        'SELECT provider, base_url, encrypted_api_key, model, enabled FROM ai_settings WHERE user_id = $1',
-        [userId],
-    );
-    const row = result.rows[0] as AiSettingsRow | undefined;
-    if (!row || !row.model || !row.enabled) return null;
-
-    let api_key: string | null = null;
-    if (row.encrypted_api_key) {
-        try {
-            api_key = decryptCredentials(row.encrypted_api_key).api_key ?? null;
-        } catch {
-            api_key = null;
-        }
-    }
-    return { provider: row.provider, base_url: row.base_url, api_key, model: row.model };
-};
-
-const handleAiError = (res: Response, error: unknown, context: string) => {
-    if (error instanceof AiError) {
-        // The code is machine-readable; `message` carries the provider detail.
-        return res.status(502).json({ success: false, error: error.code, message: error.message });
-    }
-    logger.error(`ai.${context}_error`, {
-        error: error instanceof Error ? error.message : String(error),
-    });
-    return res.status(500).json({ success: false, error: 'Internal server error' });
-};
 
 const ageYearsFromBirthDate = (birthDate: unknown, fallback: number): number => {
     if (!(birthDate instanceof Date) && typeof birthDate !== 'string') return fallback;
@@ -330,7 +287,7 @@ router.post('/clothing-suggestions', async (req: AuthRequest, res) => {
         // The client sends the language it is displaying; anything unknown is
         // English. The outfit copy is written by the model, so it cannot come
         // from the client's own translations.
-        const lang = resolveWidgetLanguage(req.body?.lang);
+        const lang = resolvePromptLanguage(req.body?.lang);
 
         try {
             const result = await suggestClothingForKids(ctx.summary, toKidInputs(ctx.kids), {
@@ -433,7 +390,7 @@ router.post('/kids-activities', async (req: AuthRequest, res) => {
             return res.json({ success: true, data: { ...fallback(), code: 'DISABLED' } });
         }
 
-        const lang = resolveWidgetLanguage(req.body?.lang);
+        const lang = resolvePromptLanguage(req.body?.lang);
 
         try {
             const familyContext = await loadFamilyDayContext(req.userId!, ctx.dayContext.date);

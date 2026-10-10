@@ -14,6 +14,7 @@
 
 import { aiCompleteWithUsage, AiError, type AiSettings } from '../../services/ai/index';
 import type { WeatherSummary } from '../weather/WeatherService.custom';
+import { LANGUAGE_NAME, type PromptLanguage } from '../lib/promptLanguage.custom';
 import logger from '../../lib/logger';
 
 // ---------------------------------------------------------------------------
@@ -65,40 +66,8 @@ const CLOTHING_SCHEMA: Record<string, unknown> = {
     },
 };
 
-// ---------------------------------------------------------------------------
-// Language of the generated copy
-//
-// The interface is translated but the widget copy is written by the model, so it
-// has to be told which language to write in. French keeps the hand-tuned French
-// prompts; every other language gets the English ones plus an explicit
-// directive, which is what a small model follows most reliably. An unknown or
-// missing language is English.
-// ---------------------------------------------------------------------------
-
-export const WIDGET_LANGUAGES = ['en', 'fr', 'es', 'pt', 'ru', 'zh'] as const;
-export type WidgetLanguage = (typeof WIDGET_LANGUAGES)[number];
-
-const LANGUAGE_TABLE: Record<string, true> = Object.fromEntries(
-    WIDGET_LANGUAGES.map((l) => [l, true]),
-);
-
-const LANGUAGE_NAME: Record<WidgetLanguage, string> = {
-    en: 'English',
-    fr: 'French',
-    es: 'Spanish',
-    pt: 'Portuguese',
-    ru: 'Russian',
-    zh: 'Simplified Chinese',
-};
-
-const isWidgetLanguage = (value: unknown): value is WidgetLanguage =>
-    typeof value === 'string' && LANGUAGE_TABLE[value] === true;
-
-/** Language of the widget copy: the reader's UI language, English by default. */
-export const resolveWidgetLanguage = (raw: unknown): WidgetLanguage => {
-    const code = typeof raw === 'string' ? raw.trim().toLowerCase().split('-')[0] : '';
-    return isWidgetLanguage(code) ? code : 'en';
-};
+// The language of the generated copy lives in lib/promptLanguage.custom.ts,
+// shared with the lunchbox and nutrition prompts (imported above).
 
 /**
  * Plain-word condition for the non-French prompts — the French `label` above is
@@ -140,7 +109,7 @@ const CLOTHING_SCHEMA_HELP = `{
   ]
 }`;
 
-const buildClothingSystemPrompt = (mode: ClothingDayMode, lang: WidgetLanguage): string => {
+const buildClothingSystemPrompt = (mode: ClothingDayMode, lang: PromptLanguage): string => {
     if (lang === 'fr') {
         return `${DAY_MODE_INTRO[mode]}
 Réponds UNIQUEMENT par un objet JSON valide, sans texte avant ni après.
@@ -181,7 +150,7 @@ Rules:
 const buildClothingUserPrompt = (
     weather: WeatherSummary,
     kids: ClothingKidInput[],
-    lang: WidgetLanguage,
+    lang: PromptLanguage,
 ): string => {
     const lines: string[] = [];
     lines.push(
@@ -284,7 +253,7 @@ const ACTIVITIES_SCHEMA: Record<string, unknown> = {
     },
 };
 
-const buildActivitiesSystemPrompt = (lang: WidgetLanguage): string => {
+const buildActivitiesSystemPrompt = (lang: PromptLanguage): string => {
     if (lang !== 'fr') {
         return `You suggest activities to children who are at home (holidays or weekend).
 Your goal: fill the day with NO SCREENS AT ALL (no TV, tablet, console, phone, YouTube).
@@ -348,7 +317,7 @@ const buildKidsActivitiesUserPrompt = (
     kids: ActivityKidInput[],
     context: FamilyDayContext,
     excludeTitles: string[],
-    lang: WidgetLanguage,
+    lang: PromptLanguage,
 ): string => {
     const lines: string[] = [];
     const fr = lang === 'fr';
@@ -519,7 +488,7 @@ export interface ClothingResult {
 export const suggestClothingForKids = async (
     weather: WeatherSummary,
     kids: ClothingKidInput[],
-    opts: { settings: AiSettings; mode: ClothingDayMode; lang: WidgetLanguage },
+    opts: { settings: AiSettings; mode: ClothingDayMode; lang: PromptLanguage },
 ): Promise<ClothingResult> => {
     if (kids.length === 0) {
         return { suggestions: [], cached: false };
@@ -604,7 +573,7 @@ export const suggestActivitiesForKids = async (
     weather: WeatherSummary,
     kids: ActivityKidInput[],
     context: FamilyDayContext,
-    opts: { settings: AiSettings; dateKey: string; exclude?: string[]; lang: WidgetLanguage },
+    opts: { settings: AiSettings; dateKey: string; exclude?: string[]; lang: PromptLanguage },
 ): Promise<ActivitiesResult> => {
     if (kids.length === 0) {
         return { activities: [], cached: false };

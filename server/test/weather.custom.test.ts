@@ -3,7 +3,6 @@ import test from 'node:test';
 import { resolveDayContext, resolveTargetDay, toDateKey } from '../src/custom/lib/dayContext.custom';
 import { summarize, type TomorrowForecast } from '../src/custom/weather/WeatherService.custom';
 import { pickFallbackActivities } from '../src/custom/ai/activityBank.custom';
-import { resolveWidgetLanguage } from '../src/custom/ai/widgets.custom';
 
 // =============================================================================
 // The weather feature's pure decisions: which day the dashboard talks about,
@@ -147,22 +146,4 @@ test('pickFallbackActivities: an idea nobody fits is dropped, never returned una
     });
     assert.equal(picked.every((a) => a.kidIds.length > 0), true);
     assert.deepEqual(pickFallbackActivities({ kids: [], outdoorOk: true, dateKey: '2026-08-05' }), []);
-});
-
-test('resolveWidgetLanguage: the reader\'s language, English by default', () => {
-    // The model writes the widget copy, so an unsupported language must not
-    // silently produce English while the interface is, say, German.
-    assert.equal(resolveWidgetLanguage('fr'), 'fr');
-    assert.equal(resolveWidgetLanguage('en'), 'en');
-    assert.equal(resolveWidgetLanguage('ES'), 'es');
-    assert.equal(resolveWidgetLanguage('pt-BR'), 'pt');
-    assert.equal(resolveWidgetLanguage('zh-Hans'), 'zh');
-
-    assert.equal(resolveWidgetLanguage(undefined), 'en');
-    assert.equal(resolveWidgetLanguage(null), 'en');
-    assert.equal(resolveWidgetLanguage(''), 'en');
-    assert.equal(resolveWidgetLanguage('de'), 'en');
-    assert.equal(resolveWidgetLanguage('  ru  '), 'ru');
-    assert.equal(resolveWidgetLanguage(42), 'en');
-    assert.equal(resolveWidgetLanguage({ lang: 'fr' }), 'en');
 });
