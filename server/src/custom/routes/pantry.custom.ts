@@ -589,11 +589,17 @@ router.post('/pending/:id/confirm', async (req: AuthRequest, res) => {
     try {
         await client.query('BEGIN');
 
-        const owned = await client.query(
-            'SELECT id FROM custom_pantry_pending WHERE id = $1 AND user_id = $2',
+        // Claim the queue line BEFORE merging: DELETE ... RETURNING is the
+        // serialisation point. With a plain SELECT, two overlapping confirms (a
+        // request retried after a client-side timeout, two tabs) both saw the
+        // row, both merged the quantity, and the loser's DELETE removed 0 rows
+        // unseen — the product was counted into the pantry twice. Now the loser
+        // deletes nothing and answers 404, and the merge never runs twice.
+        const claimed = await client.query(
+            'DELETE FROM custom_pantry_pending WHERE id = $1 AND user_id = $2 RETURNING id',
             [id, req.userId],
         );
-        if (owned.rows.length === 0) {
+        if (claimed.rows.length === 0) {
             await client.query('ROLLBACK');
             return res.status(404).json({ success: false, error: 'NOT_FOUND' });
         }
@@ -604,7 +610,6 @@ router.post('/pending/:id/confirm', async (req: AuthRequest, res) => {
             [{ name: input.name, quantity: input.quantity, category: input.category, unit: input.unit }],
             'receipt',
         );
-        await client.query('DELETE FROM custom_pantry_pending WHERE id = $1 AND user_id = $2', [id, req.userId]);
         await client.query('COMMIT');
 
         broadcast(req.userId!, { type: 'update', entity: 'shopping', action: 'updated' });
