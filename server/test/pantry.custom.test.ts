@@ -10,7 +10,7 @@ import {
     sanitizePantryItem,
     splitReceiptLines,
 } from '../src/custom/lib/pantry.custom';
-import { isUuid } from '../src/custom/lib/validation.custom';
+import { isCalendarDate, isUuid } from '../src/custom/lib/validation.custom';
 
 // =============================================================================
 // Pantry: the rules that keep the table and the three imports sane.
@@ -222,4 +222,19 @@ test('isUuid accepts a UUID and rejects what would reach the column', () => {
     assert.equal(isUuid(''), false);
     assert.equal(isUuid(undefined), false);
     assert.equal(isUuid(42), false);
+});
+
+test('isCalendarDate: a real day, not just four-two-two digits', () => {
+    // 22008 on the DATE column used to surface as a 500 for every route that
+    // validated its dates by shape alone (the pantry, the lunchbox, the outings).
+    assert.equal(isCalendarDate('2026-03-01'), true);
+    assert.equal(isCalendarDate('2024-02-29'), true);
+    assert.equal(isCalendarDate('2026-02-30'), false);
+    assert.equal(isCalendarDate('2026-13-01'), false);
+    assert.equal(isCalendarDate('2026-03-32'), false);
+    assert.equal(isCalendarDate('2026-3-1'), false);
+    assert.equal(isCalendarDate('01/03/2026'), false);
+    assert.equal(isCalendarDate(''), false);
+    assert.equal(isCalendarDate(null), false);
+    assert.equal(isCalendarDate(20260301), false);
 });

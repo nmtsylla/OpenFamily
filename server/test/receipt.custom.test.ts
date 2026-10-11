@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+    receiptFingerprint,
     validateReceipt,
     validateReceiptImport,
     validateReceiptLine,
@@ -123,4 +124,36 @@ test('a line typed by hand carries no pantry name: the label stands in', () => {
     assert.ok(line);
     assert.equal(line.pantry_item, '');
     assert.equal(line.pantry_unit, '');
+});
+
+// =============================================================================
+// The duplicate guard (custom_pantry_imports.source_ref, migration
+// custom/0007). One physical ticket must land on ONE fingerprint however it is
+// spelled on the second scan, and two different tickets must never collide —
+// otherwise a rescan counts the same groceries into the pantry twice.
+// =============================================================================
+
+test('receiptFingerprint: one ticket, one fingerprint, whatever the spelling', () => {
+    const scanned = receiptFingerprint('Delhaize', '2026-10-10', 42.5);
+
+    assert.equal(receiptFingerprint('DELHAIZE', '2026-10-10', 42.5), scanned);
+    assert.equal(receiptFingerprint('Del-haize', '2026-10-10', 42.5), scanned);
+    assert.equal(receiptFingerprint('  Del haize  ', '2026-10-10', 42.5), scanned);
+    assert.equal(scanned.length, 64);
+});
+
+test('receiptFingerprint: another day, another amount or another shop is another ticket', () => {
+    const scanned = receiptFingerprint('Delhaize', '2026-10-10', 42.5);
+
+    assert.notEqual(receiptFingerprint('Delhaize', '2026-10-11', 42.5), scanned);
+    assert.notEqual(receiptFingerprint('Delhaize', '2026-10-10', 42.51), scanned);
+    assert.notEqual(receiptFingerprint('Colruyt', '2026-10-10', 42.5), scanned);
+});
+
+test('receiptFingerprint: non-Latin shop names stay distinct', () => {
+    // Stripping to [a-z0-9] collapsed these to '', which made two different shops
+    // on the same day for the same amount look like the same ticket.
+    assert.equal(receiptFingerprint('Магазин', '2026-10-10', 30), receiptFingerprint('магазин', '2026-10-10', 30));
+    assert.notEqual(receiptFingerprint('Магазин', '2026-10-10', 30), receiptFingerprint('Продукты', '2026-10-10', 30));
+    assert.notEqual(receiptFingerprint('商店', '2026-10-10', 30), receiptFingerprint('超市', '2026-10-10', 30));
 });
