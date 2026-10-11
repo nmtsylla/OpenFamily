@@ -2,14 +2,21 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from '
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
-    AlertTriangle, Blinds, Check, Coffee, DoorOpen, Home, Lamp, Lock,
-    Moon, Power, PowerOff, RefreshCw, ShoppingCart, Sparkles, Sun, Thermometer,
-    Tv, Undo2, UtensilsCrossed, Wind, WifiOff,
+    AlertTriangle, Blinds, Calendar, Check, Coffee, DoorOpen, Home, Lamp, Lock,
+    MonitorOff, Moon, Package, Power, PowerOff, RefreshCw, ShoppingCart, Sparkles,
+    Sun, Sunrise, Sunset, Tag, Thermometer, Tv, Undo2, UtensilsCrossed, Wind, WifiOff,
 } from 'lucide-react';
 import { api } from '../../lib/api';
+import { formatCurrency } from '../../lib/utils';
 import { useAuth } from '../../contexts/AuthContext';
 import { CONDITION_ICON, weatherCondition } from '../lib/weatherCode.custom';
-import { useDashboardWeather, useWeeklyForecast, type DailyForecastDTO } from '../hooks/useWeather.custom';
+import {
+    useDashboardWeather, useKidsActivities, useSavedLocation, useWeeklyForecast,
+    type DailyForecastDTO, type DashboardWeatherDTO, type KidsActivitiesDTO, type KidActivityDTO,
+    type WidgetResult,
+} from '../hooks/useWeather.custom';
+import { daysUntil } from '../lib/pantryDates.custom';
+import type { PromoPage } from '../lib/product.custom';
 import { findByName, isOn, useHomeAssistant, type HaDevice, type HaDeviceState } from '../hooks/useHomeAssistant.custom';
 import { useScreenWakeLock } from '../hooks/useScreenWakeLock.custom';
 import {
@@ -28,11 +35,17 @@ import {
 //
 // Layout rules that the whole file respects, because the target is a 9.7"
 // portrait tablet at arm's length:
-//   - everything is one vertical column, nothing scrolls sideways;
+//   - a phase is a fixed stack of panels that FILLS the viewport: the page never
+//     scrolls. Every list is capped and every row truncates, so what does not fit
+//     the panel is left out rather than pushed off screen — a wall display nobody
+//     touches is unreadable if its content moves on its own;
+//   - the panels carry today's household state (agenda, kids' ideas, meals,
+//     promos, pantry, tasks, shopping) like upstream's Kiosk does, and the
+//     lighting/device surfaces that need a lot of room live in the House sheet;
 //   - every tappable element is at least 56 px in both directions;
 //   - motion is limited to transitions and `active:scale`, no filters, no blur
-//     except the two bars, and all tiles are memoised so a 5 s clock tick does
-//     not repaint the device list.
+//     except the two bars, and all tiles are memoised so a wall display's 5 s
+//     clock tick does not repaint the lists.
 // =============================================================================
 
 const pad2 = (value: number) => String(value).padStart(2, '0');
@@ -48,6 +61,14 @@ const addDays = (date: Date, days: number) => {
 
 const weekStartOf = (date: Date) => addDays(date, -(isoDay(date) - 1));
 
+/**
+ * One calendar day of appointments. The route compares `start_time <= end_date` as
+ * a STRING, so a bare `YYYY-MM-DD` end date silently drops every appointment after
+ * midnight — the window has to name both ends of the day, as Kiosk.tsx does.
+ */
+const dayAppointments = (dateKey: string) =>
+    `/api/appointments?start_date=${dateKey}T00:00:00&end_date=${dateKey}T23:59:59`;
+
 /** "lundi 12" — long enough for a wall display, short enough for the top bar. */
 const useDateLabel = () => {
     const { i18n } = useTranslation();
@@ -62,7 +83,9 @@ const useDateLabel = () => {
  * Minimal read-through fetch for the upstream lists the phases show. No cache:
  * these are per-phase and the Refresh button already re-runs them.
  */
-function useApi<T>(url: string | null, reloadKey: number): { data: T | null; loading: boolean } {
+interface ApiResult<T> { data: T | null; loading: boolean }
+
+function useApi<T>(url: string | null, reloadKey: number): ApiResult<T> {
     const [state, setState] = useState<{ data: T | null; loading: boolean }>({ data: null, loading: !!url });
     useEffect(() => {
         if (!url) {
@@ -122,27 +145,20 @@ interface PlanningEntry {
     start_time: string;
     end_time: string;
 }
-interface ShoppingItem { id: string; name: string; is_checked: boolean }
+interface ShoppingItem { id: string; name: string; is_checked: boolean; quantity?: number; unit?: string | null }
+interface PantryItem { id: string; name: string; expires_on: string | null }
 
 const MEAL_ORDER = ['Petit-déjeuner', 'Déjeuner', 'Dîner', 'Snack'];
 
+/** How many rows a panel is allowed to take. The screen is fixed; the data is not. */
+const CAP = { agenda: 5, activities: 3, meals: 4, promos: 4, pantry: 4, tasks: 4, shopping: 4 } as const;
+
 // ── Shared building blocks ───────────────────────────────────────────────────
-
-const Card: React.FC<React.PropsWithChildren<{ className?: string }>> = ({ className = '', children }) => (
-    <section className={`rounded-2xl bg-card p-4 shadow-surface ${className}`}>{children}</section>
-);
-
-const CardTitle: React.FC<React.PropsWithChildren<{ icon?: React.ReactNode }>> = ({ icon, children }) => (
-    <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold text-foreground">
-        {icon}
-        {children}
-    </h2>
-);
 
 const MemberDots: React.FC<{ members?: Member[] }> = memo(({ members }) => {
     if (!members || members.length === 0) return null;
     return (
-        <span className="flex items-center gap-1">
+        <span className="flex shrink-0 items-center gap-1">
             {members.map((member) => (
                 <span
                     key={member.id}
@@ -152,6 +168,159 @@ const MemberDots: React.FC<{ members?: Member[] }> = memo(({ members }) => {
                 />
             ))}
         </span>
+    );
+});
+
+/**
+ * A panel in the phase stack: fixed header, body that clips what the capped list
+ * did not already leave out. `min-h-0` on both is what lets the stack share the
+ * viewport instead of growing past it.
+ */
+const Panel: React.FC<React.PropsWithChildren<{
+    title: string;
+    icon: React.ReactNode;
+    action?: { label: string; to: string };
+    className?: string;
+}>> = ({ title, icon, action, className = '', children }) => (
+    <section className={`flex min-h-0 flex-col overflow-hidden rounded-2xl bg-card p-3 shadow-surface ${className}`}>
+        <h2 className="mb-2 flex shrink-0 items-center gap-2 text-base font-semibold text-foreground">
+            <span className="text-primary">{icon}</span>
+            <span className="min-w-0 flex-1 truncate">{title}</span>
+            {action && (
+                <Link to={action.to} className="flex min-h-[56px] shrink-0 items-center text-caption font-medium text-primary">
+                    {action.label}
+                </Link>
+            )}
+        </h2>
+        <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
+    </section>
+);
+
+const Empty: React.FC<React.PropsWithChildren> = ({ children }) => (
+    <p className="py-2 text-sm text-muted-foreground">{children}</p>
+);
+
+/** The phase stack: fills the viewport, never scrolls. */
+const PhaseBody: React.FC<React.PropsWithChildren> = ({ children }) => (
+    <div className="flex h-full min-h-0 flex-col gap-3 p-3">{children}</div>
+);
+
+/** The two-column band several phases use for their compact lists. */
+const Band: React.FC<React.PropsWithChildren<{ weight: string }>> = ({ weight, children }) => (
+    <div className={`flex min-h-0 ${weight} gap-3`} style={{ minHeight: 0 }}>{children}</div>
+);
+
+// ── Undo queue ───────────────────────────────────────────────────────────────
+//
+// Kiosk.tsx's pattern, kept as-is: the tap flips the row and fires the PUT right
+// away, and "Annuler" is the reverse PUT. The timeout only takes the toast away.
+// One queue for the whole page, so a task and a shopping item tapped in the same
+// breath do not fight over the bottom of the screen.
+
+interface UndoEntry { key: string; label: string; undo: () => void }
+
+interface UndoQueue {
+    entries: UndoEntry[];
+    push: (entry: UndoEntry) => void;
+    drop: (key: string) => void;
+}
+
+function useUndoQueue(): UndoQueue {
+    const [entries, setEntries] = useState<UndoEntry[]>([]);
+    const push = useCallback((entry: UndoEntry) => {
+        setEntries((prev) => [...prev.filter((existing) => existing.key !== entry.key), entry]);
+        window.setTimeout(() => setEntries((prev) => prev.filter((existing) => existing.key !== entry.key)), 5_000);
+    }, []);
+    const drop = useCallback((key: string) => setEntries((prev) => prev.filter((entry) => entry.key !== key)), []);
+    return useMemo(() => ({ entries, push, drop }), [entries, push, drop]);
+}
+
+/**
+ * The reverse of a tap: the row is hidden at once and the PUT fires, the undo
+ * restores both. Both lists the tablet ticks off take the same shape, only the
+ * route and the boolean field differ.
+ */
+function useTapToComplete(
+    undo: UndoQueue,
+    hide: React.Dispatch<React.SetStateAction<Record<string, true>>>,
+    path: string,
+    flag: 'is_completed' | 'is_checked',
+): (row: TapRow) => void {
+    return useCallback(
+        (row: TapRow) => {
+            hide((prev) => ({ ...prev, [row.id]: true }));
+            undo.push({
+                key: row.id,
+                label: row.label,
+                undo: () => {
+                    hide((prev) => {
+                        const next = { ...prev };
+                        delete next[row.id];
+                        return next;
+                    });
+                    void api.put(`${path}/${row.id}`, { [flag]: false }).catch(() => undefined);
+                },
+            });
+            void api.put(`${path}/${row.id}`, { [flag]: true }).catch(() => undefined);
+        },
+        [undo, hide, path, flag],
+    );
+}
+
+const UndoToast: React.FC<{ queue: UndoQueue; label: string }> = memo(({ queue, label }) => {
+    if (queue.entries.length === 0) return null;
+    return (
+        <div className="pointer-events-none absolute inset-x-4 bottom-3 z-[65] flex items-center gap-3 rounded-xl bg-foreground px-4 py-3 text-background shadow-surface-hover">
+            <span className="flex-1 truncate text-sm">{label}</span>
+            {queue.entries.slice(0, 2).map((entry) => (
+                <button
+                    key={entry.key}
+                    type="button"
+                    onClick={() => {
+                        entry.undo();
+                        queue.drop(entry.key);
+                    }}
+                    className="pointer-events-auto flex min-h-[56px] max-w-[45%] items-center gap-1 rounded-lg bg-background/20 px-3 text-sm font-semibold"
+                >
+                    <Undo2 className="h-4 w-4 shrink-0" />
+                    <span className="truncate">{entry.label}</span>
+                </button>
+            ))}
+        </div>
+    );
+});
+
+// ── Tappable list (tasks and shopping share it) ──────────────────────────────
+
+interface TapRow { id: string; label: string; meta?: React.ReactNode }
+
+const TappableList: React.FC<{
+    rows: TapRow[];
+    empty: string;
+    loadingLabel?: string;
+    shape: 'round' | 'square';
+    onTap: (row: TapRow) => void;
+}> = memo(({ rows, empty, loadingLabel, shape, onTap }) => {
+    if (loadingLabel) return <Empty>{loadingLabel}</Empty>;
+    if (rows.length === 0) return <Empty>{empty}</Empty>;
+    return (
+        <ul className="space-y-1">
+            {rows.map((row) => (
+                <li key={row.id}>
+                    <button
+                        type="button"
+                        onClick={() => onTap(row)}
+                        className="flex min-h-[56px] w-full items-center gap-3 rounded-xl px-2 text-left transition-colors active:bg-surface-2"
+                    >
+                        <span
+                            className={`h-7 w-7 shrink-0 border-2 border-muted-foreground/60 ${shape === 'round' ? 'rounded-full' : 'rounded-[7px]'}`}
+                        />
+                        <span className="min-w-0 flex-1 truncate text-base text-foreground">{row.label}</span>
+                        {row.meta}
+                    </button>
+                </li>
+            ))}
+        </ul>
     );
 });
 
@@ -172,19 +341,17 @@ const TopBar: React.FC<TopBarProps> = memo(({ now, phase, forecast, weatherEnabl
     const ConditionIcon = condition ? CONDITION_ICON[condition] : null;
 
     return (
-        <header className="flex h-20 shrink-0 items-center gap-3 border-b border-border bg-card px-4">
+        <header className="flex h-24 shrink-0 items-center gap-3 border-b border-border bg-card px-4">
             <div className="flex min-w-0 flex-1 items-center gap-2">
                 {weatherEnabled && ConditionIcon && forecast ? (
                     <>
-                        <ConditionIcon className="h-9 w-9 shrink-0 text-primary" />
+                        <ConditionIcon className="h-10 w-10 shrink-0 text-primary" />
                         <div className="min-w-0">
-                            <p className="text-xl font-semibold leading-tight text-foreground">
+                            <p className="text-2xl font-semibold leading-tight text-foreground">
                                 {Math.round(forecast.tempMax)}°
-                                <span className="ml-1 text-base text-muted-foreground">{Math.round(forecast.tempMin)}°</span>
+                                <span className="ml-1 text-lg text-muted-foreground">{Math.round(forecast.tempMin)}°</span>
                             </p>
-                            <p className="truncate text-sm text-muted-foreground">
-                                {t(`weather.custom:${condition}` as never)}
-                            </p>
+                            <p className="truncate text-sm text-muted-foreground">{t(`weather.custom:conditions.${condition}` as never)}</p>
                         </div>
                     </>
                 ) : (
@@ -192,7 +359,7 @@ const TopBar: React.FC<TopBarProps> = memo(({ now, phase, forecast, weatherEnabl
                 )}
             </div>
 
-            <p className="shrink-0 text-3xl font-bold tabular-nums text-foreground">
+            <p className="shrink-0 font-serif text-5xl font-semibold tabular-nums text-foreground">
                 {pad2(now.getHours())}:{pad2(now.getMinutes())}
             </p>
 
@@ -235,14 +402,13 @@ const ActionButton: React.FC<ActionButtonProps> = ({ icon, label, onClick, disab
 interface BottomBarProps {
     onRefresh: () => void;
     onAllOff: () => void;
-    onScenes: () => void;
+    onHouse: () => void;
     refreshing: boolean;
     dimmed: boolean;
     haDown: boolean;
-    sceneCount: number;
 }
 
-const BottomBar: React.FC<BottomBarProps> = memo(({ onRefresh, onAllOff, onScenes, refreshing, dimmed, haDown, sceneCount }) => {
+const BottomBar: React.FC<BottomBarProps> = memo(({ onRefresh, onAllOff, onHouse, refreshing, dimmed, haDown }) => {
     const { t } = useTranslation('dashboard.custom');
     return (
         <nav
@@ -261,17 +427,17 @@ const BottomBar: React.FC<BottomBarProps> = memo(({ onRefresh, onAllOff, onScene
                 disabled={haDown}
             />
             <ActionButton
-                icon={<Sparkles className="h-5 w-5" />}
-                label={t('actions.scenes')}
-                onClick={onScenes}
-                disabled={haDown || sceneCount === 0}
+                icon={<Power className="h-5 w-5" />}
+                label={t('actions.house')}
+                onClick={onHouse}
+                disabled={haDown}
             />
             <Link
                 to="/"
                 className="flex min-h-[56px] min-w-[64px] flex-col items-center justify-center gap-1 rounded-xl px-2 text-foreground transition-colors active:scale-95"
             >
                 <Home className="h-5 w-5" />
-                <span className="text-sm">{t("actions.home")}</span>
+                <span className="text-sm">{t('actions.home')}</span>
             </Link>
         </nav>
     );
@@ -294,8 +460,8 @@ const deviceIcon = (device: HaDevice) => {
 // Domains whose quick toggle really is `turn_on`/`turn_off`. `lock` and `cover`
 // look like devices but have no such service — they take lock/unlock and
 // open_cover/close_cover — so a tile for them would be a control that never
-// works. The lock is shown in the Security card instead; a cover has no place in
-// a v1 quick-toggle grid.
+// works. The lock is shown in the House sheet's Security row instead; a cover has
+// no place in a v1 quick-toggle grid.
 const TOGGLEABLE_DOMAINS: Record<string, true> = {
     light: true,
     switch: true,
@@ -319,14 +485,14 @@ const ToggleTile: React.FC<ToggleTileProps> = memo(({ device, busy, disabled, on
             type="button"
             onClick={() => onToggle(device)}
             disabled={disabled || busy}
-            className={`flex aspect-square min-h-[112px] flex-col items-center justify-center gap-2 rounded-xl border p-3 transition-colors active:scale-95 disabled:opacity-50 ${
+            className={`flex min-h-[104px] flex-col items-center justify-center gap-2 rounded-xl border p-3 transition-colors active:scale-95 disabled:opacity-50 ${
                 on ? 'border-primary bg-primary/10' : 'border-border bg-card'
             }`}
         >
-            <Icon className={`h-8 w-8 ${on ? 'text-primary' : 'text-muted-foreground'}`} />
+            <Icon className={`h-7 w-7 ${on ? 'text-primary' : 'text-muted-foreground'}`} />
             <span className="line-clamp-2 text-sm font-medium text-foreground">{device.friendly_name}</span>
             <span
-                className={`rounded-full px-3 py-1 text-sm font-semibold ${
+                className={`rounded-full px-3 py-0.5 text-sm font-semibold ${
                     on ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
                 }`}
             >
@@ -336,7 +502,7 @@ const ToggleTile: React.FC<ToggleTileProps> = memo(({ device, busy, disabled, on
     );
 });
 
-// ── Morning ──────────────────────────────────────────────────────────────────
+// ── Shared panels ────────────────────────────────────────────────────────────
 
 interface PhaseProps {
     ha: HaDeviceState;
@@ -346,20 +512,172 @@ interface PhaseProps {
     weatherEnabled: boolean;
 }
 
-const MorningPhase: React.FC<PhaseProps> = memo(({ ha, now, today, reloadKey, weatherEnabled }) => {
-    const { t } = useTranslation(['dashboard.custom', 'weather.custom']);
-    const clothing = useDashboardWeather(null, weatherEnabled);
-    const tasks = useApi<Task[]>('/api/tasks', reloadKey);
-    const appointments = useApi<Appointment[]>(
-        `/api/appointments?start_date=${today}&end_date=${today}`,
-        reloadKey,
-    );
-    const [completed, setCompleted] = useState<Record<string, boolean>>({});
-    const [doneTasks, setDoneTasks] = useState<Array<{ id: string; title: string }>>([]);
+const AgendaList: React.FC<{ appointments: Appointment[]; loading: boolean; empty: string; loadingLabel: string }> = memo(
+    ({ appointments, loading, empty, loadingLabel }) => {
+        if (loading) return <Empty>{loadingLabel}</Empty>;
+        if (appointments.length === 0) return <Empty>{empty}</Empty>;
+        return (
+            <ol className="space-y-1">
+                {appointments.map((appointment) => (
+                    <li key={appointment.id} className="flex min-h-[48px] items-center gap-3">
+                        <span className="w-[52px] shrink-0 font-mono text-base text-muted-foreground">
+                            {hhmmOf(appointment.start_time)}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                            <span className="block truncate text-base font-medium text-foreground">{appointment.title}</span>
+                            {appointment.location && (
+                                <span className="block truncate text-caption text-muted-foreground">{appointment.location}</span>
+                            )}
+                        </span>
+                        <MemberDots members={appointment.family_members_data} />
+                    </li>
+                ))}
+            </ol>
+        );
+    },
+);
 
-    // Departures: a parent leaves before noon, a child is dropped off before
-    // noon. Planning entries give the habitual times, appointments the one-offs.
-    const departures = useMemo(() => {
+/** The meals of the day, one line each — the kiosk's Meals panel, compact. */
+const MealsStrip: React.FC<{ meals: MealPlan[]; loading: boolean; label: (value: string) => string }> = memo(
+    ({ meals, loading, label }) => {
+        const { t } = useTranslation(['dashboard.custom', 'kiosk']);
+        if (loading) return <Empty>{t('dashboard.custom:phases.loading')}</Empty>;
+        if (meals.length === 0) return <Empty>{t('kiosk:empty.meals')}</Empty>;
+        return (
+            <ul className="grid grid-cols-3 gap-3">
+                {meals.map((meal) => (
+                    <li key={meal.id} className="min-w-0">
+                        <p className="truncate text-caption uppercase tracking-wide text-muted-foreground">{label(meal.meal_type)}</p>
+                        <p className="truncate text-base font-medium text-foreground">
+                            {meal.recipe?.name || meal.custom_meal || '—'}
+                        </p>
+                    </li>
+                ))}
+            </ul>
+        );
+    },
+);
+
+const ACTIVITY_ICON: Record<KidActivityDTO['timeOfDay'], React.ComponentType<{ className?: string }>> = {
+    morning: Sunrise,
+    afternoon: Sun,
+    evening: Sunset,
+};
+
+const ACTIVITY_ORDER: KidActivityDTO['timeOfDay'][] = ['morning', 'afternoon', 'evening'];
+
+/**
+ * The kids' screen-free ideas, read-only: the dashboard card is where anything is
+ * changed. A school day has nothing to say here, so the phases do not render this
+ * panel at all — the same rule the card follows.
+ */
+const ActivitiesBody: React.FC<{ data: KidsActivitiesDTO }> = memo(({ data }) => {
+    const { t } = useTranslation('activities.custom');
+
+    const rows = [...data.activities]
+        .sort((a, b) => ACTIVITY_ORDER.indexOf(a.timeOfDay) - ACTIVITY_ORDER.indexOf(b.timeOfDay))
+        .slice(0, CAP.activities);
+
+    return (
+        <ul className="space-y-1">
+            {rows.map((activity) => {
+                const Icon = ACTIVITY_ICON[activity.timeOfDay];
+                const kids = data.kids.filter((kid) => activity.kidIds.includes(kid.id));
+                const title = activity.id ? t(`bank.${activity.id}.title`) : (activity.title ?? '');
+                return (
+                    <li key={activity.id ?? title} className="flex min-h-[56px] items-center gap-3">
+                        <Icon className="h-5 w-5 shrink-0 text-primary" />
+                        <span className="min-w-0 flex-1">
+                            <span className="block truncate text-base font-medium text-foreground">{title}</span>
+                            <span className="block truncate text-caption text-muted-foreground">
+                                {t(`categories.${activity.category}` as never)}
+                                {' · '}
+                                {t('durationMinutes', { count: activity.durationMinutes })}
+                            </span>
+                        </span>
+                        <span className="flex shrink-0 items-center gap-1">
+                            {kids.map((kid) => (
+                                <span key={kid.id} className="h-3 w-3 rounded-full" style={{ backgroundColor: kid.color }} title={kid.name} />
+                            ))}
+                        </span>
+                    </li>
+                );
+            })}
+        </ul>
+    );
+});
+
+/** Today's deals from the shops the family can reach — the promo list, four rows. */
+const PromosBody: React.FC<{ page: PromoPage | null; loading: boolean; currency: string }> = memo(
+    ({ page, loading, currency }) => {
+        const { t } = useTranslation(['dashboard.custom', 'scan.custom']);
+        if (loading) return <Empty>{t('dashboard.custom:phases.loading')}</Empty>;
+        const offers = (page?.offers ?? []).slice(0, CAP.promos);
+        if (offers.length === 0) return <Empty>{t('dashboard.custom:widgets.noPromos')}</Empty>;
+        return (
+            <ul className="space-y-1">
+                {offers.map((offer, index) => (
+                    <li key={`${offer.retailer}-${offer.name ?? index}`} className="flex min-h-[52px] items-center gap-3">
+                        <span className="min-w-0 flex-1">
+                            <span className="block truncate text-base font-medium text-foreground">
+                                {offer.name ?? offer.brand ?? '—'}
+                            </span>
+                            <span className="block truncate text-caption text-muted-foreground">{offer.retailer_name}</span>
+                        </span>
+                        {offer.price !== null && (
+                            <span className="shrink-0 text-base font-semibold tabular-nums text-foreground">
+                                {formatCurrency(offer.price, currency)}
+                            </span>
+                        )}
+                        {offer.savings_percentage !== null && offer.savings_percentage > 0 && (
+                            <span className="shrink-0 rounded-full bg-destructive/10 px-2 py-0.5 text-caption font-semibold text-destructive">
+                                −{Math.round(offer.savings_percentage)}%
+                            </span>
+                        )}
+                    </li>
+                ))}
+            </ul>
+        );
+    },
+);
+
+/** What the pantry says to use up next — read only, the /pantry page is where it changes. */
+const PantryBody: React.FC<{ items: PantryItem[]; loading: boolean }> = memo(({ items, loading }) => {
+    const { t } = useTranslation(['dashboard.custom', 'pantry.custom']);
+    if (loading) return <Empty>{t('dashboard.custom:phases.loading')}</Empty>;
+    const rows = items.slice(0, CAP.pantry);
+    if (rows.length === 0) return <Empty>{t('pantry.custom:dashboard.empty')}</Empty>;
+    return (
+        <ul className="space-y-1">
+            {rows.map((item) => {
+                const days = item.expires_on ? daysUntil(item.expires_on) : 0;
+                return (
+                    <li key={item.id} className="flex min-h-[52px] items-center gap-3 text-base">
+                        <span className="min-w-0 flex-1 truncate">{item.name}</span>
+                        <span className={`shrink-0 text-caption ${days < 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
+                            {days < 0
+                                ? t('pantry.custom:list.expired')
+                                : days === 0
+                                  ? t('pantry.custom:list.expiresToday')
+                                  : t('pantry.custom:list.expiresIn', { days })}
+                        </span>
+                    </li>
+                );
+            })}
+        </ul>
+    );
+});
+
+// ── Morning ──────────────────────────────────────────────────────────────────
+
+/**
+ * "Diarra leaves in 12 min" — the one departure that matters right now. A parent
+ * leaves before noon, a child is dropped off before noon: planning entries give
+ * the habitual times, appointments the one-offs.
+ */
+const NextDeparture: React.FC<{ appointments: Appointment[]; now: Date }> = memo(({ appointments, now }) => {
+    const { t } = useTranslation('dashboard.custom');
+    const next = useMemo(() => {
         const byMember = new Map<string, { name: string; color: string; time: string }>();
         const consider = (name: string, color: string, start: string) => {
             const time = hhmmOf(start);
@@ -367,7 +685,7 @@ const MorningPhase: React.FC<PhaseProps> = memo(({ ha, now, today, reloadKey, we
             const current = byMember.get(name);
             if (!current || time < current.time) byMember.set(name, { name, color, time });
         };
-        for (const appointment of appointments.data ?? []) {
+        for (const appointment of appointments) {
             const members = appointment.family_members_data ?? [];
             if (members.length === 0) {
                 consider(appointment.title, 'var(--color-muted-foreground)', appointment.start_time);
@@ -375,384 +693,287 @@ const MorningPhase: React.FC<PhaseProps> = memo(({ ha, now, today, reloadKey, we
             }
             for (const member of members) consider(member.name, member.color, appointment.start_time);
         }
-        return [...byMember.values()].sort((a, b) => a.time.localeCompare(b.time));
-    }, [appointments.data]);
+        return [...byMember.values()].sort((a, b) => a.time.localeCompare(b.time))[0] ?? null;
+    }, [appointments]);
 
-    const openTasks = useMemo(() => {
-        const weight: Record<string, number> = { haute: 0, high: 0, moyenne: 1, medium: 1, basse: 2, low: 2 };
-        return (tasks.data ?? [])
-            .filter(
-                (task) =>
-                    !task.is_completed &&
-                    !completed[task.id] &&
-                    (!task.due_date || task.due_date.slice(0, 10) === today),
-            )
-            .sort((a, b) => (weight[a.priority ?? ''] ?? 1) - (weight[b.priority ?? ''] ?? 1))
-            .slice(0, 6);
-    }, [tasks.data, today, completed]);
+    if (!next) return null;
+    return (
+        <div className="flex min-h-[56px] shrink-0 items-center gap-3 rounded-2xl bg-primary/10 px-4 text-primary">
+            <UtensilsCrossed className="h-5 w-5 shrink-0" />
+            <span className="h-4 w-4 shrink-0 rounded-full" style={{ backgroundColor: next.color }} />
+            <span className="min-w-0 flex-1 truncate text-base font-semibold">{next.name}</span>
+            <span className="shrink-0 font-mono text-lg">{next.time}</span>
+            <span className="min-w-[72px] shrink-0 text-right text-sm">
+                {formatCountdown(minutesUntil(now, next.time)) ?? t('widgets.gone')}
+            </span>
+        </div>
+    );
+});
 
-    // Same optimistic 5 s undo as Kiosk.tsx: the tap flips the row and fires the
-    // PUT right away, and "Annuler" is the reverse PUT. The timeout only takes
-    // the toast away.
-    const completeTask = useCallback((task: Task) => {
-        setCompleted((prev) => ({ ...prev, [task.id]: true }));
-        setDoneTasks((prev) => [...prev.filter((entry) => entry.id !== task.id), { id: task.id, title: task.title }]);
-        window.setTimeout(() => setDoneTasks((prev) => prev.filter((entry) => entry.id !== task.id)), 5_000);
-        void api.put(`/api/tasks/${task.id}`, { is_completed: true }).catch(() => undefined);
-    }, []);
+/** What each child should wear, when the AI wrote something. One line per child. */
+const ClothingStrip: React.FC<{ result: WidgetResult<DashboardWeatherDTO | null> }> = memo(({ result }) => {
+    const { t } = useTranslation(['dashboard.custom', 'weather.custom']);
+    const data = result.data;
+    if (!data || data.suggestions.length === 0) return null;
+    return (
+        <div className="flex shrink-0 items-center gap-3 overflow-hidden rounded-2xl bg-gradient-to-br from-orange-100 to-yellow-100 px-4 py-2 text-slate-900">
+            {React.createElement(CONDITION_ICON[weatherCondition(data.weather.weatherCode)], {
+                className: 'h-8 w-8 shrink-0 text-orange-500',
+            })}
+            <div className="flex min-w-0 flex-1 gap-3">
+                {data.suggestions.slice(0, 3).map((suggestion) => {
+                    const kid = data.kids.find((k) => k.id === suggestion.kidId);
+                    return (
+                        <div key={suggestion.kidId} className="min-w-0 flex-1">
+                            <p className="truncate text-caption font-semibold" style={{ color: kid?.color }}>
+                                {kid?.name ?? ''}
+                            </p>
+                            <p className="truncate text-sm">
+                                {[...suggestion.top, ...suggestion.bottom, suggestion.advice].filter(Boolean).join(', ')
+                                    || t('dashboard.custom:widgets.checkWeather')}
+                            </p>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+});
 
-    const undoTask = useCallback((id: string) => {
-        setCompleted((prev) => {
-            const next = { ...prev };
-            delete next[id];
-            return next;
-        });
-        setDoneTasks((prev) => prev.filter((entry) => entry.id !== id));
-        void api.put(`/api/tasks/${id}`, { is_completed: false }).catch(() => undefined);
-    }, []);
+const MorningPhase: React.FC<PhaseProps> = memo(({ ha, now, today, reloadKey, weatherEnabled }) => {
+    const { t } = useTranslation(['dashboard.custom', 'activities.custom']);
+    const { isModuleEnabled } = useAuth();
+    const clothing = useDashboardWeather(null, weatherEnabled);
+    const tasks = useApi<Task[]>('/api/tasks', reloadKey);
+    const appointments = useApi<Appointment[]>(dayAppointments(today), reloadKey);
+    const [hidden, setHidden] = useState<Record<string, true>>({});
+    const undo = useUndoQueue();
+    const completeTask = useTapToComplete(undo, setHidden, '/api/tasks', 'is_completed');
+
+    const activities = useActivitiesWidget();
+    const activityData = homeDayIdeas(activities.data);
+
+    const timeline = useMemo(
+        () => [...(appointments.data ?? [])].sort((a, b) => a.start_time.localeCompare(b.start_time)).slice(0, CAP.agenda),
+        [appointments.data],
+    );
+
+    const openTasks = useMemo(() => taskRows(tasks, hidden, today), [tasks, today, hidden]);
 
     const coffee = useMemo(
         () => findByName([...(ha.byDomain.switch ?? []), ...(ha.byDomain.input_boolean ?? [])], ['café', 'cafe', 'coffee']),
         [ha.byDomain],
     );
 
-    const suggestions = clothing.data?.suggestions ?? [];
-
     return (
-        <div className="space-y-4 px-4 pb-24 pt-4">
-            <section className="rounded-2xl bg-gradient-to-br from-orange-100 to-yellow-100 p-6 text-slate-900">
-                <div className="flex items-center gap-4">
-                    {clothing.data ? (
-                        <>
-                            {React.createElement(CONDITION_ICON[weatherCondition(clothing.data.weather.weatherCode)], {
-                                className: 'h-16 w-16 text-orange-500',
-                            })}
-                            <div>
-                                <p className="text-5xl font-bold leading-none">
-                                    {Math.round(clothing.data.weather.tempMax)}°
-                                </p>
-                                <p className="mt-1 text-base">
-                                    {Math.round(clothing.data.weather.tempMin)}° / {Math.round(clothing.data.weather.tempMax)}°
-                                </p>
-                            </div>
-                        </>
-                    ) : (
-                        <p className="text-lg font-medium">
-                            {clothing.error ? t('dashboard.custom:widgets.checkWeather') : t('dashboard.custom:phases.loading')}
-                        </p>
-                    )}
-                </div>
+        <PhaseBody>
+            <NextDeparture appointments={appointments.data ?? []} now={now} />
+            <ClothingStrip result={clothing} />
 
-                {suggestions.length > 0 && (
-                    <div className="mt-4 flex gap-3 overflow-x-auto pb-1">
-                        {suggestions.map((suggestion) => {
-                            const kid = clothing.data?.kids.find((k) => k.id === suggestion.kidId);
-                            return (
-                                <div key={suggestion.kidId} className="min-w-[180px] shrink-0 rounded-xl bg-white/70 p-3">
-                                    <p className="text-sm font-semibold" style={{ color: kid?.color }}>
-                                        {kid?.name ?? ''}
-                                    </p>
-                                    <p className="mt-1 line-clamp-3 text-sm">
-                                        {[...suggestion.top, ...suggestion.bottom, suggestion.advice].filter(Boolean).join(', ')}
-                                    </p>
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
-                {clothing.data && suggestions.length === 0 && (
-                    <p className="mt-4 text-sm">{t('dashboard.custom:widgets.checkWeather')}</p>
-                )}
-            </section>
-
-            <Card>
-                <CardTitle icon={<UtensilsCrossed className="h-5 w-5 text-primary" />}>
-                    {t('widgets.departure')}
-                </CardTitle>
-                {departures.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">{t('widgets.noDeparture')}</p>
-                ) : (
-                    <ul className="space-y-3">
-                        {departures.map((departure) => (
-                            <li key={departure.name} className="flex items-center gap-3">
-                                <span className="h-4 w-4 rounded-full" style={{ backgroundColor: departure.color }} />
-                                <span className="flex-1 text-base font-medium text-foreground">{departure.name}</span>
-                                <span className="text-lg font-mono text-foreground">{departure.time}</span>
-                                <span className="min-w-[72px] text-right text-sm text-muted-foreground">
-                                    {formatCountdown(minutesUntil(now, departure.time)) ?? t('widgets.gone')}
-                                </span>
-                            </li>
-                        ))}
-                    </ul>
-                )}
-            </Card>
-
-            <Card>
-                <CardTitle icon={<Check className="h-5 w-5 text-primary" />}>
-                    {t('widgets.tasks')}
-                </CardTitle>
-                {tasks.loading ? (
-                    <p className="text-sm text-muted-foreground">{t('phases.loading')}</p>
-                ) : openTasks.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">{t('widgets.noTasks')}</p>
-                ) : (
-                    <ul className="space-y-2">
-                        {openTasks.map((task) => (
-                            <li key={task.id} className="flex items-center gap-3">
-                                <button
-                                    type="button"
-                                    onClick={() => completeTask(task)}
-                                    className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border-2 border-border transition-colors active:scale-95"
-                                    aria-label={task.title}
-                                >
-                                    <Check className="h-5 w-5 text-primary" />
-                                </button>
-                                <span className="flex-1 text-base text-foreground">{task.title}</span>
-                                <MemberDots members={task.assigned_to_members} />
-                            </li>
-                        ))}
-                    </ul>
-                )}
-            </Card>
-
-            {coffee && (
-                <button
-                    type="button"
-                    disabled={ha.failure !== null}
-                    onClick={() =>
-                        void ha
-                            .callService(coffee.domain, isOn(coffee) ? 'turn_off' : 'turn_on', { entity_id: coffee.entity_id })
-                            .catch(() => undefined)
-                    }
-                    className={`flex h-20 w-full items-center gap-4 rounded-2xl px-6 transition-colors active:scale-95 disabled:opacity-50 ${
-                        isOn(coffee) ? 'bg-amber-600 text-white' : 'bg-card text-foreground shadow-surface'
-                    }`}
+            <Band weight="flex-[6]">
+                <Panel
+                    title={t('dashboard.custom:widgets.agenda')}
+                    icon={<Calendar className="h-5 w-5" />}
+                    action={{ label: t('dashboard.custom:widgets.viewAll'), to: '/calendar' }}
+                    className="flex-1"
                 >
-                    <Coffee className="h-10 w-10" />
-                    <span className="flex-1 text-left text-xl font-semibold">{coffee.friendly_name}</span>
-                    <span className="text-lg font-bold">{isOn(coffee) ? 'ON' : 'OFF'}</span>
-                </button>
-            )}
+                    <AgendaList
+                        appointments={timeline}
+                        loading={appointments.loading}
+                        empty={t('dashboard.custom:widgets.noAgenda')}
+                        loadingLabel={t('dashboard.custom:phases.loading')}
+                    />
+                </Panel>
 
-            {doneTasks.length > 0 && (
-                <div className="fixed inset-x-4 bottom-20 z-[65] flex items-center gap-3 rounded-xl bg-foreground px-4 py-3 text-background shadow-surface-hover">
-                    <span className="flex-1 truncate text-sm">{t('widgets.taskScheduled')}</span>
-                    {doneTasks.map((entry) => (
+                {isModuleEnabled('activities') && activityData && (
+                    <Panel title={t('activities.custom:titleToday')} icon={<MonitorOff className="h-5 w-5" />} className="flex-1">
+                        <ActivitiesBody data={activityData} />
+                    </Panel>
+                )}
+            </Band>
+
+            <Band weight="flex-[4]">
+                <Panel title={t('dashboard.custom:widgets.tasks')} icon={<Check className="h-5 w-5" />} className="flex-1">
+                    <TappableList
+                        rows={openTasks}
+                        shape="round"
+                        loadingLabel={tasks.loading ? t('dashboard.custom:phases.loading') : undefined}
+                        empty={t('dashboard.custom:widgets.noTasks')}
+                        onTap={completeTask}
+                    />
+                </Panel>
+
+                {coffee && (
+                    <Panel title={coffee.friendly_name} icon={<Coffee className="h-5 w-5" />} className="flex-1">
                         <button
-                            key={entry.id}
                             type="button"
-                            onClick={() => undoTask(entry.id)}
-                            className="flex min-h-[56px] max-w-[50%] items-center gap-1 rounded-lg bg-background/20 px-3 text-sm font-semibold"
+                            disabled={ha.failure !== null}
+                            onClick={() =>
+                                void ha
+                                    .callService(coffee.domain, isOn(coffee) ? 'turn_off' : 'turn_on', { entity_id: coffee.entity_id })
+                                    .catch(() => undefined)
+                            }
+                            className={`flex min-h-[104px] w-full items-center justify-center gap-3 rounded-xl text-lg font-semibold transition-colors active:scale-95 disabled:opacity-50 ${
+                                isOn(coffee) ? 'bg-amber-600 text-white' : 'border border-border text-foreground'
+                            }`}
                         >
-                            <Undo2 className="h-4 w-4 shrink-0" />
-                            <span className="truncate">{entry.title}</span>
+                            <Coffee className="h-7 w-7" />
+                            {isOn(coffee) ? 'ON' : 'OFF'}
                         </button>
-                    ))}
-                </div>
-            )}
-        </div>
+                    </Panel>
+                )}
+            </Band>
+
+            <UndoToast queue={undo} label={t('dashboard.custom:widgets.saved')} />
+        </PhaseBody>
     );
 });
 
 // ── Day ──────────────────────────────────────────────────────────────────────
 
-const DayPhase: React.FC<PhaseProps> = memo(({ ha, today, reloadKey }) => {
-    const { t } = useTranslation('dashboard.custom');
-    const appointments = useApi<Appointment[]>(
-        `/api/appointments?start_date=${today}&end_date=${today}`,
+const DayPhase: React.FC<PhaseProps> = memo(({ today, reloadKey }) => {
+    const { t } = useTranslation(['dashboard.custom', 'kiosk', 'meals', 'activities.custom', 'scan.custom', 'pantry.custom']);
+    const { isModuleEnabled, user } = useAuth();
+    const appointments = useApi<Appointment[]>(dayAppointments(today), reloadKey);
+    const meals = useApi<MealPlan[]>(`/api/meal-plans?start_date=${today}&end_date=${today}`, reloadKey);
+    const tasks = useApi<Task[]>('/api/tasks', reloadKey);
+    const shopping = useApi<ShoppingItem[]>('/api/shopping', reloadKey);
+    const pantry = useApi<{ items: PantryItem[] }>(
+        isModuleEnabled('pantry') ? `/api/pantry?filter=expiring&days=14` : null,
         reloadKey,
     );
-    const shopping = useApi<ShoppingItem[]>('/api/shopping', reloadKey);
-    const [expanded, setExpanded] = useState(false);
-    const [checked, setChecked] = useState<Record<string, boolean>>({});
-    const [doneItems, setDoneItems] = useState<Array<{ id: string; name: string }>>([]);
+    const promos = useApi<PromoPage>(
+        isModuleEnabled('productScan') ? '/api/products/promos?page_size=4&sort=savings' : null,
+        reloadKey,
+    );
+    const activities = useActivitiesWidget();
+    const activityData = homeDayIdeas(activities.data);
+
+    // One hidden set and one undo queue for both lists: a task and a shopping item
+    // tapped in the same breath share the single undo toast at the bottom.
+    const [hidden, setHidden] = useState<Record<string, true>>({});
+    const undo = useUndoQueue();
+    const completeTask = useTapToComplete(undo, setHidden, '/api/tasks', 'is_completed');
+    const checkItem = useTapToComplete(undo, setHidden, '/api/shopping', 'is_checked');
+
+    const currency = user?.currency || 'EUR';
 
     const timeline = useMemo(
-        () =>
-            [...(appointments.data ?? [])].sort((a, b) => a.start_time.localeCompare(b.start_time)),
+        () => [...(appointments.data ?? [])].sort((a, b) => a.start_time.localeCompare(b.start_time)).slice(0, CAP.agenda),
         [appointments.data],
     );
 
-    const devices = useMemo(
+    const todayMeals = useMemo(
         () =>
-            ha.devices
-                .filter((device) => TOGGLEABLE_DOMAINS[device.domain])
-                .sort((a, b) => a.friendly_name.localeCompare(b.friendly_name)),
-        [ha.devices],
+            [...(meals.data ?? [])]
+                .sort((a, b) => MEAL_ORDER.indexOf(a.meal_type) - MEAL_ORDER.indexOf(b.meal_type))
+                .slice(0, CAP.meals),
+        [meals.data],
     );
-    const visibleDevices = expanded ? devices : devices.slice(0, 8);
 
-    const security = useMemo(() => {
-        const classes = ['door', 'window', 'garage_door', 'motion', 'smoke', 'lock'];
-        return [
-            ...(ha.byDomain.binary_sensor ?? []).filter((device) =>
-                classes.includes(String(device.attributes.device_class ?? '')),
-            ),
-            ...(ha.byDomain.lock ?? []),
-        ];
-    }, [ha.byDomain]);
+    const openTasks = useMemo(() => taskRows(tasks, hidden), [tasks, hidden]);
 
     const openItems = useMemo(
-        () => (shopping.data ?? []).filter((item) => !item.is_checked && !checked[item.id]).slice(0, 5),
-        [shopping.data, checked],
+        () =>
+            (shopping.data ?? [])
+                .filter((item) => !item.is_checked && !hidden[item.id])
+                .slice(0, CAP.shopping)
+                .map((item) => ({
+                    id: item.id,
+                    label: item.name,
+                    meta: item.quantity ? (
+                        <span className="shrink-0 text-caption text-muted-foreground">
+                            {item.quantity}
+                            {item.unit ? ` ${item.unit}` : ''}
+                        </span>
+                    ) : null,
+                })),
+        [shopping.data, hidden],
     );
 
-    const toggle = useCallback(
-        (device: HaDevice) => {
-            const service = isOn(device) ? 'turn_off' : 'turn_on';
-            void ha.callService(device.domain, service, { entity_id: device.entity_id }).catch(() => undefined);
-        },
-        [ha],
-    );
-
-    // Kiosk.tsx's shopping pattern, kept as-is: check optimistically, fire the
-    // PUT immediately, undo with the reverse PUT.
-    const checkItem = useCallback((item: ShoppingItem) => {
-        setChecked((prev) => ({ ...prev, [item.id]: true }));
-        setDoneItems((prev) => [...prev.filter((entry) => entry.id !== item.id), { id: item.id, name: item.name }]);
-        window.setTimeout(() => setDoneItems((prev) => prev.filter((entry) => entry.id !== item.id)), 5_000);
-        void api.put(`/api/shopping/${item.id}`, { is_checked: true }).catch(() => undefined);
-    }, []);
-
-    const undoItem = useCallback((id: string) => {
-        setChecked((prev) => {
-            const next = { ...prev };
-            delete next[id];
-            return next;
-        });
-        setDoneItems((prev) => prev.filter((entry) => entry.id !== id));
-        void api.put(`/api/shopping/${id}`, { is_checked: false }).catch(() => undefined);
-    }, []);
+    const label = useCallback((value: string) => t(`meals:mealTypes.${value}`, { defaultValue: value }), [t]);
 
     return (
-        <div className="space-y-4 px-4 pb-24 pt-4">
-            <Card>
-                <CardTitle icon={<Sun className="h-5 w-5 text-primary" />}>{t('widgets.agenda')}</CardTitle>
-                {timeline.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">{t('widgets.noAgenda')}</p>
-                ) : (
-                    <ol className="relative space-y-4 pl-6">
-                        <span className="absolute bottom-2 left-[7px] top-2 w-0.5 bg-border" aria-hidden />
-                        {timeline.map((appointment) => (
-                            <li key={appointment.id} className="relative">
-                                <span className="absolute -left-[23px] top-2 h-3.5 w-3.5 rounded-full border-2 border-card bg-primary" />
-                                <div className="flex items-center gap-3">
-                                    <span className="text-lg font-mono text-foreground">{hhmmOf(appointment.start_time)}</span>
-                                    <span className="flex-1 text-base font-medium text-foreground">{appointment.title}</span>
-                                    <MemberDots members={appointment.family_members_data} />
-                                </div>
-                                {appointment.location && (
-                                    <p className="mt-1 text-sm text-muted-foreground">{appointment.location}</p>
-                                )}
-                            </li>
-                        ))}
-                    </ol>
-                )}
-            </Card>
+        <PhaseBody>
+            <Panel title={t('kiosk:meals')} icon={<UtensilsCrossed className="h-5 w-5" />} className="shrink-0">
+                <MealsStrip meals={todayMeals} loading={meals.loading} label={label} />
+            </Panel>
 
-            <Card>
-                <CardTitle icon={<Lamp className="h-5 w-5 text-primary" />}>{t('widgets.devices')}</CardTitle>
-                {ha.failure ? (
-                    <p className="text-sm text-muted-foreground">{t('errors.devicesUnavailable')}</p>
-                ) : (
-                    <>
-                        <div className="grid grid-cols-2 gap-3">
-                            {visibleDevices.map((device) => (
-                                <ToggleTile
-                                    key={device.entity_id}
-                                    device={device}
-                                    busy={Boolean(ha.busy[device.entity_id])}
-                                    disabled={ha.failure !== null}
-                                    onToggle={toggle}
-                                />
-                            ))}
-                        </div>
-                        {!expanded && devices.length > 8 && (
-                            <button
-                                type="button"
-                                onClick={() => setExpanded(true)}
-                                className="mt-3 min-h-[56px] w-full rounded-xl border border-border text-base font-semibold text-foreground active:scale-95"
-                            >
-                                {t('widgets.viewAll')}
-                            </button>
-                        )}
-                    </>
-                )}
-            </Card>
+            <Band weight="flex-[6]">
+                <Panel
+                    title={t('dashboard.custom:widgets.agenda')}
+                    icon={<Calendar className="h-5 w-5" />}
+                    action={{ label: t('dashboard.custom:widgets.viewAll'), to: '/calendar' }}
+                    className="flex-1"
+                >
+                    <AgendaList
+                        appointments={timeline}
+                        loading={appointments.loading}
+                        empty={t('dashboard.custom:widgets.noAgenda')}
+                        loadingLabel={t('dashboard.custom:phases.loading')}
+                    />
+                </Panel>
 
-            <Card>
-                <CardTitle icon={<Lock className="h-5 w-5 text-primary" />}>{t('widgets.security')}</CardTitle>
-                {ha.failure ? (
-                    // A stale "door closed" is worse than no reading at all.
-                    <p className="text-sm text-muted-foreground">{t('errors.devicesUnavailable')}</p>
-                ) : security.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">{t('widgets.noSecurity')}</p>
-                ) : (
-                    <div className="flex gap-3 overflow-x-auto pb-1">
-                        {security.map((device) => {
-                            // A lock reads `locked`/`unlocked`, not `on`/`off`, so
-                            // the generic isOn() check would keep every lock green
-                            // even while the door stands open.
-                            const alert =
-                                device.domain === 'lock'
-                                    ? device.state === 'unlocked'
-                                    : isOn(device);
-                            return (
-                                <div key={device.entity_id} className="flex shrink-0 items-center gap-2 rounded-full border border-border px-4 py-2">
-                                    <span className={`h-3 w-3 rounded-full ${alert ? 'bg-amber-500' : 'bg-emerald-500'}`} />
-                                    <span className="text-sm font-medium text-foreground">{device.friendly_name}</span>
-                                </div>
-                            );
-                        })}
-                    </div>
+                {isModuleEnabled('activities') && activityData && (
+                    <Panel title={t('activities.custom:titleToday')} icon={<MonitorOff className="h-5 w-5" />} className="flex-1">
+                        <ActivitiesBody data={activityData} />
+                    </Panel>
                 )}
-            </Card>
+            </Band>
 
-            <Card>
-                <CardTitle icon={<ShoppingCart className="h-5 w-5 text-primary" />}>
-                    {t('widgets.shopping_preview')}
-                </CardTitle>
-                {openItems.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">{t('widgets.emptyShopping')}</p>
-                ) : (
-                    <ul className="space-y-2">
-                        {openItems.map((item) => (
-                            <li key={item.id} className="flex items-center gap-3">
-                                <button
-                                    type="button"
-                                    onClick={() => checkItem(item)}
-                                    className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border-2 border-border active:scale-95"
-                                    aria-label={item.name}
-                                >
-                                    <Check className="h-5 w-5 text-primary" />
-                                </button>
-                                <span className="flex-1 text-base text-foreground">{item.name}</span>
-                            </li>
-                        ))}
-                    </ul>
+            <Band weight="flex-[5]">
+                {isModuleEnabled('productScan') && (
+                    <Panel
+                        title={t('scan.custom:dailyPromos.tab')}
+                        icon={<Tag className="h-5 w-5" />}
+                        action={{ label: t('dashboard.custom:widgets.viewAll'), to: '/product-scanner' }}
+                        className="flex-1"
+                    >
+                        <PromosBody page={promos.data} loading={promos.loading} currency={currency} />
+                    </Panel>
                 )}
-                <Link to="/shopping" className="mt-3 flex min-h-[56px] items-center justify-center rounded-xl border border-border text-base font-semibold text-foreground active:scale-95">
-                    {t('widgets.viewAll')}
-                </Link>
-            </Card>
 
-            {doneItems.length > 0 && (
-                <div className="fixed inset-x-4 bottom-20 z-[65] flex items-center gap-3 rounded-xl bg-foreground px-4 py-3 text-background shadow-surface-hover">
-                    <span className="flex-1 truncate text-sm">{t('widgets.itemScheduled')}</span>
-                    {doneItems.map((entry) => (
-                        <button
-                            key={entry.id}
-                            type="button"
-                            onClick={() => undoItem(entry.id)}
-                            className="flex min-h-[56px] max-w-[50%] items-center gap-1 rounded-lg bg-background/20 px-3 text-sm font-semibold"
-                        >
-                            <Undo2 className="h-4 w-4 shrink-0" />
-                            <span className="truncate">{entry.name}</span>
-                        </button>
-                    ))}
-                </div>
-            )}
-        </div>
+                {isModuleEnabled('pantry') && (
+                    <Panel
+                        title={t('pantry.custom:dashboard.title')}
+                        icon={<Package className="h-5 w-5" />}
+                        action={{ label: t('dashboard.custom:widgets.viewAll'), to: '/pantry' }}
+                        className="flex-1"
+                    >
+                        <PantryBody items={pantry.data?.items ?? []} loading={pantry.loading} />
+                    </Panel>
+                )}
+            </Band>
+
+            <Band weight="flex-[4]">
+                <Panel title={t('kiosk:tasks')} icon={<Check className="h-5 w-5" />} className="flex-1">
+                    <TappableList
+                        rows={openTasks}
+                        shape="round"
+                        loadingLabel={tasks.loading ? t('dashboard.custom:phases.loading') : undefined}
+                        empty={t('dashboard.custom:widgets.noTasks')}
+                        onTap={completeTask}
+                    />
+                </Panel>
+
+                <Panel
+                    title={t('dashboard.custom:widgets.shopping_preview')}
+                    icon={<ShoppingCart className="h-5 w-5" />}
+                    action={{ label: t('dashboard.custom:widgets.viewAll'), to: '/shopping' }}
+                    className="flex-1"
+                >
+                    <TappableList
+                        rows={openItems}
+                        shape="square"
+                        loadingLabel={shopping.loading ? t('dashboard.custom:phases.loading') : undefined}
+                        empty={t('dashboard.custom:widgets.emptyShopping')}
+                        onTap={checkItem}
+                    />
+                </Panel>
+            </Band>
+
+            <UndoToast queue={undo} label={t('dashboard.custom:widgets.saved')} />
+        </PhaseBody>
     );
 });
 
@@ -761,10 +982,7 @@ const DayPhase: React.FC<PhaseProps> = memo(({ ha, today, reloadKey }) => {
 const EveningPhase: React.FC<PhaseProps & { tomorrow: DailyForecastDTO | null }> = memo(
     ({ ha, today, reloadKey, weatherEnabled, tomorrow }) => {
         const { t } = useTranslation(['dashboard.custom', 'weather.custom']);
-        const meals = useApi<MealPlan[]>(
-            `/api/meal-plans?start_date=${today}&end_date=${today}`,
-            reloadKey,
-        );
+        const meals = useApi<MealPlan[]>(`/api/meal-plans?start_date=${today}&end_date=${today}`, reloadKey);
         const planning = useApi<PlanningEntry[]>(
             `/api/planning?week_start=${ymd(weekStartOf(new Date(`${today}T12:00:00`)))}`,
             reloadKey,
@@ -790,23 +1008,15 @@ const EveningPhase: React.FC<PhaseProps & { tomorrow: DailyForecastDTO | null }>
 
         const bedtimes = useMemo(() => {
             const bedtime = todayEntries.filter((entry) => /coucher|bedtime|dormir/i.test(entry.schedule_type));
-            if (bedtime.length > 0) {
-                return bedtime.map((entry) => ({
-                    name: entry.family_member_name,
-                    color: entry.family_member_color,
-                    time: hhmmOf(entry.start_time),
-                }));
-            }
-            // No planning entry: fall back to the household's usual 20:30, so the
-            // card still answers the question instead of disappearing.
-            return (meals.data ?? []).length >= 0
-                ? todayEntries.slice(0, 3).map((entry) => ({
-                      name: entry.family_member_name,
-                      color: entry.family_member_color,
-                      time: '20:30',
-                  }))
-                : [];
-        }, [todayEntries, meals.data]);
+            const entries = bedtime.length > 0 ? bedtime : todayEntries.slice(0, 3);
+            return entries.slice(0, 4).map((entry) => ({
+                name: entry.family_member_name,
+                color: entry.family_member_color,
+                // No planning entry: fall back to the household's usual 20:30, so
+                // the card still answers the question instead of disappearing.
+                time: bedtime.length > 0 ? hhmmOf(entry.start_time) : '20:30',
+            }));
+        }, [todayEntries]);
 
         const dinnerScene = useMemo(
             () => findByName(ha.byDomain.scene ?? [], ['dîner', 'diner', 'dinner']),
@@ -818,7 +1028,7 @@ const EveningPhase: React.FC<PhaseProps & { tomorrow: DailyForecastDTO | null }>
 
         const dimAll = useCallback(
             (pct: number) => {
-                if (onLights.length === 0 && lights.length === 0) return;
+                if (lights.length === 0) return;
                 void ha
                     .callService('light', 'turn_on', {
                         entity_id: lights.map((light) => light.entity_id),
@@ -832,22 +1042,25 @@ const EveningPhase: React.FC<PhaseProps & { tomorrow: DailyForecastDTO | null }>
         const tomorrowCondition = tomorrow ? weatherCondition(tomorrow.weatherCode) : null;
 
         return (
-            <div className="space-y-4 px-4 pb-24 pt-4">
-                <section className="rounded-2xl bg-gradient-to-br from-amber-100 to-orange-100 p-6 text-slate-900">
+            <PhaseBody>
+                <section className="shrink-0 rounded-2xl bg-gradient-to-br from-amber-100 to-orange-100 p-4 text-slate-900">
                     <div className="flex items-center gap-4">
-                        <UtensilsCrossed className="h-12 w-12 text-amber-600" />
-                        <div className="min-w-0">
-                            <p className="text-sm font-semibold uppercase tracking-wide">{t('dashboard.custom:widgets.dinner')}</p>
+                        <UtensilsCrossed className="h-10 w-10 shrink-0 text-amber-600" />
+                        <div className="min-w-0 flex-1">
+                            <p className="text-caption font-semibold uppercase tracking-wide">{t('dashboard.custom:widgets.dinner')}</p>
                             <p className="mt-1 line-clamp-2 text-2xl font-bold">
                                 {dinner?.custom_meal || dinner?.recipe?.name || t('dashboard.custom:widgets.noDinner')}
                             </p>
                         </div>
+                        {dinner?.recipe && (
+                            <Link
+                                to="/recipes"
+                                className="flex min-h-[56px] shrink-0 items-center rounded-xl bg-white/70 px-4 text-base font-semibold text-slate-900"
+                            >
+                                {t('dashboard.custom:widgets.viewRecipe')}
+                            </Link>
+                        )}
                     </div>
-                    {dinner?.recipe && (
-                        <Link to="/recipes" className="mt-3 inline-flex min-h-[56px] items-center gap-2 rounded-lg bg-white/70 px-4 text-base font-semibold text-slate-900">
-                            {t('dashboard.custom:widgets.viewRecipe')}
-                        </Link>
-                    )}
                 </section>
 
                 {dinnerScene && (
@@ -857,16 +1070,15 @@ const EveningPhase: React.FC<PhaseProps & { tomorrow: DailyForecastDTO | null }>
                         onClick={() =>
                             void ha.callService('scene', 'turn_on', { entity_id: dinnerScene.entity_id }).catch(() => undefined)
                         }
-                        className="flex h-20 w-full items-center justify-center gap-3 rounded-2xl bg-amber-500 text-xl font-bold text-white transition-colors active:scale-95 disabled:opacity-50"
+                        className="flex min-h-[72px] w-full shrink-0 items-center justify-center gap-3 rounded-2xl bg-amber-500 text-xl font-bold text-white transition-colors active:scale-95 disabled:opacity-50"
                     >
-                        <Sparkles className="h-8 w-8" />
+                        <Sparkles className="h-7 w-7" />
                         {t('widgets.dinner_scene')}
                     </button>
                 )}
 
-                <Card>
-                    <CardTitle icon={<Lamp className="h-5 w-5 text-primary" />}>{t('widgets.lights')}</CardTitle>
-                    <div className="grid grid-cols-4 gap-3">
+                <Panel title={t('dashboard.custom:widgets.lights')} icon={<Lamp className="h-5 w-5" />} className="shrink-0">
+                    <div className="grid grid-cols-5 gap-2">
                         {[25, 50, 75, 100].map((pct) => (
                             <button
                                 key={pct}
@@ -878,59 +1090,60 @@ const EveningPhase: React.FC<PhaseProps & { tomorrow: DailyForecastDTO | null }>
                                 {pct}%
                             </button>
                         ))}
+                        <button
+                            type="button"
+                            disabled={haDown || lights.length === 0}
+                            onClick={() =>
+                                void ha
+                                    .callService('light', 'turn_off', { entity_id: lights.map((light) => light.entity_id) })
+                                    .catch(() => undefined)
+                            }
+                            className="min-h-[56px] rounded-xl border border-border text-lg font-semibold text-foreground transition-colors active:scale-95 disabled:opacity-50"
+                            aria-label={t('dashboard.custom:actions.all_lights_off')}
+                        >
+                            <PowerOff className="mx-auto h-5 w-5" />
+                        </button>
                     </div>
-                    <button
-                        type="button"
-                        disabled={haDown || lights.length === 0}
-                        onClick={() =>
-                            void ha
-                                .callService('light', 'turn_off', { entity_id: lights.map((light) => light.entity_id) })
-                                .catch(() => undefined)
-                        }
-                        className="mt-3 min-h-[56px] w-full rounded-xl border border-border text-lg font-semibold text-foreground active:scale-95 disabled:opacity-50"
-                    >
-                        {t('actions.all_lights_off')}
-                    </button>
-                    {!haDown && (
+                    {!haDown && lights.length > 0 && (
                         <p className="mt-2 text-sm text-muted-foreground">
-                            {onLights.length}/{lights.length} {t('widgets.lightsOn')}
+                            {onLights.length}/{lights.length} {t('dashboard.custom:widgets.lightsOn')}
                         </p>
                     )}
-                </Card>
+                </Panel>
 
-                <Card>
-                    <CardTitle icon={<Moon className="h-5 w-5 text-primary" />}>{t('widgets.bedtime')}</CardTitle>
+                <Panel title={t('dashboard.custom:widgets.bedtime')} icon={<Moon className="h-5 w-5" />} className="flex-1">
                     {bedtimes.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">{t('widgets.noBedtime')}</p>
+                        <Empty>{t('dashboard.custom:widgets.noBedtime')}</Empty>
                     ) : (
-                        <ul className="space-y-3">
+                        <ul className="space-y-1">
                             {bedtimes.map((bedtime, index) => (
-                                <li key={`${bedtime.name}-${index}`} className="flex items-center gap-3">
-                                    <span className="h-4 w-4 rounded-full" style={{ backgroundColor: bedtime.color }} />
-                                    <span className="flex-1 text-base font-medium text-foreground">{bedtime.name}</span>
-                                    <span className="text-lg font-mono text-foreground">{bedtime.time}</span>
-                                    <span className="min-w-[72px] text-right text-sm text-muted-foreground">
-                                        {formatCountdown(minutesUntil(new Date(), bedtime.time)) ?? t('widgets.gone')}
+                                <li key={`${bedtime.name}-${index}`} className="flex min-h-[52px] items-center gap-3">
+                                    <span className="h-4 w-4 shrink-0 rounded-full" style={{ backgroundColor: bedtime.color }} />
+                                    <span className="min-w-0 flex-1 truncate text-base font-medium text-foreground">{bedtime.name}</span>
+                                    <span className="shrink-0 font-mono text-lg text-foreground">{bedtime.time}</span>
+                                    <span className="min-w-[72px] shrink-0 text-right text-sm text-muted-foreground">
+                                        {formatCountdown(minutesUntil(new Date(), bedtime.time)) ?? t('dashboard.custom:widgets.gone')}
                                     </span>
                                 </li>
                             ))}
                         </ul>
                     )}
-                </Card>
+                </Panel>
 
                 {weatherEnabled && tomorrowCondition && tomorrow && (
-                    <Card className="flex items-center gap-4">
-                        {React.createElement(CONDITION_ICON[tomorrowCondition], { className: 'h-10 w-10 text-primary' })}
-                        <div className="flex-1">
-                            <p className="text-sm text-muted-foreground">{t('widgets.tomorrow')}</p>
+                    <Panel title={t('dashboard.custom:widgets.tomorrow')} icon={<Sun className="h-5 w-5" />} className="shrink-0">
+                        <div className="flex items-center gap-3">
+                            {React.createElement(CONDITION_ICON[tomorrowCondition], { className: 'h-8 w-8 text-primary' })}
                             <p className="text-lg font-semibold text-foreground">
                                 {Math.round(tomorrow.tempMin)}° / {Math.round(tomorrow.tempMax)}°
                             </p>
+                            <p className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+                                {t(`weather.custom:conditions.${tomorrowCondition}` as never)}
+                            </p>
                         </div>
-                        <p className="text-sm text-muted-foreground">{t(`weather.custom:conditions.${tomorrowCondition}` as never)}</p>
-                    </Card>
+                    </Panel>
                 )}
-            </div>
+            </PhaseBody>
         );
     },
 );
@@ -941,10 +1154,7 @@ const NightPhase: React.FC<PhaseProps & { tomorrow: string; dimmed: boolean }> =
     ({ ha, now, tomorrow, dimmed }) => {
         const { t } = useTranslation('dashboard.custom');
         const dateLabel = useDateLabel();
-        const appointments = useApi<Appointment[]>(
-            `/api/appointments?start_date=${tomorrow}&end_date=${tomorrow}`,
-            0,
-        );
+        const appointments = useApi<Appointment[]>(dayAppointments(tomorrow), 0);
         const nightlight = useMemo(
             () => findByName(ha.byDomain.light ?? [], ['nuit', 'nightlight', 'veilleuse']),
             [ha.byDomain],
@@ -955,7 +1165,7 @@ const NightPhase: React.FC<PhaseProps & { tomorrow: string; dimmed: boolean }> =
         }, [appointments.data]);
 
         return (
-            <div className="flex flex-1 flex-col items-center justify-center gap-6 bg-black px-6">
+            <div className="flex h-full min-h-0 flex-col items-center justify-center gap-6 bg-black px-6">
                 <div className={`flex flex-col items-center transition-opacity duration-1000 ${dimmed ? 'opacity-30' : 'opacity-100'}`}>
                     <p className="text-8xl font-light tabular-nums text-white/80">
                         {pad2(now.getHours())}:{pad2(now.getMinutes())}
@@ -998,6 +1208,48 @@ const NightPhase: React.FC<PhaseProps & { tomorrow: string; dimmed: boolean }> =
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
+/**
+ * The kids' ideas, for the phases that show them. A home day is the only day the
+ * server has ideas for, and no saved city means no request at all — the panel says
+ * so instead of asking for a city a second time. The ideas are the day's, cached
+ * per language and location by the hook, so Refresh does not re-ask the model.
+ */
+function useActivitiesWidget(): WidgetResult<KidsActivitiesDTO | null> {
+    const { user, isModuleEnabled } = useAuth();
+    const location = useSavedLocation();
+    const enabled = isModuleEnabled('activities') && !!user && location.data?.latitude != null;
+    return useKidsActivities(null, [], enabled);
+}
+
+/**
+ * The ideas a phase may show, or null: only a home day has any, and only once the
+ * payload is there (the dashboard card's own contract — never an empty "what shall
+ * we do today?" panel on the wall).
+ */
+function homeDayIdeas(data: KidsActivitiesDTO | null): KidsActivitiesDTO | null {
+    if (!data || data.dayContext.mode !== 'home' || data.activities.length === 0) return null;
+    return data;
+}
+
+/**
+ * The open tasks a phase shows, capped and shaped like the shopping list's rows.
+ * `today` is the morning's extra filter: a task with a due date other than today
+ * is not something to wave at someone on their way out.
+ */
+function taskRows(tasks: ApiResult<Task[]>, hidden: Record<string, true>, today?: string): TapRow[] {
+    const weight: Record<string, number> = { haute: 0, high: 0, moyenne: 1, medium: 1, basse: 2, low: 2 };
+    return (tasks.data ?? [])
+        .filter(
+            (task) =>
+                !task.is_completed &&
+                !hidden[task.id] &&
+                (!today || !task.due_date || task.due_date.slice(0, 10) === today),
+        )
+        .sort((a, b) => (weight[a.priority ?? ''] ?? 1) - (weight[b.priority ?? ''] ?? 1))
+        .slice(0, CAP.tasks)
+        .map((task) => ({ id: task.id, label: task.title, meta: <MemberDots members={task.assigned_to_members} /> }));
+}
+
 const FamilyDashboard: React.FC = () => {
     const { t } = useTranslation(['dashboard.custom', 'weather.custom']);
     const { isModuleEnabled } = useAuth();
@@ -1005,7 +1257,7 @@ const FamilyDashboard: React.FC = () => {
     const [override, setOverride] = useState<PhaseOverride | null>(null);
     const [reloadKey, setReloadKey] = useState(0);
     const [refreshing, setRefreshing] = useState(false);
-    const [scenesOpen, setScenesOpen] = useState(false);
+    const [houseOpen, setHouseOpen] = useState(false);
     const [dimmed, setDimmed] = useState(false);
     const lastTouch = useRef(Date.now());
 
@@ -1095,7 +1347,7 @@ const FamilyDashboard: React.FC = () => {
             const dx = touch.clientX - start.x;
             const dy = touch.clientY - start.y;
             // Horizontal and deliberate: 60 px of travel, and more across than
-            // down so a vertical scroll is never mistaken for a phase change.
+            // down so a vertical gesture is never mistaken for a phase change.
             if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy)) return;
             cycle(dx < 0 ? 1 : -1);
         },
@@ -1118,8 +1370,33 @@ const FamilyDashboard: React.FC = () => {
         }
     }, [ha]);
 
+    const devices = useMemo(
+        () =>
+            ha.devices
+                .filter((device) => TOGGLEABLE_DOMAINS[device.domain])
+                .sort((a, b) => a.friendly_name.localeCompare(b.friendly_name)),
+        [ha.devices],
+    );
     const scenes = ha.byDomain.scene ?? [];
+    const security = useMemo(() => {
+        const classes = ['door', 'window', 'garage_door', 'motion', 'smoke', 'lock'];
+        return [
+            ...(ha.byDomain.binary_sensor ?? []).filter((device) =>
+                classes.includes(String(device.attributes.device_class ?? '')),
+            ),
+            ...(ha.byDomain.lock ?? []),
+        ];
+    }, [ha.byDomain]);
     const haDown = ha.failure !== null;
+
+    const toggle = useCallback(
+        (device: HaDevice) => {
+            void ha
+                .callService(device.domain, isOn(device) ? 'turn_off' : 'turn_on', { entity_id: device.entity_id })
+                .catch(() => undefined);
+        },
+        [ha],
+    );
 
     const phaseProps: PhaseProps = { ha, now, today, reloadKey, weatherEnabled };
 
@@ -1163,7 +1440,7 @@ const FamilyDashboard: React.FC = () => {
                     </Link>
                 </div>
             ) : (
-                <main className={`flex-1 ${phase === 'night' ? 'flex overflow-hidden' : 'overflow-y-auto'}`}>
+                <main className="relative min-h-0 flex-1">
                     {phase === 'morning' && <MorningPhase {...phaseProps} />}
                     {phase === 'day' && <DayPhase {...phaseProps} />}
                     {phase === 'evening' && <EveningPhase {...phaseProps} tomorrow={tomorrowForecast} />}
@@ -1171,31 +1448,94 @@ const FamilyDashboard: React.FC = () => {
                 </main>
             )}
 
-            {scenesOpen && (
-                <div className="fixed inset-0 z-[70] flex flex-col justify-end bg-black/40" onClick={() => setScenesOpen(false)}>
+            {/* House: everything Home Assistant needs more than a row of screen
+                space for. The sheet scrolls, the kiosk behind it does not. */}
+            {houseOpen && (
+                <div className="fixed inset-0 z-[70] flex flex-col justify-end bg-black/40" onClick={() => setHouseOpen(false)}>
                     <div
-                        className="max-h-[70vh] overflow-y-auto rounded-t-2xl bg-card p-4"
+                        className="max-h-[80vh] overflow-y-auto rounded-t-2xl bg-card p-4"
                         onClick={(event) => event.stopPropagation()}
                     >
-                        <CardTitle icon={<Sparkles className="h-5 w-5 text-primary" />}>{t('actions.scenes')}</CardTitle>
-                        <div className="grid grid-cols-2 gap-3">
-                            {scenes.map((scene) => (
-                                <button
-                                    key={scene.entity_id}
-                                    type="button"
-                                    disabled={haDown}
-                                    onClick={() => {
-                                        setScenesOpen(false);
-                                        void ha
-                                            .callService('scene', 'turn_on', { entity_id: scene.entity_id })
-                                            .catch(() => undefined);
-                                    }}
-                                    className="min-h-[72px] rounded-xl border border-border px-3 text-base font-semibold text-foreground active:scale-95 disabled:opacity-50"
-                                >
-                                    {scene.friendly_name}
-                                </button>
-                            ))}
-                        </div>
+                        {ha.failure === null && devices.length > 0 && (
+                            <>
+                                <h2 className="mb-3 flex items-center gap-2 text-lg font-semibold text-foreground">
+                                    <Power className="h-5 w-5 text-primary" />
+                                    {t('widgets.devices')}
+                                </h2>
+                                <div className="grid grid-cols-3 gap-3">
+                                    {devices.map((device) => (
+                                        <ToggleTile
+                                            key={device.entity_id}
+                                            device={device}
+                                            busy={Boolean(ha.busy[device.entity_id])}
+                                            disabled={haDown}
+                                            onToggle={toggle}
+                                        />
+                                    ))}
+                                </div>
+                            </>
+                        )}
+
+                        {ha.failure === null && security.length > 0 && (
+                            <>
+                                <h2 className="mb-3 mt-6 flex items-center gap-2 text-lg font-semibold text-foreground">
+                                    <Lock className="h-5 w-5 text-primary" />
+                                    {t('widgets.security')}
+                                </h2>
+                                <div className="flex flex-wrap gap-2">
+                                    {security.map((device) => {
+                                        // A lock reads `locked`/`unlocked`, not
+                                        // `on`/`off`, so the generic isOn() check
+                                        // would keep every lock green while the door
+                                        // stands open.
+                                        const alert =
+                                            device.domain === 'lock'
+                                                ? device.state === 'unlocked'
+                                                : isOn(device);
+                                        return (
+                                            <span
+                                                key={device.entity_id}
+                                                className="flex items-center gap-2 rounded-full border border-border px-4 py-2"
+                                            >
+                                                <span className={`h-3 w-3 rounded-full ${alert ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                                                <span className="text-sm font-medium text-foreground">{device.friendly_name}</span>
+                                            </span>
+                                        );
+                                    })}
+                                </div>
+                            </>
+                        )}
+
+                        {ha.failure === null && scenes.length > 0 && (
+                            <>
+                                <h2 className="mb-3 mt-6 flex items-center gap-2 text-lg font-semibold text-foreground">
+                                    <Sparkles className="h-5 w-5 text-primary" />
+                                    {t('actions.scenes')}
+                                </h2>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {scenes.map((scene) => (
+                                        <button
+                                            key={scene.entity_id}
+                                            type="button"
+                                            disabled={haDown}
+                                            onClick={() => {
+                                                setHouseOpen(false);
+                                                void ha
+                                                    .callService('scene', 'turn_on', { entity_id: scene.entity_id })
+                                                    .catch(() => undefined);
+                                            }}
+                                            className="min-h-[72px] rounded-xl border border-border px-3 text-base font-semibold text-foreground active:scale-95 disabled:opacity-50"
+                                        >
+                                            {scene.friendly_name}
+                                        </button>
+                                    ))}
+                                </div>
+                            </>
+                        )}
+
+                        {ha.failure !== null && (
+                            <p className="py-6 text-center text-base text-muted-foreground">{t('errors.devicesUnavailable')}</p>
+                        )}
                     </div>
                 </div>
             )}
@@ -1203,11 +1543,10 @@ const FamilyDashboard: React.FC = () => {
             <BottomBar
                 onRefresh={() => void refresh()}
                 onAllOff={() => void allOff()}
-                onScenes={() => setScenesOpen(true)}
+                onHouse={() => setHouseOpen(true)}
                 refreshing={refreshing}
                 dimmed={phase === 'night' && dimmed}
                 haDown={haDown}
-                sceneCount={scenes.length}
             />
         </div>
     );

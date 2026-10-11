@@ -383,6 +383,16 @@ was verified in a browser instead (see "Verification" below).
   not a directory).
 - `analytics.custom.json` exists for all six locales, but its `es`/`pt`/`ru`/`zh`
   files are English placeholders pending translation (required by `check-i18n`).
+- **The main bundle is within ~500 bytes of the PWA's precache limit.** The client
+  build runs `vite-plugin-pwa` in `injectManifest` mode with workbox's default
+  `maximumFileSizeToCacheInBytes` of 2 MiB (2,097,152 B); the main chunk measures
+  2,096.28 kB, so the build fails the moment ~1 kB of strings or code is added to
+  anything eager. That is why the kiosk rework deleted as many `dashboard.custom`
+  keys as it added, and why the lazy chunks (scanner, family dashboard) must stay
+  lazy. The real fix is either raising that limit in `client/vite.config.ts` (an
+  upstream file, would need a `FORK-START/END` marker) or splitting the i18n
+  payload; neither is urgent while the margin holds, but the next feature that adds
+  eager code will hit it.
 - **`custom/0005-pantry-name-unique` used to abort startup on a database that
   already held duplicate pantry rows — closed on 2026-10-11.** `CREATE UNIQUE
   INDEX` raises 23505 if two `source <> 'grocy'` rows share `(user_id, name_key)`
@@ -1136,6 +1146,11 @@ which widgets are on screen, the phase is cycleable by swiping the content or
 tapping the top bar's badge, and the family's Home Assistant is driven both ways
 through `/api/custom/ha`. **No upstream file was touched by this feature.**
 
+> The phase engine, the route and the HA proxy described here are unchanged, but
+> the **layout** was rebuilt later the same day — see "The tablet becomes a kiosk"
+> below, which is what the file looks like now. The phase-to-widget mapping in the
+> verification list further down is historical.
+
 - **Chrome-less without an upstream edit.** The route lives in
   `customRoutes` like every other custom page, i.e. inside upstream's `<Layout>`,
   and the page covers the chrome with a `fixed inset-0 z-[60]` layer — above
@@ -1214,6 +1229,71 @@ What was exercised, on a throwaway Postgres 16 and a stub Home Assistant:
   / media_player with no banner at any moment), `lock.turn_on` answers
   `400 homeassistant.service_rejected` instead of 502, and the Security card's lock
   dot goes amber on `unlocked` while a closed window stays green.
+
+### The tablet becomes a kiosk (2026-10-11)
+
+`FamilyDashboard.custom.tsx` was rebuilt as a kiosk: upstream `/kiosk`'s panel
+vocabulary (agenda, meals, tasks, shopping) plus the fork's own feeds (kids'
+activities, the day's promos, the pantry), on one screen that never scrolls.
+Same file, same route, same phase engine; **no upstream file was touched and no
+new namespace was added.**
+
+- **The phase keeps its job, the layout stops scrolling.** A phase used to be a
+  column of cards that scrolled; it is now a stack of panels that fills the
+  viewport — `main` is `overflow-hidden`, every panel is `min-h-0` with a clipped
+  body, and every list is capped (`CAP` in the file: 5 agenda rows, 4 tasks, 4
+  promos, …). The ceiling is deliberate: a wall display nobody touches must not
+  move, and a panel that has more to say truncates instead of pushing rows off
+  screen. The trade-off is that a very short viewport clips rather than scrolls,
+  which is what the 9.7" portrait target wants.
+- **The panels, per phase.** Morning: next departure with its countdown, the
+  children's outfits when the model wrote them, agenda, activities, tasks, coffee
+  toggle. Day: meals, agenda + activities, promos + pantry, tasks + shopping.
+  Evening: dinner, dinner scene, dimmer, bedtimes, tomorrow. Night: unchanged
+  (dim clock, tomorrow's first appointment, nightlight).
+- **Anything Home Assistant needs room for moved into the House sheet** (bottom
+  bar): the toggle grid, the security pills and the scenes, in one scrolling
+  bottom sheet. Nothing was dropped — a grid of device tiles is simply not
+  something a fixed screen can hold alongside the household's day.
+- **Labels come from namespaces that already exist** (`kiosk:meals`,
+  `kiosk:tasks`, `activities.custom:titleToday`, `scan.custom:dailyPromos.tab`,
+  `pantry.custom:dashboard.*`) rather than from new keys. Three keys were added to
+  `dashboard.custom` (`actions.house`, `widgets.noPromos`, `widgets.saved`) and
+  six stopped being used and were deleted (`widgets.departure`, `noDeparture`,
+  `noSecurity`, `meals`, `tasks_today`, `noActivities`) — the file shrank, which
+  matters: the main bundle sits ~500 bytes under workbox's 2 MiB precache limit
+  (see "Known gaps").
+- **The activities panel is absent, not empty, on a school day** — the contract
+  the dashboard card already had: `homeDayIdeas()` returns null unless the server
+  says the day is a home day and there are ideas, so a school day never shows a
+  wall-sized "what shall we do today?".
+- **Two defects found while porting.** The agenda asked the appointments route for
+  `end_date=YYYY-MM-DD`, and that route compares `start_time <= end_date` as a
+  string — every appointment after midnight was therefore invisible (the route's
+  own Kiosk caller passes `T23:59:59`). `dayAppointments()` now names both ends of
+  the day. The top bar's weather label read `weather.custom:mostlyClear` instead of
+  `conditions.mostlyClear`, so it printed the raw slug.
+
+Verified in the built client, driven in Chromium at 900×1600 portrait, in demo
+mode with **throwaway fixtures** for the promos, activities, weather, location and
+HA endpoints (added to `client/src/demo/mockApi.ts`, reverted afterwards — the
+demo deliberately serves none of them, see the promo section above):
+
+- Every phase renders without a page scroll: `scrollingElement.scrollHeight` equals
+  `innerHeight` at 1600 px in morning, day, evening and night, before and after the
+  activity/promo/pantry panels fill in; zero console errors; zero raw i18n keys in
+  French or English.
+- Day phase on screen: meals strip, agenda (with the fixture appointment — the bug
+  above), three activity rows with their category, duration and child dots, four
+  promo rows with price and discount, the pantry's two expiring items, and the
+  capped task/shopping lists.
+- Tap-to-complete: tapping a task hid it and showed the shared undo toast; the
+  undo button restored it. The toast is one queue for tasks and shopping together.
+- The House sheet rendered the toggle grid (ON/OFF tiles), the security pills
+  (amber for the `unlocked` lock, green for the closed door) and both scenes.
+- `npm run build` passes: `check:i18n` (6 languages), `tsc`, Vite; the dashboard
+  stays a lazy chunk (35.5 kB) and the main bundle ends at 2,096.28 kB, 480 bytes
+  *below* where it started.
 
 ### The two AI surfaces read the pantry (2026-10-11)
 
