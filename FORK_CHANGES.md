@@ -5,29 +5,35 @@ Ledger of every place this fork (`nmtsylla/OpenFamily`) diverges from upstream
 
 - Upstream remote: `upstream` → `https://github.com/NexaFlowFrance/OpenFamily.git`
 - `origin` → `git@github.com:nmtsylla/OpenFamily.git` (this fork)
-- Baseline of this ledger: `upstream/main` @ `835f9eb` (2026-10-10), **0 commits of drift**
-- `main` carries the fork (upstream + custom features), per `AGENTS.md`; upstream is
-  merged in, never rebased onto.
+- Baseline of this ledger: `upstream/main` @ `835f9eb` (commit dated 2026-10-07)
+- `main` carries the fork (upstream + custom features); upstream is merged in,
+  never rebased onto. **Correction (2026-10-11):** `main` is 10 fork commits ahead
+  of `upstream/main` and `develop` is a further 39 (`git rev-list --left-right
+  --count main...upstream/main` reads `10 0`; `develop...upstream/main` reads
+  `49 0`). `AGENTS.md` still describes `main` as an untouched mirror with "0
+  commits of drift" and its sync step 1 (`git checkout main && git merge --ff-only
+  upstream/main`) therefore fails as soon as upstream advances — that is a
+  maintainer decision (re-layout, or rewrite the procedure and the doc), not
+  something this ledger can settle. `git merge upstream/main` straight into
+  `develop` is unaffected.
 
 This repository is a **re-port** of the earlier fork work that had grown into the
 upstream tree (that tree is kept for reference at `/home/bsylla/OpenFamily-budget`,
 where the same features were spread over 50 upstream files and ~9000 inserted
 lines). Here they live in `custom/` locations with a single hook per upstream file.
 
-Measured divergence of this port, recorded pass by pass: **35 upstream files
-touched, 24 modified lines**, **1517 inserted lines** after the AI outing planner
-(1504 before it; the chain reads 1224 → 1479 → 1504 → +13 for
-`client/src/pages/Planning.tsx`). The insertion count is the noisy part of that
-tally — every pass adds to the same shared files without re-measuring the absolute
-— so treat it as a floor: a fresh `git diff --numstat upstream/main` today, on the
-basis those figures used (excluding `package-lock.json`, 396 lines, and
-`DOCUMENTATION.md`, 106), reads 1509. The receipt→pantry pass below contributed
-**158** of them: `client/src/demo/mockApi.ts` +102,
-`server/src/migrations/registry.ts` +48, `.env.example` +8 — all fork-owned lines
-inside files upstream owns, so the 24 modified upstream-authored lines are
-unchanged. Every touched upstream file carries `FORK-START/END` markers except the
-three that cannot hold comments (`.env.example`, `package-lock.json`,
-`server/package.json` — each explained below).
+Measured divergence of this port, **re-measured 2026-10-11** on `develop` against
+`upstream/main` (`git diff --numstat upstream/main...develop`): **38 upstream files
+modified, 2486 lines inserted into them, 38 upstream-authored lines deleted** (34
+excluding `package-lock.json`; 1936 inserted / 34 deleted excluding
+`package-lock.json` and `DOCUMENTATION.md`). The figures this paragraph used to
+carry (`35 upstream files touched, 24 modified lines, 1517 inserted`) were running
+tallies of successive passes and had drifted — that command is the source of truth
+from here on. Every touched upstream file carries `FORK-START/END` markers except
+the four that cannot hold them the usual way: `.env.example` (which does hold `#`
+comments, but uses the AGENTS.md `# --- Custom ---` section convention instead) and
+`package-lock.json`, `server/package.json`, `client/package.json` (JSON) — each
+explained below.
 
 ## Custom features (new files only)
 
@@ -47,7 +53,7 @@ three that cannot hold comments (`.env.example`, `package-lock.json`,
 | Client hooks for custom code | `client/src/custom/{nav.custom.ts,routes.custom.tsx}` | — |
 | Deploy assets | `deploy/README.md`, `deploy/up.sh`, `docker-compose.override.yml` | — |
 | Maintenance: clear the Budget / Meals / Pantry domains (dry run by default, `--yes` to delete) | `scripts/clean-custom-data.mjs` | — |
-| Translations | `client/src/i18n/locales/<lng>/{weather,activities,analytics,dashboard,budget,ai,lunchbox,pantry,scan}.custom.json` | — |
+| Translations | `client/src/i18n/locales/<lng>/{weather,activities,analytics,dashboard,budget,ai,lunchbox,pantry,outings,scan}.custom.json` | — |
 
 Gating: a feature's `CUSTOM_FEATURE_*_ENABLED=false` unmounts its API routes and
 adds its module keys to `disabled_modules` in `/api/auth/me`, which hides the
@@ -85,8 +91,9 @@ the `meals.custom.json`-style i18n convention (here `lunchbox.custom.json`).
 
 ## Modifications to upstream files
 
-Every row is additive and marker-wrapped unless the "modified lines" column says
-otherwise.
+Every row is additive and marker-wrapped. (The table has no "modified lines"
+column — an earlier version of this paragraph referred to one that never
+existed; the exact count of rewritten upstream lines is the next section's table.)
 
 | File | Marker | Why |
 |------|--------|-----|
@@ -108,6 +115,8 @@ otherwise.
 | `client/src/pages/Settings.tsx` | `weather`, `budget-custom` | Weather location card, vision-model hint |
 | `client/src/pages/Budget.tsx` | `budget-custom` | Mounts the receipt import button and the imported-receipts section |
 | `client/src/pages/Planning.tsx` | `outings` | Renders the custom outing planner below the week grid (one import + one element, both marker-wrapped); the outcome is added through the page's own `/api/planning` endpoint |
+| `client/src/pages/ShoppingList.tsx` | `product-scan` | Adds the "scan a barcode" button (navigates to `/scanner`) and the per-row barcode badge that opens the promo watchlist; purely additive (2 imports, one hook block, 2 JSX blocks) and it reads `productScan` through a second `useAuth()` call so upstream reshaping its own destructure cannot collide |
+| `server/src/lib/safeFetch.ts` | `safeFetch-credentials` | Drops `Authorization` / `X-API-Key` / `x-goog-api-key` / `Cookie` on a redirect hop that leaves the original hostname (the guard only blocks internal/metadata targets, not third parties); a same-host hop — including an `http` → `https` upgrade — keeps them |
 | `client/src/contexts/AuthContext.tsx` | `weather, pantry` | The `DASHBOARD_WIDGETS` line carries the fork's widget keys (weather, activities, pantry); one marker pair wraps that modified line itself, so an upstream change to it is re-applied from here |
 | `client/src/components/app/MagicInput.tsx` | `budget-custom`, `pantry-ai` | Adds the `AI_UNSUPPORTED_MEDIA` error code; `pantry-ai` renders the pantry proposal (own icon and label, quantity and shelf) and confirms it through `POST /api/pantry/upsert` |
 | `client/src/demo/mockApi.ts` | `budget-custom`, `demo-prefs`, `lunchbox`, `pantry`, `outings` | Demo handlers for receipts, receipt extraction, analytics, lunchboxes and the pantry (seeded rows, the shopping-list bridge, the receipt import — which splits its lines exactly like the server: obvious products merged, the rest queued — the review queue with its `confirm`/`ignore` calls, and the two answers the page reacts to: `DUPLICATE_NAME`, `NO_GROCY_INTEGRATION`); plus the two object-shaped endpoints upstream's demo never answers (`dashboard-prefs`, `posts/latest`), whose `ok([])` catch-all crashed the demo's default route. The `demo-prefs` block's default widget order also carries `pantry`; the `outings` block answers the planner with a fixed set (a demo has no OpenStreetMap and no model) |
@@ -121,22 +130,26 @@ otherwise.
 
 ### Modified (non-additive) upstream lines — the complete list
 
-Only 33 lines in 16 files, all wrapped in markers:
+35 lines in 17 files (39 with `package-lock.json`), all wrapped in markers. The
+per-file counts below re-measured 2026-10-11 (`git diff upstream/main...develop --
+<file> | grep -c '^-[^-]'`); three rows were wrong before (`routes/auth.ts` 2 → 6,
+`routes/userSettings.ts` 2 → 1, `ROADMAP.md` 2 → 1).
 
 | File | Lines | What |
 |------|-------|------|
 | `server/src/services/ai/assistant.ts` | 2 | the parse schema's `type` enum carries `pantry_item`; the meals recipe line gains its ingredient suffix when the pantry is on |
 | `server/src/services/ai/index.ts` | 4 | the four provider calls in `aiCompleteWithUsage` pass the request with the no-deliberation line appended |
-| `server/src/routes/auth.ts` | 2 re-indented | The avatar data-URL format/size checks are skipped for an `s3:` reference (wrapped in `if (!isMediaRef(...))`) |
+| `server/src/routes/auth.ts` | 6 | The avatar data-URL format/size checks are skipped for an `s3:` reference (wrapped in `if (!isMediaRef(...))`); re-measured: 2 comment lines + two 3-line `if` blocks |
 | `server/src/services/ai/openai.ts` | 2 | `chatCompletionUrl(baseUrl)`, `messageContent(request)` |
 | `server/src/services/ai/anthropic.ts` | 2 | `max_tokens` 2048 → 4096; user content carries attachments |
 | `server/src/services/ai/gemini.ts` | 1 | request parts carry attachments |
 | `server/src/services/ai/ollama.ts` | 1 | user message carries images when present |
 | `server/src/db.ts` | 1 | `connectionTimeoutMillis` uses `CUSTOM_POSTGRES_CONNECT_TIMEOUT_MS` |
-| `server/src/routes/userSettings.ts` | 2 | `DASHBOARD_WIDGETS` spreads the custom widget keys; `TOGGLEABLE_MODULES` spreads the custom module keys |
+| `server/src/routes/userSettings.ts` | 1 | `DASHBOARD_WIDGETS` spreads the custom widget keys; `TOGGLEABLE_MODULES` is an appended line, not a rewrite |
 | `client/src/contexts/AuthContext.tsx` | 1 | `DASHBOARD_WIDGETS` lists the custom widget keys (weather, activities, pantry) |
 | `README.md`, `README.fr.md`, `README.zh-CN.md` | 1 each | Feature row appended to the budget line |
-| `ROADMAP.md` | 2 | The receipt-import bullet |
+| `ROADMAP.md` | 1 | The receipt-import bullet (the second bullet below it is an appended line) |
+| `server/src/lib/safeFetch.ts` | 1 | the `fetch` call passes `requestInit` (the credentials-stripped headers) instead of `init` |
 | `server/src/routes/ai.ts` | 5 | the parse prompt's 4th argument and the proposal filter; the recipes `SELECT` (adds `ingredients`) and the row mapping that keeps only its string lines; the `buildMealsPrompt` call passes `pantryItems` |
 | `client/src/components/app/MagicInput.tsx` | 3 | the `AiProposal` union carries `PantryProposal`; the card's title chain and its type label know that type |
 
@@ -356,6 +369,115 @@ was verified in a browser instead (see "Verification" below).
   not a directory).
 - `analytics.custom.json` exists for all six locales, but its `es`/`pt`/`ru`/`zh`
   files are English placeholders pending translation (required by `check-i18n`).
+- **`custom/0005-pantry-name-unique` can abort startup on a database that already
+  holds duplicate pantry rows.** `CREATE UNIQUE INDEX` raises 23505 if two
+  `source <> 'grocy'` rows share `(user_id, name_key)` — exactly the duplicates
+  the pre-0005 SELECT-then-INSERT path could create — and the runner rethrows, so
+  the process dies with no migration able to repair it (`0005` never records, so
+  nothing after it runs). The fork's own instance was empty at the time, which is
+  a property of that database, not of the migration. The id and SQL are frozen
+  (a rename re-runs the statements, an edit fails the checksum), and the
+  historical list in `db.ts` is closed by its own comment, so the remedy is a
+  one-shot, run before upgrading such an instance:
+
+  ```sql
+  -- 1. the surviving row (lowest id) takes the summed quantity
+  WITH folded AS (
+    SELECT user_id, name_key, min(id) AS keep_id, sum(quantity) AS total
+      FROM custom_pantry_items
+     WHERE source <> 'grocy'
+     GROUP BY user_id, name_key
+    HAVING count(*) > 1
+  )
+  UPDATE custom_pantry_items p
+     SET quantity = folded.total
+    FROM folded
+   WHERE p.id = folded.keep_id;
+
+  -- 2. and the duplicates go
+  WITH folded AS (
+    SELECT user_id, name_key, min(id) AS keep_id
+      FROM custom_pantry_items
+     WHERE source <> 'grocy'
+     GROUP BY user_id, name_key
+    HAVING count(*) > 1
+  )
+  DELETE FROM custom_pantry_items p
+   USING folded
+   WHERE p.user_id = folded.user_id
+     AND p.name_key = folded.name_key
+     AND p.source <> 'grocy'
+     AND p.id <> folded.keep_id;
+  ```
+- **The custom rate limiter keys on `req.ip` with `trust proxy = 1`, and one
+  instance is mounted on every custom router.** Behind the documented
+  `cloudflared → nginx → server` chain the recorded hop is nginx's, so every
+  client shares one 60-requests-per-minute budget across all eight custom mounts
+  (a busy tab can 429 the household); on the base `docker-compose.yml`, which
+  publishes `3001:3001` directly, a spoofed `X-Forwarded-For` bypasses it
+  instead. Which of the two applies is a deployment decision (hop count vs. not
+  publishing the port), so it is recorded here rather than patched blindly.
+- **The pantry merge invariant and the receipt-import fingerprint have no test.**
+  `mergeIntoPantry` (`custom/lib/pantryMerge.custom.ts`) and `receiptFingerprint`
+  depend on a live database and the recorded fingerprint row respectively; the
+  unit suites cover the pure halves (the fingerprint's normalization now has one,
+  `server/test/receipt.custom.test.ts`), and `scripts/smoke-api.sh` does not POST
+  a real receipt import. Treat a change to either as needing a manual run.
+
+## Review pass on `develop` (2026-10-11)
+
+A review of the branch's 39 commits (five read-only passes plus a measurement and
+a smoke run) produced the fixes below. Everything not fixed here is recorded in
+"Known gaps and inherited issues" above rather than left implicit.
+
+- **A queued receipt line could stock the pantry twice.** `POST
+  /api/pantry/pending/:id/confirm` read the row with a plain `SELECT`, merged, then
+  deleted: two overlapping confirms (a client retry, two tabs) both saw the row,
+  both merged the quantity, and the loser's `DELETE` removed 0 rows unnoticed.
+  It now claims the line with `DELETE … RETURNING` inside the same transaction —
+  the loser merges nothing and answers 404 (`routes/pantry.custom.ts`).
+- **Credentials crossed redirect hosts.** `safeFetch` reused the caller's headers
+  on every hop, so a compromised or MITM'd upstream could 302 the `Authorization`
+  / `X-API-Key` / `x-goog-api-key` header to a third party (the guard only blocks
+  internal/metadata targets). A hop that leaves the original hostname now drops
+  those four headers; a same-host hop — `http` → `https` included — keeps them.
+  Marker `safeFetch-credentials`.
+- **Lunchbox edits leaked constraints as 500s.** Moving a lunchbox onto a day the
+  same child already has now answers 409 `LUNCHBOX_DAY_TAKEN` (same helper as the
+  pantry), and every date the router takes — create, update, the week range of
+  the shopping-list and nutrition calls — is validated as a real calendar day, so
+  `2026-02-30` is a 400 instead of PostgreSQL 22008. `isCalendarDate` moved from
+  `lib/pantry.custom.ts` to `lib/validation.custom.ts` and is now shared by the
+  pantry, the lunchbox and the outing planner.
+- **Two client stale-response races.** `useDailyPromos` wrote its page/failure
+  state without honouring the effect's `cancelled` flag (its own `catch` did), so a
+  slow earlier filter could repaint the list; `PromoWatchlistPanel` filled one
+  shared pane from whichever request resolved last, so opening card A then B could
+  paint A's deals under B's header. Both now drop the stale answer.
+- **Unbounded in-process caches.** The PrijsProfeet page cache and the widget
+  caches key on client-supplied text and never evicted (a TTL does not bound a map
+  whose expired entries are only ever replaced by their exact key). Both now evict
+  the oldest entry past a fixed ceiling.
+- **Tests.** `server/test/receipt.custom.test.ts` gains the duplicate guard's
+  identity (one ticket, one fingerprint whatever the spelling), its distinctness
+  (another day/amount/shop) and its non-Latin behaviour (the `[a-z0-9]` stripping
+  that collapsed Cyrillic and CJK shop names is what migration `custom/0007`
+  exists for); `pantry.custom.test.ts` gains `isCalendarDate`. 100 tests pass.
+- **Ledger corrections.** The divergence figures are re-measured above; the
+  `client/src/pages/ShoppingList.tsx` and `server/src/lib/safeFetch.ts` rows were
+  missing from "Modifications to upstream files"; three per-file counts in
+  "Modified (non-additive) upstream lines" were wrong (`routes/auth.ts` 2 → 6,
+  `routes/userSettings.ts` 2 → 1, `ROADMAP.md` 2 → 1); the marker-less file list
+  is four files, not three (`.env.example` holds `#` comments — it uses the
+  `# --- Custom ---` section convention); `outings.custom.json` was missing from
+  the translations row; and the stale "the fork's only modified upstream line"
+  comment in `routes/auth.ts` now says what it actually wraps.
+
+Verification for the pass: `cd server && npm test` (100 pass, 0 fail),
+`npx tsc --noEmit` clean in `server/` and `client/`, and a throwaway script that
+put a same-host and a cross-host redirect in front of a recording server
+(same-host hop kept `Authorization`/`X-API-Key`, cross-host hop dropped both and
+kept an unrelated header) — the script was deleted after the run.
 
 ## Deployment
 

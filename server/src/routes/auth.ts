@@ -401,8 +401,9 @@ router.put('/profile', authMiddleware, async (req: AuthRequest, res) => {
             // An image already stored on the bucket is accepted as-is: the client
             // sends back the reference the media middleware gave it, not the bytes
             // again (see custom/lib/media.custom.ts). Only inline data-URL images
-            // go through the format and size checks below. This wraps two upstream
-            // lines (re-indented); it is the fork's only modified upstream line.
+            // go through the format and size checks below. This wraps six upstream
+            // lines (two comments and two three-line `if` blocks, re-indented);
+            // see FORK_CHANGES.md, "Modified (non-additive) upstream lines".
             if (!isMediaRef(avatar_url)) {
                 // FORK-END: media
                 // Accept only data-URL images and cap the size (~1.5 MB of base64).
