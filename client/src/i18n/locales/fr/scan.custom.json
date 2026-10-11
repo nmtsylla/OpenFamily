@@ -22,6 +22,7 @@
     "scanAgain": "Scanner un autre produit",
     "stop": "Arrêter la caméra",
     "start": "Démarrer la caméra",
+    "flipCamera": "Changer de caméra",
     "watchAdded": "Ajouté à la liste de promos",
     "noCamera": "Caméra indisponible",
     "noCameraHint": "Le navigateur a refusé l'accès à la caméra, ou il n'y en a pas. Saisissez le code-barres à la main."

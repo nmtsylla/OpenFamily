@@ -22,6 +22,7 @@
     "scanAgain": "Scan another",
     "stop": "Stop the camera",
     "start": "Start the camera",
+    "flipCamera": "Switch camera",
     "watchAdded": "Added to the promo watchlist",
     "noCamera": "No camera",
     "noCameraHint": "The browser refused camera access, or there is no camera here. Type the barcode instead."
