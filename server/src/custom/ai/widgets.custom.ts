@@ -526,6 +526,21 @@ interface ActivityCacheEntry {
 }
 const activityCache = new Map<string, ActivityCacheEntry>();
 
+/**
+ * Bounded insert. The activity key carries the client's own free-text
+ * exclusions, so an authenticated caller can mint a fresh key per request; a TTL
+ * alone bounds nothing when expired entries are only replaced by their exact key.
+ * Oldest-inserted first (Map preserves insertion order).
+ */
+const CACHE_MAX_ENTRIES = 200;
+const setBounded = <K, V>(cache: Map<K, V>, key: K, value: V): void => {
+    if (cache.size >= CACHE_MAX_ENTRIES && !cache.has(key)) {
+        const oldest = cache.keys().next().value;
+        if (oldest !== undefined) cache.delete(oldest);
+    }
+    cache.set(key, value);
+};
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -603,7 +618,7 @@ export const suggestClothingForKids = async (
             },
     );
 
-    clothingCache.set(key, {
+    setBounded(clothingCache, key, {
         at: Date.now(),
         template: suggestions.map(({ kidId: _kidId, ...rest }) => rest),
     });
@@ -686,7 +701,7 @@ export const suggestActivitiesForKids = async (
 
     activities.sort((a, b) => TIME_OF_DAY_ORDER[a.timeOfDay] - TIME_OF_DAY_ORDER[b.timeOfDay]);
 
-    activityCache.set(key, { at: Date.now(), activities });
+    setBounded(activityCache, key, { at: Date.now(), activities });
 
     return { activities, cached: false };
 };

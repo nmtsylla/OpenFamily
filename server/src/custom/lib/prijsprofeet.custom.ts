@@ -337,15 +337,22 @@ export const msUntilRefresh = (now = new Date()): number => {
     return boundary.getTime() - now.getTime();
 };
 
-// ponytail: one Map in one process, no eviction beyond the TTL — the deployment
-// is a single Node container, and a household walks a handful of pages a day. A
-// shared cache is only worth its table when the server is run replicated.
+// ponytail: one Map in one process, no shared cache until the server is run
+// replicated. The key carries the client's own search terms, so it is bounded by
+// entry count instead of relying on the TTL alone: an authenticated caller can
+// mint a fresh key per request, and entries the TTL has expired are only ever
+// replaced when that exact key comes back. Oldest-inserted first (Map order).
+const CACHE_MAX_ENTRIES = 500;
 const cache = new Map<string, { expiresAt: number; value: unknown }>();
 
 const cached = async <T>(key: string, ttlMs: number, load: () => Promise<T>): Promise<T> => {
     const hit = cache.get(key);
     if (hit && hit.expiresAt > Date.now()) return hit.value as T;
     const value = await load();
+    if (cache.size >= CACHE_MAX_ENTRIES) {
+        const oldest = cache.keys().next().value;
+        if (oldest !== undefined) cache.delete(oldest);
+    }
     cache.set(key, { expiresAt: Date.now() + ttlMs, value });
     return value;
 };
