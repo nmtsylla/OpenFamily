@@ -15,10 +15,17 @@
 
 import React, { Suspense } from 'react';
 import { Navigate, Route } from 'react-router-dom';
-import BudgetAnalytics from './pages/BudgetAnalytics.custom';
-import Lunchboxes from './pages/Lunchboxes.custom';
-import Pantry from './pages/Pantry.custom';
-import PromoWatchlist from './pages/PromoWatchlist.custom';
+
+// These four were the last custom pages still imported eagerly, and together
+// they were the main bundle's whole margin: with them in it the bundle sat 314
+// bytes under workbox's 2 MiB precache limit, which fails the PWA build outright
+// rather than warning. Their own chunks put the main bundle 86 kB clear of it
+// (measured 2,097,362 → 2,009,466 bytes). The service worker precaches every
+// chunk, so an installed app opens them offline like the rest.
+const BudgetAnalytics = React.lazy(() => import('./pages/BudgetAnalytics.custom'));
+const Lunchboxes = React.lazy(() => import('./pages/Lunchboxes.custom'));
+const Pantry = React.lazy(() => import('./pages/Pantry.custom'));
+const PromoWatchlist = React.lazy(() => import('./pages/PromoWatchlist.custom'));
 
 // The scanner carries @zxing/library, ~400 kB of decoder, and the whole app is
 // precached by the service worker: imported eagerly it pushes the main bundle
@@ -37,19 +44,43 @@ export const customRoutes = (isModuleEnabled: (key: string) => boolean): React.R
     <Route
         key="budget-analytics"
         path="/budget-analytics"
-        element={isModuleEnabled('budgetAnalytics') ? <BudgetAnalytics /> : <Navigate to="/" replace />}
+        element={
+            isModuleEnabled('budgetAnalytics') ? (
+                <Suspense fallback={null}>
+                    <BudgetAnalytics />
+                </Suspense>
+            ) : (
+                <Navigate to="/" replace />
+            )
+        }
     />,
     <Route
         key="lunchboxes"
         path="/lunchboxes"
-        element={isModuleEnabled('lunchbox') ? <Lunchboxes /> : <Navigate to="/" replace />}
+        element={
+            isModuleEnabled('lunchbox') ? (
+                <Suspense fallback={null}>
+                    <Lunchboxes />
+                </Suspense>
+            ) : (
+                <Navigate to="/" replace />
+            )
+        }
     />,
     // Flat href on purpose, like the two above: no upstream nav entry matches
     // /pantry, so nothing else stays highlighted while this page is open.
     <Route
         key="pantry"
         path="/pantry"
-        element={isModuleEnabled('pantry') ? <Pantry /> : <Navigate to="/" replace />}
+        element={
+            isModuleEnabled('pantry') ? (
+                <Suspense fallback={null}>
+                    <Pantry />
+                </Suspense>
+            ) : (
+                <Navigate to="/" replace />
+            )
+        }
     />,
     <Route
         key="scanner"
@@ -67,7 +98,15 @@ export const customRoutes = (isModuleEnabled: (key: string) => boolean): React.R
     <Route
         key="promo-watchlist"
         path="/promo-watchlist"
-        element={isModuleEnabled('productScan') ? <PromoWatchlist /> : <Navigate to="/" replace />}
+        element={
+            isModuleEnabled('productScan') ? (
+                <Suspense fallback={null}>
+                    <PromoWatchlist />
+                </Suspense>
+            ) : (
+                <Navigate to="/" replace />
+            )
+        }
     />,
     <Route
         key="family-dashboard"
