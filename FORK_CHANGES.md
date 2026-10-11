@@ -97,7 +97,8 @@ otherwise.
 | `server/src/index.ts` | `media` | Ensures the bucket exists at startup when storage is configured |
 | `server/src/lib/postFields.ts`, `server/src/lib/recipeImage.ts` | `media` | Keeps an `s3:` media reference intact instead of treating it as a data URL |
 | `server/src/routes/dataTransfer.ts` | `media` | Stores inline images on import and answers with JSON instead of rethrowing |
-| `server/src/routes/ai.ts` | `ai` | Adds the `extract-receipt` endpoint and the attachment type |
+| `server/src/routes/ai.ts` | `ai`, `pantry-ai` | Adds the `extract-receipt` endpoint and the attachment type; `pantry-ai` hands the household's stock to the two prompts (`loadPantryForAi`) and drops a pantry proposal the model returns while the pantry is switched off |
+| `server/src/services/ai/assistant.ts` | `pantry-ai` | Adds the `pantry_item` proposal (schema enum, parse-prompt section, validator case) and the pantry/ingredient halves of the meals prompt; imports `PANTRY_LOCATIONS` from `custom/lib/pantry.custom` so the validator and the table share one vocabulary |
 | `server/src/services/ai/index.ts` | `ai`, `ai-no-deliberation` | Adds the `AiAttachment` type and the `AI_UNSUPPORTED_MEDIA` code; appends one no-deliberation line to every completion's system prompt (a JSON-only call, and a reasoning model left alone spent most of its completion tokens thinking, see "Measured latency" below) |
 | `server/src/services/ai/{openai,anthropic,gemini,ollama}.ts` | `ai` | Sends attachments to each provider; OpenAI-compatible gateways that need a session |
 | `server/src/db.ts` | `db-config` | Database TLS and connect timeout from `CUSTOM_POSTGRES_*` |
@@ -108,7 +109,7 @@ otherwise.
 | `client/src/pages/Budget.tsx` | `budget-custom` | Mounts the receipt import button and the imported-receipts section |
 | `client/src/pages/Planning.tsx` | `outings` | Renders the custom outing planner below the week grid (one import + one element, both marker-wrapped); the outcome is added through the page's own `/api/planning` endpoint |
 | `client/src/contexts/AuthContext.tsx` | `weather, pantry` | The `DASHBOARD_WIDGETS` line carries the fork's widget keys (weather, activities, pantry); one marker pair wraps that modified line itself, so an upstream change to it is re-applied from here |
-| `client/src/components/app/MagicInput.tsx` | `budget-custom` | Adds the `AI_UNSUPPORTED_MEDIA` error code |
+| `client/src/components/app/MagicInput.tsx` | `budget-custom`, `pantry-ai` | Adds the `AI_UNSUPPORTED_MEDIA` error code; `pantry-ai` renders the pantry proposal (own icon and label, quantity and shelf) and confirms it through `POST /api/pantry/upsert` |
 | `client/src/demo/mockApi.ts` | `budget-custom`, `demo-prefs`, `lunchbox`, `pantry`, `outings` | Demo handlers for receipts, receipt extraction, analytics, lunchboxes and the pantry (seeded rows, the shopping-list bridge, the receipt import — which splits its lines exactly like the server: obvious products merged, the rest queued — the review queue with its `confirm`/`ignore` calls, and the two answers the page reacts to: `DUPLICATE_NAME`, `NO_GROCY_INTEGRATION`); plus the two object-shaped endpoints upstream's demo never answers (`dashboard-prefs`, `posts/latest`), whose `ok([])` catch-all crashed the demo's default route. The `demo-prefs` block's default widget order also carries `pantry`; the `outings` block answers the planner with a fixed set (a demo has no OpenStreetMap and no model) |
 | `client/nginx.conf` | `media` | Dedicated `location ^~ /api/media/` block (upstream's `location /api/` line untouched) |
 | `scripts/smoke-api.sh` | `budget-custom`, `lunchbox` | Smoke calls for the custom endpoints |
@@ -120,10 +121,11 @@ otherwise.
 
 ### Modified (non-additive) upstream lines — the complete list
 
-Only 23 lines in 13 files, all wrapped in markers:
+Only 33 lines in 16 files, all wrapped in markers:
 
 | File | Lines | What |
 |------|-------|------|
+| `server/src/services/ai/assistant.ts` | 2 | the parse schema's `type` enum carries `pantry_item`; the meals recipe line gains its ingredient suffix when the pantry is on |
 | `server/src/services/ai/index.ts` | 4 | the four provider calls in `aiCompleteWithUsage` pass the request with the no-deliberation line appended |
 | `server/src/routes/auth.ts` | 2 re-indented | The avatar data-URL format/size checks are skipped for an `s3:` reference (wrapped in `if (!isMediaRef(...))`) |
 | `server/src/services/ai/openai.ts` | 2 | `chatCompletionUrl(baseUrl)`, `messageContent(request)` |
@@ -135,6 +137,8 @@ Only 23 lines in 13 files, all wrapped in markers:
 | `client/src/contexts/AuthContext.tsx` | 1 | `DASHBOARD_WIDGETS` lists the custom widget keys (weather, activities, pantry) |
 | `README.md`, `README.fr.md`, `README.zh-CN.md` | 1 each | Feature row appended to the budget line |
 | `ROADMAP.md` | 2 | The receipt-import bullet |
+| `server/src/routes/ai.ts` | 5 | the parse prompt's 4th argument and the proposal filter; the recipes `SELECT` (adds `ingredients`) and the row mapping that keeps only its string lines; the `buildMealsPrompt` call passes `pantryItems` |
+| `client/src/components/app/MagicInput.tsx` | 3 | the `AiProposal` union carries `PantryProposal`; the card's title chain and its type label know that type |
 
 ## Measured latency of the AI dashboard widgets
 
@@ -280,15 +284,22 @@ upstream locale file:
 - `dashboard.custom`, `budget.custom`, `ai.custom` (six locales; `dashboard.custom`
   also carries the family dashboard's keys, and its `ru`/`zh` files are copies of
   the English strings, same placeholder rule as `analytics.custom`)
-- `lunchbox.custom`, `pantry.custom` (six locales)
+- `lunchbox.custom`, `pantry.custom` (six locales). `pantry.custom` also carries
+  the magic-input label of a pantry proposal (`magic.types.pantry_item`): the
+  card's label is read from the feature's own namespace rather than from a key
+  added to upstream's `ai.json`, which this fork does not touch.
 - `outings.custom` (six locales)
 - `scan.custom` (six locales; `es`, `pt`, `ru`, `zh` are copies of the English
   strings, same placeholder rule as `analytics.custom`)
 
 ## Tests
 
-`server/test/{weather,aiProvider,budgetAnalytics,aiPrompt,lunchbox,pantry,receipt,outings,productScan,homeAssistantDevices}.custom.test.ts` — matched by the
-server's `tsx --test test/*.test.ts`. `aiPrompt` covers the activities user prompt
+`server/test/{weather,aiProvider,budgetAnalytics,aiPrompt,lunchbox,pantry,receipt,outings,productScan,homeAssistantDevices,aiPantry}.custom.test.ts` — matched by the
+server's `tsx --test test/*.test.ts`. `aiPantry` covers the pantry
+half of the two AI prompts: the three states of the stock argument (`null` off,
+`[]` on and empty, values), the `pantry_item` validator (quantity 0 kept,
+unusable quantity → 0, unknown shelf/category → the defaults) and the recipes'
+ingredient lines, which are only sent when something can be matched against them. `aiPrompt` covers the activities user prompt
 and the cache-key digest it shares a normalizer with: what the family wrote on a
 child's card has to reach the model, and two children with different notes must
 never share a cached idea list. `pantry` covers the merge key (accents, case,
@@ -1075,3 +1086,70 @@ What was exercised, on a throwaway Postgres 16 and a stub Home Assistant:
   / media_player with no banner at any moment), `lock.turn_on` answers
   `400 homeassistant.service_rejected` instead of 502, and the Security card's lock
   dot goes amber on `unlocked` while a closed window stays green.
+
+### The two AI surfaces read the pantry (2026-10-11)
+
+The magic input now knows what is at home, and the meal suggester prefers what is
+already there. Three files of upstream's AI layer carry the change, all under
+`FORK-START/END: pantry-ai` (see the tables above); the write path is a new route
+in the fork's own pantry router.
+
+- **One new endpoint, set semantics.** `POST /api/pantry/upsert` merges one item
+  by folded name like `POST /api/pantry/stock`, with the opposite rule: the
+  quantity is SET, not added up. The AI's note names a total ("j'ai acheté 2 kg de
+  riz" after 1 kg at home is 3 kg, "on a fini le lait" is 0), which is why the
+  assistant cannot reuse the merge path the shopping-list and receipt bridges use.
+  Same partial unique index as those (`(user_id, name_key) WHERE source <> 'grocy'`):
+  a Grocy row is out of its reach and a hand-typed 'Riz' becomes its own row.
+  Quantity 0 keeps the row — the pantry page is where an empty shelf is read.
+- **`null` vs `[]` is the whole switch.** Both prompt builders take the stock as a
+  fourth argument: `null` means the feature is off and the prompt is byte for byte
+  the one upstream built; an empty array means "switched on, nothing at home",
+  which is a different statement and the one "j'ai acheté du riz" has to land in.
+  A single boolean would have conflated them.
+- **The route, not the validator, enforces the flag.** With the pantry off,
+  `loadPantryForAi` answers `null`, the prompt loses its pantry half, and the
+  parse route drops any `pantry_item` the model returns anyway (the JSON schema's
+  enum is a module constant and always lists the type). Without that filter the
+  client would render a proposal whose endpoint is not mounted.
+- **Recipes carry their ingredients only when they can be matched.** The
+  suggest-meals route always selects `ingredients` (same row it already reads),
+  but the prompt only appends them when the pantry is on. The JSONB column is
+  normalised to strings on read: a hand-typed recipe stores lines, and an old
+  Tandoor/Mealie import had left objects behind (`core/0006-recipe-text-lines`).
+- **The client label lives in the fork's namespace.** The card reads
+  `pantry.custom:magic.types.pantry_item` instead of a `types.pantry_item` key in
+  upstream's `ai.json` — no upstream locale file is touched. The shelf is shown
+  only when it is not `pantry` (the default), which would otherwise repeat the
+  label's own word.
+- **Confirmed, not inferred.** The family confirms the proposal before it lands:
+  the values written are the ones the card showed.
+
+What was exercised, on a throwaway Postgres 16 and an Ollama-shaped stub that
+records every prompt it is asked to complete (no model involved):
+
+- `npm test` (server): **96/96**, the 7 new ones in `aiPantry.custom.test.ts`.
+  `tsc` clean on the server and the client; `check:i18n` passes for the 6
+  languages; `scripts/smoke-api.sh` green end to end against the same instance.
+- Through the HTTP layer, with the pantry on: the parse call's system prompt
+  carried `- Riz : 1 kg` and the pantry type line, and the stub's `pantry_item`
+  answer came back validated (`quantity` 2 → 3 kept, unit, category, shelf); the
+  upsert of that same proposal hit the existing row (`id` unchanged) and left the
+  quantity at 3 — not 4, so the merge is a SET, not an addition — and a
+  `source='grocy'` row of the same folded name kept its own 7 kg while a manual
+  row was created beside it; `quantity: 0` stored 0 and kept the row; the
+  suggest-meals prompt listed the stock and each recipe's ingredients, with the
+  0-quantity row left out.
+- Through the HTTP layer, with `CUSTOM_FEATURE_PANTRY_ENABLED=false`: the parse
+  prompt lost both the pantry list and the pantry type, a pantry proposal the stub
+  still returned was dropped, the meals prompt mentioned neither the stock nor the
+  ingredients, and `POST /api/pantry/upsert` answered 404.
+- In Chromium, against the running client on the dev server (French UI, real
+  login): "J'ai acheté 2 kg de riz et il faut du café" rendered a `Riz` card
+  labelled "Garde-manger · 3 kg" and a `Café` card, the confirm toast read
+  "2 élément(s) ajouté(s)", and the pantry page then showed `Riz — Qté 3 kg`;
+  "On a fini le lait" rendered "Garde-manger · Réfrigérateur · 0 L" and the pantry
+  page showed `Lait — Qté 0 L` in the fridge; "Proposer un menu ✨" on
+  `/meal-planning` returned a suggestion and the prompt it sent carried
+  `Garde-manger (ce que la famille a chez elle) : - Riz : 3 kg` and each recipe's
+  ingredients.

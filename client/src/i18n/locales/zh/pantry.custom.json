@@ -5,6 +5,11 @@
   },
   "title": "食品储藏",
   "subtitle": "家里有什么、什么快没了、什么该尽快用完 —— 与购物清单、小票和 Grocy 相连。",
+  "magic": {
+    "types": {
+      "pantry_item": "食品储藏"
+    }
+  },
   "tabs": {
     "all": "全部",
     "lowStock": "库存不足",
@@ -12,7 +17,8 @@
     "cook": "做饭"
   },
   "filters": {
-    "days": "{{days}} 天内到期"
+    "days": "{{days}} 天内到期",
+    "search": "按名称或分类搜索…"
   },
   "locations": {
     "pantry": "储物柜",
@@ -46,6 +52,7 @@
   },
   "list": {
     "empty": "这里还没有任何东西。",
+    "noMatch": "没有符合搜索的食品。",
     "quantity": "数量",
     "expiresToday": "今天到期",
     "expiresIn": "{{days}} 天后到期",

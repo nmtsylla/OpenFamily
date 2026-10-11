@@ -5,6 +5,11 @@
   },
   "title": "Pantry",
   "subtitle": "What you have at home, what is running low and what to use up — shared with the shopping list, your receipts and Grocy.",
+  "magic": {
+    "types": {
+      "pantry_item": "Pantry"
+    }
+  },
   "tabs": {
     "all": "All",
     "lowStock": "Low stock",
@@ -12,7 +17,8 @@
     "cook": "Cook"
   },
   "filters": {
-    "days": "Expiring within {{days}} days"
+    "days": "Expiring within {{days}} days",
+    "search": "Search by name or category…"
   },
   "locations": {
     "pantry": "Pantry",
@@ -46,6 +52,7 @@
   },
   "list": {
     "empty": "Nothing here yet.",
+    "noMatch": "No product matches your search.",
     "quantity": "Qty",
     "expiresToday": "Expires today",
     "expiresIn": "in {{days}} d",

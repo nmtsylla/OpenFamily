@@ -10,6 +10,9 @@ import {
     AlertCircle,
     MapPin,
     Users,
+    // FORK-START: pantry-ai
+    Package,
+    // FORK-END: pantry-ai
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { api } from '../../lib/api';
@@ -55,7 +58,22 @@ interface BudgetProposal {
     date: string;
     is_expense: boolean;
 }
-export type AiProposal = TaskProposal | AppointmentProposal | ShoppingProposal | BudgetProposal;
+// FORK-START: pantry-ai
+/**
+ * The pantry proposal is the one that WRITES stock instead of adding to a list:
+ * `quantity` is the household's new total (0 = nothing left), which is why the
+ * server answers it with /api/pantry/upsert and not with the shopping list.
+ */
+interface PantryProposal {
+    type: 'pantry_item';
+    name: string;
+    quantity: number;
+    unit: string | null;
+    category: string;
+    location: string;
+}
+export type AiProposal = TaskProposal | AppointmentProposal | ShoppingProposal | BudgetProposal | PantryProposal;
+// FORK-END: pantry-ai
 
 const AI_ERROR_CODES = [
     'AI_NOT_CONFIGURED',
@@ -82,6 +100,9 @@ const TYPE_META = {
     appointment: { icon: CalendarIcon, color: 'text-blue-600 dark:text-blue-400' },
     shopping_item: { icon: ShoppingCart, color: 'text-emerald-600 dark:text-emerald-400' },
     budget_entry: { icon: Euro, color: 'text-amber-600 dark:text-amber-400' },
+    // FORK-START: pantry-ai
+    pantry_item: { icon: Package, color: 'text-orange-600 dark:text-orange-400' },
+    // FORK-END: pantry-ai
 } as const;
 
 const postProposal = async (proposal: AiProposal): Promise<void> => {
@@ -123,6 +144,19 @@ const postProposal = async (proposal: AiProposal): Promise<void> => {
                 is_expense: proposal.is_expense,
             });
             return;
+        // FORK-START: pantry-ai
+        // quantity travels even when it is 0: that is the whole point of "on a
+        // fini le lait", and a fridge check would drop it.
+        case 'pantry_item':
+            await api.post('/api/pantry/upsert', {
+                name: proposal.name,
+                quantity: proposal.quantity,
+                ...(proposal.unit ? { unit: proposal.unit } : {}),
+                category: proposal.category,
+                location: proposal.location,
+            });
+            return;
+        // FORK-END: pantry-ai
     }
 };
 
@@ -149,6 +183,15 @@ const ProposalCard: React.FC<{
     } else if (proposal.type === 'shopping_item') {
         details.push(t(`shopping:categories.${proposal.category}`, { defaultValue: proposal.category }));
         if (proposal.quantity) details.push(`×${proposal.quantity}${proposal.unit ? ` ${proposal.unit}` : ''}`);
+    // FORK-START: pantry-ai
+    } else if (proposal.type === 'pantry_item') {
+        // Where it is kept matters when it is not the default shelf; the default
+        // itself is already the first word of the line, so it is left out.
+        if (proposal.location !== 'pantry') {
+            details.push(t(`pantry.custom:locations.${proposal.location}`, { defaultValue: proposal.location }));
+        }
+        details.push(proposal.unit ? `${proposal.quantity} ${proposal.unit}` : `${proposal.quantity}`);
+    // FORK-END: pantry-ai
     } else {
         details.push(proposal.category);
         details.push(
@@ -158,11 +201,13 @@ const ProposalCard: React.FC<{
     }
 
     const title =
-        proposal.type === 'shopping_item'
+        // FORK-START: pantry-ai
+        proposal.type === 'shopping_item' || proposal.type === 'pantry_item'
             ? proposal.name
             : proposal.type === 'budget_entry'
                 ? proposal.description || proposal.category
                 : proposal.title;
+        // FORK-END: pantry-ai
 
     const memberNames =
         proposal.type === 'task' || proposal.type === 'appointment' ? proposal.member_names : [];
@@ -179,7 +224,11 @@ const ProposalCard: React.FC<{
             <span className="min-w-0 flex-1">
                 <span className="block text-caption font-medium text-foreground">{title}</span>
                 <span className="mt-0.5 block text-micro text-muted-foreground">
-                    {t(`ai:magic.types.${proposal.type}`)}
+                    {/* FORK-START: pantry-ai */}
+                    {proposal.type === 'pantry_item'
+                        ? t('pantry.custom:magic.types.pantry_item')
+                        : t(`ai:magic.types.${proposal.type}`)}
+                    {/* FORK-END: pantry-ai */}
                     {details.length > 0 && ` · ${details.join(' · ')}`}
                 </span>
                 {memberNames.length > 0 && (

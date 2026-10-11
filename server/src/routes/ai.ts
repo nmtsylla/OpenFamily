@@ -35,6 +35,9 @@ import {
     validateReceipt,
 } from '../custom/ai/receipt.custom';
 // FORK-END: ai
+// FORK-START: pantry-ai
+import { isCustomFeatureEnabled } from '../custom/features.custom';
+// FORK-END: pantry-ai
 import { getFamilyCategories } from './categories';
 import logger from '../lib/logger';
 
@@ -86,6 +89,35 @@ const handleAiError = (res: Response, error: unknown, context: string) => {
     });
     return res.status(500).json({ success: false, error: 'Internal server error' });
 };
+
+// FORK-START: pantry-ai
+/** One line of what the household has at home, the shape both prompts take. */
+type AiPantryLine = { name: string; quantity: number; unit: string | null };
+
+/**
+ * The stock the two AI surfaces may read: `null` when the fork's pantry is
+ * switched off — the prompts then stay exactly what upstream built, and the
+ * catch that follows keeps the model from proposing a pantry_item whose write
+ * path is not even mounted. Empty rows (quantity 0) are left out: "on a fini le
+ * lait" must not be answered with a list of things that are already gone.
+ */
+const loadPantryForAi = async (userId: string): Promise<AiPantryLine[] | null> => {
+    if (!isCustomFeatureEnabled('pantry')) return null;
+
+    const result = await query(
+        `SELECT name, quantity, unit FROM custom_pantry_items
+         WHERE user_id = $1 AND quantity > 0
+         ORDER BY name
+         LIMIT 200`,
+        [userId]
+    );
+    return (result.rows as Array<{ name: string; quantity: unknown; unit: string | null }>).map((row) => ({
+        name: row.name,
+        quantity: Number(row.quantity),
+        unit: row.unit,
+    }));
+};
+// FORK-END: pantry-ai
 
 // GET /api/ai/settings — visible to every family member; the key NEVER leaves the server.
 router.get('/settings', async (req: AuthRequest, res) => {
@@ -283,14 +315,25 @@ router.post('/parse', async (req: AuthRequest, res) => {
         const members = membersResult.rows as FamilyMemberRef[];
         // Offer the family's own (possibly customized) category lists to the model.
         const familyCategories = await getFamilyCategories(req.userId!);
+        // FORK-START: pantry-ai
+        const pantryItems = await loadPantryForAi(req.userId!);
+        // FORK-END: pantry-ai
 
         const raw = await aiComplete(settings, {
-            system: buildParsePrompt(members, familyCategories.shopping, familyCategories.budget),
+            // FORK-START: pantry-ai
+            system: buildParsePrompt(members, familyCategories.shopping, familyCategories.budget, pantryItems),
+            // FORK-END: pantry-ai
             user: text.slice(0, 2000),
             jsonSchema: PARSE_SCHEMA,
         });
 
-        const items = validateParsedItems(raw, members, familyCategories.shopping, familyCategories.budget);
+        // FORK-START: pantry-ai
+        // With the pantry switched off, nothing may come back as a pantry_item:
+        // the model could still pick the type (the schema always lists it), and
+        // the client would then fail to confirm a proposal it can render.
+        const items = validateParsedItems(raw, members, familyCategories.shopping, familyCategories.budget)
+            .filter((item) => pantryItems !== null || item.type !== 'pantry_item');
+        // FORK-END: pantry-ai
         res.json({ success: true, data: { items } });
     } catch (error) {
         handleAiError(res, error, 'parse');
@@ -310,10 +353,24 @@ router.post('/suggest-meals', async (req: AuthRequest, res) => {
         }
 
         const recipesResult = await query(
-            'SELECT id, name, category FROM recipes WHERE user_id = $1 ORDER BY name',
+            // FORK-START: pantry-ai
+            'SELECT id, name, category, ingredients FROM recipes WHERE user_id = $1 ORDER BY name',
+            // FORK-END: pantry-ai
             [req.userId]
         );
-        const recipes = recipesResult.rows as RecipeRef[];
+        // FORK-START: pantry-ai
+        // `ingredients` is JSONB: a hand-typed recipe stores lines as strings, and
+        // an old import may have left objects behind (see the core/0006
+        // migration). Only the strings are worth showing the model.
+        const recipes: RecipeRef[] = (recipesResult.rows as Array<RecipeRef & { ingredients?: unknown }>).map((row) => ({
+            id: row.id,
+            name: row.name,
+            category: row.category,
+            ingredients: Array.isArray(row.ingredients)
+                ? row.ingredients.filter((line): line is string => typeof line === 'string')
+                : [],
+        }));
+        // FORK-END: pantry-ai
         if (recipes.length < 5) {
             return res.status(422).json({ success: false, error: 'AI_NOT_ENOUGH_RECIPES' });
         }
@@ -363,7 +420,15 @@ router.post('/suggest-meals', async (req: AuthRequest, res) => {
         );
         const recentRecipeIds = recentResult.rows.map((r: any) => r.recipe_id as string);
 
-        const { system, user } = buildMealsPrompt({ recipes, missingDates, plannedDinners, recentRecipeIds });
+        const { system, user } = buildMealsPrompt({
+            recipes,
+            missingDates,
+            plannedDinners,
+            recentRecipeIds,
+            // FORK-START: pantry-ai
+            pantryItems: await loadPantryForAi(req.userId!),
+            // FORK-END: pantry-ai
+        });
         const raw = await aiComplete(settings, { system, user, jsonSchema: MEALS_SCHEMA });
 
         const proposals = validateMealProposals(raw, missingDates, recipes);

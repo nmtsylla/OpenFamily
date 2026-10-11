@@ -5,6 +5,11 @@
   },
   "title": "Despensa",
   "subtitle": "Lo que tienes en casa, lo que falta y lo que hay que gastar — conectado con la lista de la compra, tus tickets y Grocy.",
+  "magic": {
+    "types": {
+      "pantry_item": "Despensa"
+    }
+  },
   "tabs": {
     "all": "Todo",
     "lowStock": "Stock bajo",
@@ -12,7 +17,8 @@
     "cook": "Cocinar"
   },
   "filters": {
-    "days": "Caduca en {{days}} días"
+    "days": "Caduca en {{days}} días",
+    "search": "Buscar por nombre o categoría…"
   },
   "locations": {
     "pantry": "Despensa",
@@ -46,6 +52,7 @@
   },
   "list": {
     "empty": "Aquí todavía no hay nada.",
+    "noMatch": "Ningún producto coincide con tu búsqueda.",
     "quantity": "Cant.",
     "expiresToday": "Caduca hoy",
     "expiresIn": "en {{days}} d",

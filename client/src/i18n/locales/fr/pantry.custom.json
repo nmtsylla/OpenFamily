@@ -5,6 +5,11 @@
   },
   "title": "Garde-manger",
   "subtitle": "Ce que vous avez à la maison, ce qui manque et ce qu'il faut finir — relié à la liste de courses, à vos tickets et à Grocy.",
+  "magic": {
+    "types": {
+      "pantry_item": "Garde-manger"
+    }
+  },
   "tabs": {
     "all": "Tout",
     "lowStock": "Stock bas",
@@ -12,7 +17,8 @@
     "cook": "Cuisiner"
   },
   "filters": {
-    "days": "Périme dans les {{days}} jours"
+    "days": "Périme dans les {{days}} jours",
+    "search": "Rechercher par nom ou catégorie…"
   },
   "locations": {
     "pantry": "Garde-manger",
@@ -46,6 +52,7 @@
   },
   "list": {
     "empty": "Rien ici pour l'instant.",
+    "noMatch": "Aucun produit ne correspond à votre recherche.",
     "quantity": "Qté",
     "expiresToday": "Périme aujourd'hui",
     "expiresIn": "dans {{days}} j",

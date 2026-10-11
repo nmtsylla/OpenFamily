@@ -175,6 +175,62 @@ router.post('/', async (req: AuthRequest, res) => {
     }
 });
 
+// POST /api/pantry/upsert — one item, merged by folded name with the quantity
+// SET, not added up. Same body as POST /api/pantry. This is the write path of
+// the AI assistant, whose note names a TOTAL ("j'ai acheté 2 kg de riz" after
+// 1 kg at home is 3 kg, "on a fini le lait" is 0) — and the family confirms the
+// proposal before it lands, so the values are theirs, not the model's guess.
+//
+// The conflict target is the index mergeIntoPantry uses, with the opposite rule:
+// an existing row is overwritten instead of incremented. A Grocy row is out of
+// reach on purpose — the sync owns those, and a hand-typed 'Riz' must never be
+// folded into them.
+router.post('/upsert', async (req: AuthRequest, res) => {
+    try {
+        const input = sanitizePantryItem(req.body);
+        if (!input) {
+            return res.status(400).json({ success: false, error: 'INVALID_ITEM' });
+        }
+
+        const result = await query(
+            `INSERT INTO custom_pantry_items
+                (user_id, name, name_key, category, quantity, unit, location, expires_on, low_stock_threshold, lunchbox_bucket, notes, source)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'manual')
+             ON CONFLICT (user_id, name_key) WHERE source <> 'grocy'
+             DO UPDATE SET
+                quantity = EXCLUDED.quantity,
+                unit = COALESCE(EXCLUDED.unit, custom_pantry_items.unit),
+                category = EXCLUDED.category,
+                location = EXCLUDED.location,
+                updated_at = CURRENT_TIMESTAMP
+             RETURNING *`,
+            [
+                req.userId,
+                input.name,
+                pantryNameKey(input.name),
+                input.category,
+                input.quantity,
+                input.unit,
+                input.location,
+                input.expires_on,
+                input.low_stock_threshold,
+                input.lunchbox_bucket,
+                input.notes,
+            ],
+        );
+
+        // Same entity as the shopping list (see POST /): the pantry page
+        // refreshes on the 'shopping' broadcast, not on a pantry one.
+        broadcast(req.userId!, { type: 'update', entity: 'shopping', action: 'updated' });
+        res.json({ success: true, data: { item: toItem(result.rows[0] as PantryRow) } });
+    } catch (error) {
+        logger.error('pantry.upsert_failed', {
+            error: error instanceof Error ? error.message : String(error),
+        });
+        res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+});
+
 // PUT /api/pantry/:id — the client sends the full item back.
 router.put('/:id', async (req: AuthRequest, res) => {
     try {

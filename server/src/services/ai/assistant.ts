@@ -7,6 +7,13 @@
 //  - every property is required; "not applicable" is conveyed with '' / [] / 0 so
 //    the same schema behaves identically on Ollama, OpenAI-compatible and Anthropic.
 
+// FORK-START: pantry-ai
+// The pantry's own vocabulary, from the module that owns it: the validator below
+// must reject a location the table would not accept, and a second copy of this
+// list here would silently rot the day that one grows.
+import { PANTRY_LOCATIONS } from '../../custom/lib/pantry.custom';
+// FORK-END: pantry-ai
+
 export const TASK_PRIORITIES = ['Haute', 'Moyenne', 'Basse'] as const;
 export const TASK_FREQUENCIES = ['Une fois', 'Quotidien', 'Hebdomadaire', 'Mensuel', 'Annuel'] as const;
 export const SHOPPING_CATEGORIES = ['Alimentation', 'Bebe', 'Menage', 'Sante', 'Autre'] as const;
@@ -39,7 +46,9 @@ export const PARSE_SCHEMA: Record<string, unknown> = {
                     'quantity', 'unit', 'category', 'amount', 'is_expense',
                 ],
                 properties: {
-                    type: { type: 'string', enum: ['task', 'appointment', 'shopping_item', 'budget_entry'] },
+                    // FORK-START: pantry-ai
+                    type: { type: 'string', enum: ['task', 'appointment', 'shopping_item', 'pantry_item', 'budget_entry'] },
+                    // FORK-END: pantry-ai
                     title: { type: 'string' },
                     description: { type: 'string' },
                     date: { type: 'string' },
@@ -79,11 +88,35 @@ export function buildParsePrompt(
     // THEIR categories, not the defaults.
     shoppingCategories: readonly string[] = SHOPPING_CATEGORIES,
     budgetCategories: readonly string[] = BUDGET_CATEGORIES,
+    // FORK-START: pantry-ai
+    // What the household has at home, when the fork's pantry is switched on.
+    // `null` means the feature is off, and the prompt is then byte for byte the
+    // one this function built before the fork existed. An empty ARRAY is a
+    // pantry that is switched on and empty — a different statement, and the one
+    // "j'ai acheté du riz" has to land in.
+    pantryItems: Array<{ name: string; quantity: number; unit: string | null }> | null = null,
+    // FORK-END: pantry-ai
 ): string {
     const { iso, weekday } = localToday();
     const memberList = members.length > 0
         ? members.map((m) => `- ${m.name}`).join('\n')
         : '(aucun membre enregistré)';
+
+    // FORK-START: pantry-ai
+    const pantryType = pantryItems === null ? [] : [
+        `- "pantry_item" : article que la famille a DÉJÀ chez elle (à stocker, pas à acheter). title = nom du produit. quantity = quantité TOTALE après la note (additionne ce qu'elle a déjà si la liste ci-dessous en contient ; 0 = il n'y en a plus). unit = unité ("kg", "L", "pièce"…) ou "". category parmi ${shoppingCategories.join('/')}. location parmi pantry (placard), fridge (réfrigérateur), freezer (congélateur), cellar (cave), other.`,
+    ];
+    const pantryRules = pantryItems === null ? [] : [
+        `- "pantry_item" = ce que la famille possède déjà ; "shopping_item" = ce qu'il reste à acheter. "j'ai acheté 2 kg de riz" = pantry_item (la quantité donnée est le nouveau total), pas shopping_item.`,
+    ];
+    const pantryStock = pantryItems === null ? [] : [
+        ``,
+        `Garde-manger actuel (ce que la famille a chez elle) :`,
+        pantryItems.length > 0
+            ? pantryItems.map((item) => `- ${item.name} : ${item.quantity}${item.unit ? ` ${item.unit}` : ''}`).join('\n')
+            : '(vide)',
+    ];
+    // FORK-END: pantry-ai
 
     return [
         `Tu es l'assistant d'une application d'organisation familiale. L'utilisateur écrit une note en langage naturel (français ou anglais). Extrais-en un ou plusieurs éléments actionnables.`,
@@ -97,11 +130,20 @@ export function buildParsePrompt(
         `- "task" : tâche/corvée/rappel. title = intitulé. date = échéance "YYYY-MM-DD" ou "". priority parmi ${TASK_PRIORITIES.join('/')} ou "". frequency parmi ${TASK_FREQUENCIES.join('/')} ou "". member_names = personnes assignées.`,
         `- "appointment" : rendez-vous/événement à une heure précise. start_time = "YYYY-MM-DDTHH:mm:ss" (heure locale, obligatoire), end_time pareil ou "". location = lieu ou "". member_names = personnes concernées.`,
         `- "shopping_item" : article à acheter. title = nom de l'article. category parmi ${shoppingCategories.join('/')}. quantity = nombre (0 si inconnu), unit = unité ("kg", "L"…) ou "".`,
+        // FORK-START: pantry-ai
+        ...pantryType,
+        // FORK-END: pantry-ai
         `- "budget_entry" : dépense ou revenu. title = libellé. amount = montant (nombre > 0). is_expense = true pour une dépense, false pour un revenu. category parmi ${budgetCategories.join('/')}. date = "YYYY-MM-DD" ("" = aujourd'hui).`,
+        // FORK-START: pantry-ai
+        ...pantryStock,
+        // FORK-END: pantry-ai
         ``,
         `Règles :`,
         `- Chaque champ non pertinent vaut "" (chaîne vide), 0 (nombre) ou [] (liste). is_expense vaut true par défaut.`,
         `- "lasagnes jeudi soir" dans un contexte de repas/courses = shopping_item ou task de cuisine, pas un rendez-vous, sauf mention d'un horaire précis.`,
+        // FORK-START: pantry-ai
+        ...pantryRules,
+        // FORK-END: pantry-ai
         `- Un dîner/repas planifié avec un horaire = appointment.`,
         `- N'invente rien : pas de date si la note n'en donne pas, pas de membre non listé.`,
         `- Réponds UNIQUEMENT avec un objet JSON de la forme {"items":[...]} respectant exactement les champs ci-dessus, sans texte autour.`,
@@ -154,6 +196,16 @@ export type ParsedProposal =
         quantity: number | null;
         unit: string | null;
     }
+    // FORK-START: pantry-ai
+    | {
+        type: 'pantry_item';
+        name: string;
+        quantity: number;
+        unit: string | null;
+        category: string;
+        location: string;
+    }
+    // FORK-END: pantry-ai
     | {
         type: 'budget_entry';
         category: string;
@@ -276,6 +328,28 @@ export function validateParsedItems(
                 });
                 break;
             }
+            // FORK-START: pantry-ai
+            case 'pantry_item': {
+                const category = cleanString(item.category, 30);
+                const location = cleanString(item.location, 20);
+                proposals.push({
+                    type: 'pantry_item',
+                    name: title,
+                    // Unlike a shopping item, 0 is a real quantity here: it is how
+                    // "on a fini le lait" says the shelf is empty. A negative or
+                    // unparseable number reads as 0 rather than dropping the item,
+                    // because the family is told the shelf is empty and can correct
+                    // the row on the pantry page.
+                    quantity: cleanPositiveNumber(item.quantity, 9999) ?? 0,
+                    unit: cleanString(item.unit, 20) || null,
+                    category: shoppingCategories.includes(category)
+                        ? category
+                        : (shoppingCategories.includes('Autre') ? 'Autre' : shoppingCategories[0]),
+                    location: (PANTRY_LOCATIONS as readonly string[]).includes(location) ? location : 'pantry',
+                });
+                break;
+            }
+            // FORK-END: pantry-ai
             case 'budget_entry': {
                 const amount = cleanPositiveNumber(item.amount, 1_000_000);
                 if (amount === null) continue; // amount is mandatory for budget entries
@@ -326,6 +400,12 @@ export interface RecipeRef {
     id: string;
     name: string;
     category: string | null;
+    // FORK-START: pantry-ai
+    // The recipe's printed ingredient lines, loaded by the suggest-meals route
+    // when the fork's pantry is on. They are what lets the model match a recipe
+    // against the family's stock instead of guessing from the recipe name.
+    ingredients?: string[];
+    // FORK-END: pantry-ai
 }
 
 export function buildMealsPrompt(args: {
@@ -333,19 +413,47 @@ export function buildMealsPrompt(args: {
     missingDates: string[];
     plannedDinners: Array<{ date: string; name: string }>;
     recentRecipeIds: string[];
+    // FORK-START: pantry-ai
+    // Same contract as buildParsePrompt's fourth argument: `null` (the default,
+    // and what a switched-off pantry passes) leaves this prompt exactly as the
+    // fork found it; an array — empty or not — turns the stock into a criterion.
+    pantryItems?: Array<{ name: string; quantity: number; unit: string | null }> | null;
+    // FORK-END: pantry-ai
 }): { system: string; user: string } {
+    // FORK-START: pantry-ai
+    const pantry = args.pantryItems ?? null;
+    // FORK-END: pantry-ai
     const recipeList = args.recipes
-        .map((r) => `- id: ${r.id} | ${r.name}${r.category ? ` (${r.category})` : ''}`)
+        .map((r) => `- id: ${r.id} | ${r.name}${r.category ? ` (${r.category})` : ''}${
+            // FORK-START: pantry-ai
+            pantry !== null && (r.ingredients?.length ?? 0) > 0 ? ` | ingrédients : ${r.ingredients!.join(', ')}` : ''
+            // FORK-END: pantry-ai
+        }`)
         .join('\n');
     const recentList = args.recentRecipeIds.length > 0 ? args.recentRecipeIds.join(', ') : '(aucune)';
     const plannedList = args.plannedDinners.length > 0
         ? args.plannedDinners.map((p) => `- ${p.date} : ${p.name}`).join('\n')
         : '(aucun)';
 
+    // FORK-START: pantry-ai
+    const pantryLines = pantry === null ? [] : [
+        ``,
+        `Garde-manger (ce que la famille a chez elle) :`,
+        pantry.length > 0
+            ? pantry.map((item) => `- ${item.name} : ${item.quantity}${item.unit ? ` ${item.unit}` : ''}`).join('\n')
+            : '(vide)',
+    ];
+    // FORK-END: pantry-ai
+
     const system = [
         `Tu es l'assistant repas d'une application d'organisation familiale.`,
         `Propose un dîner pour chacune des dates demandées, en choisissant UNIQUEMENT parmi les recettes fournies (réutilise leurs id exacts).`,
         `Varie les recettes et les catégories sur la semaine, et évite les recettes utilisées les 2 dernières semaines (ids listés) sauf si c'est inévitable.`,
+        // FORK-START: pantry-ai
+        ...(pantry === null ? [] : [
+            `Privilégie les recettes dont les ingrédients sont déjà au garde-manger de la famille (liste ci-dessous) : la semaine doit d'abord écouler ce qui est à la maison.`,
+        ]),
+        // FORK-END: pantry-ai
         `Réponds UNIQUEMENT avec un objet JSON {"meals":[{"date":"YYYY-MM-DD","recipe_id":"..."}]}, une entrée par date demandée, sans texte autour.`,
     ].join('\n');
 
@@ -359,6 +467,9 @@ export function buildMealsPrompt(args: {
         plannedList,
         ``,
         `Recettes utilisées les 2 dernières semaines (à éviter) : ${recentList}`,
+        // FORK-START: pantry-ai
+        ...pantryLines,
+        // FORK-END: pantry-ai
     ].join('\n');
 
     return { system, user };

@@ -5,6 +5,11 @@
   },
   "title": "Despensa",
   "subtitle": "O que tem em casa, o que está a faltar e o que é preciso gastar — ligado à lista de compras, aos recibos e ao Grocy.",
+  "magic": {
+    "types": {
+      "pantry_item": "Despensa"
+    }
+  },
   "tabs": {
     "all": "Tudo",
     "lowStock": "Stock baixo",
@@ -12,7 +17,8 @@
     "cook": "Cozinhar"
   },
   "filters": {
-    "days": "Expira em {{days}} dias"
+    "days": "Expira em {{days}} dias",
+    "search": "Pesquisar por nome ou categoria…"
   },
   "locations": {
     "pantry": "Despensa",
@@ -46,6 +52,7 @@
   },
   "list": {
     "empty": "Ainda não há nada aqui.",
+    "noMatch": "Nenhum produto corresponde à sua pesquisa.",
     "quantity": "Qtd.",
     "expiresToday": "Expira hoje",
     "expiresIn": "em {{days}} d",
