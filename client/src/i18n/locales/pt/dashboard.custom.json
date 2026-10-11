@@ -4,5 +4,62 @@
       "weather": "Meteorologia e roupa",
       "activities": "Atividades sem telas"
     }
+  },
+  "nav": {
+    "familyDashboard": "Casa"
+  },
+  "phases": {
+    "morning": "Manhã",
+    "day": "Dia",
+    "evening": "Noite",
+    "night": "Madrugada",
+    "loading": "A carregar…"
+  },
+  "widgets": {
+    "noWeather": "Meteorologia indisponível",
+    "checkWeather": "Verifique a meteorologia",
+    "departure": "Partidas",
+    "noDeparture": "Sem partidas antes do meio-dia",
+    "gone": "saiu",
+    "tasks": "Tarefas da manhã",
+    "noTasks": "Nada pendente",
+    "taskScheduled": "Tarefa concluída",
+    "agenda": "Hoje",
+    "noAgenda": "Nada marcado para hoje",
+    "devices": "Dispositivos",
+    "viewAll": "Ver tudo",
+    "security": "Segurança",
+    "noSecurity": "Sem sensores",
+    "shopping_preview": "Compras",
+    "emptyShopping": "Lista vazia",
+    "itemScheduled": "Artigo marcado",
+    "dinner": "Esta noite",
+    "noDinner": "Sem refeição planeada",
+    "viewRecipe": "Ver a receita",
+    "dinner_scene": "Hora do jantar",
+    "lights": "Luzes",
+    "lightsOn": "luzes acesas",
+    "bedtime": "Hora de dormir",
+    "noBedtime": "Sem hora definida",
+    "tomorrow": "Amanhã",
+    "nightlight": "Luz de presença"
+  },
+  "errors": {
+    "ha_not_found": "Nenhuma integração Home Assistant configurada.",
+    "ha_unreachable": "Home Assistant offline",
+    "retry": "Tentar novamente",
+    "devicesUnavailable": "Dispositivos indisponíveis"
+  },
+  "actions": {
+    "refresh": "Atualizar",
+    "all_off": "Desligar tudo",
+    "scenes": "Cenas",
+    "home": "Início",
+    "all_lights_off": "Desligar as luzes",
+    "go_to_integrations": "Abrir integrações"
+  },
+  "night": {
+    "firstAppointment": "Amanhã às {{time}} — {{title}}",
+    "noAppointment": "Nada marcado para amanhã"
   }
 }
