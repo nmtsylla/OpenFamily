@@ -32,6 +32,22 @@ export interface SafeFetchOptions extends RequestInit {
     maxBytes?: number;
 }
 
+// FORK-START: safeFetch-credentials
+// A redirect carries the caller's headers to wherever it points. The guard only
+// blocks internal/metadata targets, so a compromised (or MITM'd) upstream could
+// 302 the Authorization / X-API-Key / x-goog-api-key header to a collector of
+// its choosing. On a hop that leaves the original HOST — a scheme/port upgrade
+// (http -> https) still counts as the same party, so it keeps its credentials —
+// these headers are dropped before the request goes out.
+const CREDENTIAL_HEADERS = ['authorization', 'x-api-key', 'x-goog-api-key', 'cookie'];
+
+const withoutCredentials = (headers: NonNullable<RequestInit['headers']>): Headers => {
+    const kept = new Headers(headers);
+    for (const name of CREDENTIAL_HEADERS) kept.delete(name);
+    return kept;
+};
+// FORK-END: safeFetch-credentials
+
 /**
  * fetch() that re-validates the target on every redirect hop and enforces a hard
  * timeout. Redirects are followed manually (redirect:'manual') so a 3xx Location
@@ -48,15 +64,24 @@ export async function safeFetch(url: string, options: SafeFetchOptions = {}): Pr
     const { blockPrivate, timeoutMs, maxBytes: _maxBytes, ...init } = options;
     const effectiveTimeout = timeoutMs ?? AI_TIMEOUT_MS;
     let current = url;
+    // FORK-START: safeFetch-credentials
+    const originHost = new URL(url).hostname;
+    // FORK-END: safeFetch-credentials
 
     for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
         await assertSafeIntegrationUrl(current, { blockPrivate });
+
+        // FORK-START: safeFetch-credentials
+        const crossHost = new URL(current).hostname !== originHost;
+        const requestInit: RequestInit =
+            crossHost && init.headers ? { ...init, headers: withoutCredentials(init.headers) } : init;
+        // FORK-END: safeFetch-credentials
 
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), effectiveTimeout);
         try {
             const response = await fetch(current, {
-                ...init,
+                ...requestInit,
                 redirect: 'manual',
                 signal: controller.signal,
             });
