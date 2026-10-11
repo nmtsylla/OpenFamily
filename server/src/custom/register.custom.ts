@@ -16,6 +16,7 @@ import aiDashboardRoutes from './routes/aiDashboard.custom';
 import budgetAnalyticsRoutes from './routes/budgetAnalytics.custom';
 import budgetReceiptsRoutes from './routes/budgetReceipts.custom';
 import mediaRoutes from './routes/media.custom';
+import productScanRoutes from './routes/productScan.custom';
 import weatherRoutes from './routes/weather.custom';
 
 export const registerCustomRoutes = (app: Express): void => {
@@ -44,5 +45,11 @@ export const registerCustomRoutes = (app: Express): void => {
 
     if (isCustomFeatureEnabled('budgetAnalytics')) {
         app.use('/api/budget-analytics', budgetAnalyticsRoutes);
+    }
+
+    if (isCustomFeatureEnabled('productScan')) {
+        // Behind the same limiter as the weather surface: this router fans out
+        // to a third-party API (Open Food Facts) on a cache miss.
+        app.use('/api/products', customWeatherRateLimiter, productScanRoutes);
     }
 };
