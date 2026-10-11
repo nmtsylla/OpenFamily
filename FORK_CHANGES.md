@@ -689,13 +689,21 @@ Follow-up pass (review notes), each with its check:
 
 ### Barcode scanning & promo watchlist (2026-10-10)
 
-- `npm run build` (shared + server + client) passes, including `check:i18n`
-  (6 languages, 29 namespaces) and `tsc`
-- Migrations against a real Postgres 16: `custom/0008-product-scan` applied on a
-  fresh schema (4 tables + 1 index), and on a clone of a database that already
-  carried unrelated `custom/000x` migrations — the second run reported
-  `applied: []`, `alreadyApplied: 9`
-- Server exercised end to end against that database, with live Open Food Facts
+- `npm run build` (shared + server + client) passes: on the feature branch, and
+  again on the merged `develop` tree — including `check:i18n` (6 languages; 29
+  namespaces before the merge, 32 with develop's features) and `tsc`
+- Migrations, re-run on a throwaway `postgres:16` after the merge: the renumber
+  and the index set changed this SQL, so the earlier run no longer described it.
+  `validateRegistry` accepts the merged registry (14 ids, all unique, last one
+  `custom/0008-product-scan` — develop already holds `custom/0003` to `custom/0007`,
+  which is why ours is 0008); on a database already carrying `custom/0001`-`0007`
+  (the deployment's shape plus develop's features) the run applied exactly
+  `["custom/0008-product-scan"]` with `alreadyApplied: 7`, `unknown: []`; a second
+  run applied nothing; and the four product-scan tables ended up with their four
+  implicit primary keys, the watchlist's UNIQUE and the one index the migration
+  creates (`idx_promo_prices_user_barcode`) — the two dropped candidates are absent
+- Server exercised end to end against a database carrying the schema, with live
+  Open Food Facts
   calls: `GET /api/products/lookup/<ean>` returned a cached row in 63 ms after the
   first lookup, 404 for an unknown barcode, 400 for a malformed one; watchlist
   add/upsert/delete (+404 on a second delete, 404 for a non-uuid id); promo price
