@@ -145,16 +145,26 @@ const postProposal = async (proposal: AiProposal): Promise<void> => {
             });
             return;
         // FORK-START: pantry-ai
-        // quantity travels even when it is 0: that is the whole point of "on a
-        // fini le lait", and a fridge check would drop it.
+        // Two intents, two endpoints: a quantity stocks the shelf, a 0 means the
+        // note said "we're out of it" — the product leaves the pantry and the
+        // server makes sure it is on the shopping list. `quantity > 0` (not a
+        // truthiness check) is the whole test, and 0 must travel when it does.
         case 'pantry_item':
-            await api.post('/api/pantry/upsert', {
-                name: proposal.name,
-                quantity: proposal.quantity,
-                ...(proposal.unit ? { unit: proposal.unit } : {}),
-                category: proposal.category,
-                location: proposal.location,
-            });
+            if (proposal.quantity > 0) {
+                await api.post('/api/pantry/upsert', {
+                    name: proposal.name,
+                    quantity: proposal.quantity,
+                    ...(proposal.unit ? { unit: proposal.unit } : {}),
+                    category: proposal.category,
+                    location: proposal.location,
+                });
+            } else {
+                await api.post('/api/pantry/missing', {
+                    name: proposal.name,
+                    ...(proposal.unit ? { unit: proposal.unit } : {}),
+                    category: proposal.category,
+                });
+            }
             return;
         // FORK-END: pantry-ai
     }

@@ -104,10 +104,12 @@ export function buildParsePrompt(
 
     // FORK-START: pantry-ai
     const pantryType = pantryItems === null ? [] : [
-        `- "pantry_item" : article que la famille a DÉJÀ chez elle (à stocker, pas à acheter). title = nom du produit. quantity = quantité TOTALE après la note (additionne ce qu'elle a déjà si la liste ci-dessous en contient ; 0 = il n'y en a plus). unit = unité ("kg", "L", "pièce"…) ou "". category parmi ${shoppingCategories.join('/')}. location parmi pantry (placard), fridge (réfrigérateur), freezer (congélateur), cellar (cave), other.`,
+        `- "pantry_item" : article que la famille a DÉJÀ chez elle (à stocker, pas à acheter). title = nom du produit. quantity = quantité TOTALE après la note (additionne ce qu'elle a déjà si la liste ci-dessous en contient ; 0 = il n'y en a plus, l'application retire alors le produit du garde-manger et le met sur la liste de courses). unit = unité ("kg", "L", "pièce"…) ou "". category parmi ${shoppingCategories.join('/')}. location parmi pantry (placard), fridge (réfrigérateur), freezer (congélateur), cellar (cave), other.`,
     ];
     const pantryRules = pantryItems === null ? [] : [
         `- "pantry_item" = ce que la famille possède déjà ; "shopping_item" = ce qu'il reste à acheter. "j'ai acheté 2 kg de riz" = pantry_item (la quantité donnée est le nouveau total), pas shopping_item.`,
+        `- Ce qu'il FAUT ACHETER est toujours un "shopping_item" ("il faut du café", "acheter du pain", "il manque des œufs"), même si la note dit qu'il n'y en a plus.`,
+        `- Un "pantry_item" à 0 veut dire "on vient d'en finir" : pour ce produit-là, n'ajoute pas AUSSI un "shopping_item", l'application l'ajoute elle-même à la liste de courses. Un produit absent des deux listes reste un "shopping_item" ordinaire.`,
     ];
     const pantryStock = pantryItems === null ? [] : [
         ``,
@@ -336,10 +338,12 @@ export function validateParsedItems(
                     type: 'pantry_item',
                     name: title,
                     // Unlike a shopping item, 0 is a real quantity here: it is how
-                    // "on a fini le lait" says the shelf is empty. A negative or
-                    // unparseable number reads as 0 rather than dropping the item,
-                    // because the family is told the shelf is empty and can correct
-                    // the row on the pantry page.
+                    // "on a fini le lait" says the family has none left, which the
+                    // client confirms through POST /api/pantry/missing (the row is
+                    // removed and the product ensured on the shopping list). A
+                    // negative or unparseable number reads as 0 rather than
+                    // dropping the item: the family confirmed the product, and the
+                    // worst case is one missing order rather than a wrong stock.
                     quantity: cleanPositiveNumber(item.quantity, 9999) ?? 0,
                     unit: cleanString(item.unit, 20) || null,
                     category: shoppingCategories.includes(category)

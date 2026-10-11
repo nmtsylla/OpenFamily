@@ -1094,14 +1094,29 @@ already there. Three files of upstream's AI layer carry the change, all under
 `FORK-START/END: pantry-ai` (see the tables above); the write path is a new route
 in the fork's own pantry router.
 
-- **One new endpoint, set semantics.** `POST /api/pantry/upsert` merges one item
-  by folded name like `POST /api/pantry/stock`, with the opposite rule: the
-  quantity is SET, not added up. The AI's note names a total ("j'ai acheté 2 kg de
-  riz" after 1 kg at home is 3 kg, "on a fini le lait" is 0), which is why the
-  assistant cannot reuse the merge path the shopping-list and receipt bridges use.
-  Same partial unique index as those (`(user_id, name_key) WHERE source <> 'grocy'`):
-  a Grocy row is out of its reach and a hand-typed 'Riz' becomes its own row.
-  Quantity 0 keeps the row — the pantry page is where an empty shelf is read.
+- **Two endpoints, because the note says two different things.** `POST
+  /api/pantry/upsert` is the "we have some" direction: one item merged by folded
+  name with the quantity SET, not added up (the note names a total — "j'ai acheté
+  2 kg de riz" after 1 kg at home is 3 kg), on the same partial unique index the
+  other bridges use (`(user_id, name_key) WHERE source <> 'grocy'`), so a Grocy
+  row is out of its reach and a hand-typed 'Riz' becomes its own row.
+  `POST /api/pantry/missing` is the "we have none left" direction, and it is not
+  an upsert with 0: a product that is not at home does not belong in a list of
+  what is at home. In one transaction the row goes and the product is ENSURED on
+  the upstream shopping list, unchecked, so the note leaves something actionable
+  behind. Second press: nothing removed, nothing duplicated (the check folds the
+  names in JS, like `POST /shopping-list`, because the merge key is not a column
+  of upstream's table). A product the family never tracked is simply queued —
+  confirmed by the owner: "if it wasn't on the pantry, no need to add it there,
+  just add it on the shopping list".
+- **The routing rules, not just the types.** The first cut of this shipped the
+  new `pantry_item` type without saying who owns what, and the model started
+  answering "il faut du café" with a pantry proposal — the shopping list stopped
+  filling up. The prompt now states it twice: what is to be BOUGHT is always a
+  `shopping_item`, even when the note says there is none left; and a `pantry_item`
+  at 0 ("we just finished it") must not be doubled with a `shopping_item` for the
+  same product, since `/missing` queues it itself. An ordinary shopping item is
+  still proposed for a product absent from both lists.
 - **`null` vs `[]` is the whole switch.** Both prompt builders take the stock as a
   fourth argument: `null` means the feature is off and the prompt is byte for byte
   the one upstream built; an empty array means "switched on, nothing at home",
@@ -1137,19 +1152,34 @@ records every prompt it is asked to complete (no model involved):
   upsert of that same proposal hit the existing row (`id` unchanged) and left the
   quantity at 3 — not 4, so the merge is a SET, not an addition — and a
   `source='grocy'` row of the same folded name kept its own 7 kg while a manual
-  row was created beside it; `quantity: 0` stored 0 and kept the row; the
-  suggest-meals prompt listed the stock and each recipe's ingredients, with the
-  0-quantity row left out.
+  row was created beside it; the suggest-meals prompt listed the stock and each
+  recipe's ingredients, and a removed product was no longer listed. `POST
+  /api/pantry/missing` on a tracked `Lait` answered `{removed: true, shopping:
+  'added'}` — the row gone, exactly one unchecked `Lait` (folded, so "lait " hits
+  the same row) on the shopping list; the second call answered `{removed: false,
+  shopping: 'already'}` with the list unchanged; an untracked `Yaourt` answered
+  `{removed: false, shopping: 'added'}` and created no pantry row; a
+  `source='grocy'` row was left at 7 kg while its product still reached the
+  shopping list.
+- The owner's regression was reproduced and fixed at its cause. With the pantry
+  on, the first cut's prompt sent "things to buy" to the new pantry type, so
+  notes that used to fill the shopping list stopped filling it. The fix is the
+  two routing rules (asserted in `aiPantry.custom.test.ts` and visible in the
+  recorded prompt), plus `/missing` as the destination of a "we're out" note —
+  after which the note ends where the owner asked: the pantry row gone, the
+  product on the shopping list.
 - Through the HTTP layer, with `CUSTOM_FEATURE_PANTRY_ENABLED=false`: the parse
   prompt lost both the pantry list and the pantry type, a pantry proposal the stub
   still returned was dropped, the meals prompt mentioned neither the stock nor the
-  ingredients, and `POST /api/pantry/upsert` answered 404.
+  ingredients, and both `POST /api/pantry/upsert` and `POST /api/pantry/missing`
+  answered 404.
 - In Chromium, against the running client on the dev server (French UI, real
   login): "J'ai acheté 2 kg de riz et il faut du café" rendered a `Riz` card
   labelled "Garde-manger · 3 kg" and a `Café` card, the confirm toast read
   "2 élément(s) ajouté(s)", and the pantry page then showed `Riz — Qté 3 kg`;
-  "On a fini le lait" rendered "Garde-manger · Réfrigérateur · 0 L" and the pantry
-  page showed `Lait — Qté 0 L` in the fridge; "Proposer un menu ✨" on
-  `/meal-planning` returned a suggestion and the prompt it sent carried
-  `Garde-manger (ce que la famille a chez elle) : - Riz : 3 kg` and each recipe's
-  ingredients.
+  "Proposer un menu ✨" on `/meal-planning` returned a suggestion and the prompt it
+  sent carried `Garde-manger (ce que la famille a chez elle) : - Riz : 3 kg` and
+  each recipe's ingredients. With a tracked `Lait` at 2 L, "On a fini le lait"
+  rendered "Garde-manger · Réfrigérateur · 0 L", and after confirming the pantry
+  page read "Rien ici pour l'instant." while the shopping list read "1 article
+  restant" with an unchecked `Lait — Alimentation — Qté: 1 L`.

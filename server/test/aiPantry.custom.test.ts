@@ -72,6 +72,10 @@ test('the parse prompt names the pantry only when its stock is provided', () => 
     const stocked = buildParsePrompt([], CATEGORIES, ['Autre'], [{ name: 'Lait', quantity: 2, unit: 'L' }]);
     assert.ok(stocked.includes('- Lait : 2 L'));
     assert.ok(stocked.includes('"shopping_item" = ce qu\'il reste à acheter'));
+    // The routing the family feels: something to buy stays a shopping item, and a
+    // finished product is not proposed twice (the server puts it on the list).
+    assert.ok(stocked.includes('Ce qu\'il FAUT ACHETER est toujours un "shopping_item"'));
+    assert.ok(stocked.includes('n\'ajoute pas AUSSI un "shopping_item"'));
     // The shelf vocabulary the validator accepts is spelled out for the model.
     assert.ok(stocked.includes('fridge (réfrigérateur)'));
 });

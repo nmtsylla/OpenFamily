@@ -177,9 +177,11 @@ router.post('/', async (req: AuthRequest, res) => {
 
 // POST /api/pantry/upsert — one item, merged by folded name with the quantity
 // SET, not added up. Same body as POST /api/pantry. This is the write path of
-// the AI assistant, whose note names a TOTAL ("j'ai acheté 2 kg de riz" after
-// 1 kg at home is 3 kg, "on a fini le lait" is 0) — and the family confirms the
-// proposal before it lands, so the values are theirs, not the model's guess.
+// the AI assistant when its note says the family HAS some ("j'ai acheté 2 kg de
+// riz" after 1 kg at home is 3 kg) — the family confirms the proposal before it
+// lands, so the values are theirs, not the model's guess. The mirror case, "on
+// a fini le lait", is POST /missing: a product that is not at home is not a row
+// with quantity 0, and it has to reach the shopping list.
 //
 // The conflict target is the index mergeIntoPantry uses, with the opposite rule:
 // an existing row is overwritten instead of incremented. A Grocy row is out of
@@ -228,6 +230,69 @@ router.post('/upsert', async (req: AuthRequest, res) => {
             error: error instanceof Error ? error.message : String(error),
         });
         res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+});
+
+// POST /api/pantry/missing — the other direction of the assistant's note: "on a
+// fini le lait" is not a stock of 0, it is a product the family no longer has.
+// Body: { name, category?, unit? }.
+//
+// One transaction, and the two halves are the point: the row goes (a product
+// that is not at home does not belong in a list of what is at home), and the
+// product is ENSURED on the upstream shopping list, unchecked, so the note
+// leaves something actionable behind instead of just a deletion. Skipped when
+// the same folded name is already unchecked there — pressing twice is safe.
+//
+// Grocy rows are out of reach, like everywhere else: the sync owns them, and
+// asking Grocy to forget its own stock is not this route's business.
+router.post('/missing', async (req: AuthRequest, res) => {
+    const client = await getClient();
+    try {
+        const input = sanitizePantryItem({ ...(req.body ?? {}), quantity: 0 });
+        if (!input) {
+            return res.status(400).json({ success: false, error: 'INVALID_ITEM' });
+        }
+        const key = pantryNameKey(input.name);
+
+        await client.query('BEGIN');
+
+        const removed = await client.query(
+            `DELETE FROM custom_pantry_items
+             WHERE user_id = $1 AND name_key = $2 AND source <> 'grocy'`,
+            [req.userId, key],
+        );
+
+        // Folded in JS, exactly like POST /shopping-list: the merge key is not a
+        // column of upstream's table.
+        const existing = await client.query(
+            'SELECT name FROM shopping_items WHERE user_id = $1 AND is_checked = false',
+            [req.userId],
+        );
+        const alreadyOnList = (existing.rows as { name: string }[]).some(
+            (row) => pantryNameKey(row.name) === key,
+        );
+        if (!alreadyOnList) {
+            await client.query(
+                'INSERT INTO shopping_items (user_id, name, category, quantity, is_checked, unit) VALUES ($1, $2, $3, 1, false, $4)',
+                [req.userId, input.name, input.category, input.unit],
+            );
+        }
+
+        await client.query('COMMIT');
+
+        broadcast(req.userId!, { type: 'update', entity: 'shopping', action: 'updated' });
+        res.json({
+            success: true,
+            data: { removed: (removed.rowCount ?? 0) > 0, shopping: alreadyOnList ? 'already' : 'added' },
+        });
+    } catch (error) {
+        await client.query('ROLLBACK').catch(() => {});
+        logger.error('pantry.missing_failed', {
+            error: error instanceof Error ? error.message : String(error),
+        });
+        res.status(500).json({ success: false, error: 'Internal server error' });
+    } finally {
+        client.release();
     }
 });
 
