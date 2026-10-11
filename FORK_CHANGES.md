@@ -692,14 +692,19 @@ Follow-up pass (review notes), each with its check:
 - `npm run build` (shared + server + client) passes: on the feature branch, and
   again on the merged `develop` tree — including `check:i18n` (6 languages; 29
   namespaces before the merge, 32 with develop's features) and `tsc`
-- Migrations, re-run on a throwaway `postgres:16` after the merge: the renumber
-  and the index set changed this SQL, so the earlier run no longer described it.
+- Migrations, re-run on a throwaway `postgres:16` after the merge (the renumber and
+  the index set changed this SQL, so the earlier run no longer described it), on two
+  separate databases:
+  - **fresh**: the custom slice applied all eight ids
+    (`custom/0001-users-location` … `custom/0008-product-scan`), and a second run
+    applied `[]` with `alreadyApplied: 8`
+  - **upgrade**: a database carrying `custom/0001`-`0007` (the deployment's shape
+    plus develop's features) applied exactly `["custom/0008-product-scan"]`, with
+    `alreadyApplied: 7`, `unknown: []`
+
   `validateRegistry` accepts the merged registry (14 ids, all unique, last one
   `custom/0008-product-scan` — develop already holds `custom/0003` to `custom/0007`,
-  which is why ours is 0008); on a database already carrying `custom/0001`-`0007`
-  (the deployment's shape plus develop's features) the run applied exactly
-  `["custom/0008-product-scan"]` with `alreadyApplied: 7`, `unknown: []`; a second
-  run applied nothing; and the four product-scan tables ended up with their four
+  which is why ours is 0008). The four product-scan tables end up with their four
   implicit primary keys, the watchlist's UNIQUE and the one index the migration
   creates (`idx_promo_prices_user_barcode`) — the two dropped candidates are absent
 - Server exercised end to end against a database carrying the schema, with live
