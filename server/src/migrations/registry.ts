@@ -324,6 +324,52 @@ export const coreMigrations: readonly Migration[] = [
         ],
     },
     {
+        // Folds the duplicates that predate the merge invariant, so the two
+        // UNIQUE indexes below can be created on a database that is not empty.
+        //
+        // Why a second "0005": it must run BEFORE custom/0005-pantry-name-unique,
+        // and the runner applies the registry in array order (validateRegistry
+        // checks ids for shape and uniqueness only, no ordering). A fresh
+        // database has nothing to fold; an instance that ran an earlier revision
+        // of this fork — the SELECT-then-INSERT path the index below replaces —
+        // can hold two owned rows sharing (user_id, name_key), and a bare
+        // CREATE UNIQUE INDEX would then raise 23505: the migration throws, the
+        // runner rethrows and the server dies at startup, with 0005 unrecorded so
+        // nothing after it ever runs and no later migration can repair it. This
+        // id keeps the array in non-decreasing numeric order and the step name
+        // says what it does.
+        //
+        // Naturally idempotent either way (versioned, and a second run finds no
+        // group with count(*) > 1): the surviving row (lowest id) takes the
+        // summed quantity, the rest go. Grocy rows are untouched — they coexist
+        // with the family's own row by design (see the index below).
+        id: 'custom/0005-pantry-dedupe',
+        statements: [
+            `UPDATE custom_pantry_items p
+                SET quantity = folded.total
+               FROM (
+                    SELECT user_id, name_key, min(id::text)::uuid AS keep_id, sum(quantity) AS total
+                      FROM custom_pantry_items
+                     WHERE source <> 'grocy'
+                     GROUP BY user_id, name_key
+                    HAVING count(*) > 1
+               ) folded
+              WHERE p.id = folded.keep_id`,
+            `DELETE FROM custom_pantry_items p
+             USING (
+                    SELECT user_id, name_key, min(id::text)::uuid AS keep_id
+                      FROM custom_pantry_items
+                     WHERE source <> 'grocy'
+                     GROUP BY user_id, name_key
+                    HAVING count(*) > 1
+             ) folded
+              WHERE p.user_id = folded.user_id
+                AND p.name_key = folded.name_key
+                AND p.source <> 'grocy'
+                AND p.id <> folded.keep_id`,
+        ],
+    },
+    {
         // The merge invariant, enforced by the database instead of by a
         // SELECT-then-INSERT: two concurrent merges (a double-clicked "stock from
         // shopping", a retried import) used to both find no row and both insert,
