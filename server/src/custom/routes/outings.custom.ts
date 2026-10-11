@@ -25,6 +25,7 @@ import logger from '../../lib/logger';
 import { loadEnabledAiSettings, handleAiError } from '../lib/aiSettings.custom';
 import { resolvePromptLanguage, type PromptLanguage } from '../lib/promptLanguage.custom';
 import { resolveCoordinates } from '../lib/location.custom';
+import { isCalendarDate } from '../lib/validation.custom';
 import { loadFamilyKids } from '../lib/kids.custom';
 import { findNearbyPlaces, rankPlaces, type NearbyPlace } from '../lib/places.custom';
 import {
@@ -40,7 +41,6 @@ import { getWeeklyForecast, type DailyForecast } from '../weather/WeatherService
 const router = Router();
 router.use(authMiddleware);
 
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 /** Places handed to the model. Every line spends tokens it must hold while emitting JSON. */
 const MAX_PLACES_TO_MODEL = 18;
 /** Places shown when the model is off or failed — the honest "nearest first" list. */
@@ -67,8 +67,7 @@ interface OutingsBody {
 /** Null when the body cannot be used; each field falls back rather than failing. */
 const parseBody = (body: unknown, today: string): OutingsBody | null => {
     const b = (body ?? {}) as Record<string, unknown>;
-    const date = typeof b.date === 'string' && ISO_DATE.test(b.date.trim()) ? b.date.trim() : today;
-    if (!ISO_DATE.test(date)) return null;
+    const date = typeof b.date === 'string' && isCalendarDate(b.date.trim()) ? b.date.trim() : today;
 
     const party = OUTING_PARTIES.includes(b.party as OutingParty) ? (b.party as OutingParty) : 'family';
     const duration = OUTING_DURATIONS.includes(b.duration as OutingDuration)

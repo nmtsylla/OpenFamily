@@ -23,6 +23,10 @@ import { getFamilyCategories } from '../../routes/categories';
 import logger from '../../lib/logger';
 import type { AiSettings } from '../../services/ai';
 import { handleAiError, loadAiSettingsRow, toAiSettings } from '../lib/aiSettings.custom';
+import {
+    isCalendarDate,
+    isUniqueViolation,
+} from '../lib/validation.custom';
 import { resolvePromptLanguage } from '../lib/promptLanguage.custom';
 import {
     LUNCHBOX_FIELDS,
@@ -44,7 +48,6 @@ import { analyzeWeeklyMeals, type PlannedMealLine } from '../ai/nutrition.custom
 const router = Router();
 router.use(authMiddleware);
 
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_PANTRY_ITEMS = 30;
 
 interface LunchboxRow {
@@ -137,7 +140,7 @@ router.post('/', async (req: AuthRequest, res) => {
         const familyMemberId = toNullIfEmpty(body.family_member_id) as string | null;
         const items = sanitizeLunchboxItems(body.items);
 
-        if (!date || !ISO_DATE.test(date)) {
+        if (!isCalendarDate(date)) {
             return res.status(400).json({ success: false, error: 'date is required (YYYY-MM-DD)' });
         }
         if (!familyMemberId) {
@@ -199,7 +202,7 @@ router.put('/:id', async (req: AuthRequest, res) => {
 
         if (body.date !== undefined) {
             const date = toNullIfEmpty(body.date) as string | null;
-            if (!date || !ISO_DATE.test(date)) {
+            if (!isCalendarDate(date)) {
                 return res.status(400).json({ success: false, error: 'date must be YYYY-MM-DD' });
             }
             push('date', date);
@@ -238,6 +241,12 @@ router.put('/:id', async (req: AuthRequest, res) => {
         broadcast(req.userId!, { type: 'update', entity: 'meal-plans', action: 'updated' });
         res.json({ success: true, data: saved ? toLunchbox(saved) : null });
     } catch (error) {
+        // Moving a lunchbox onto a day the same child already has is the unique
+        // constraint (custom/0003), not a server fault: the same 409 the pantry
+        // answers from the same helper.
+        if (isUniqueViolation(error)) {
+            return res.status(409).json({ success: false, error: 'LUNCHBOX_DAY_TAKEN' });
+        }
         logger.error('lunchbox.update_failed', {
             error: error instanceof Error ? error.message : String(error),
         });
@@ -341,7 +350,7 @@ router.post('/shopping-list', async (req: AuthRequest, res) => {
         const body = (req.body ?? {}) as Record<string, unknown>;
         const start = toNullIfEmpty(body.start_date) as string | null;
         const end = toNullIfEmpty(body.end_date) as string | null;
-        if (!start || !end || !ISO_DATE.test(start) || !ISO_DATE.test(end)) {
+        if (!isCalendarDate(start) || !isCalendarDate(end)) {
             return res
                 .status(400)
                 .json({ success: false, error: 'start_date and end_date are required (YYYY-MM-DD)' });
@@ -493,7 +502,7 @@ router.post('/nutrition', async (req: AuthRequest, res) => {
         const body = (req.body ?? {}) as Record<string, unknown>;
         const start = toNullIfEmpty(body.start_date) as string | null;
         const end = toNullIfEmpty(body.end_date) as string | null;
-        if (!start || !end || !ISO_DATE.test(start) || !ISO_DATE.test(end)) {
+        if (!isCalendarDate(start) || !isCalendarDate(end)) {
             return res
                 .status(400)
                 .json({ success: false, error: 'start_date and end_date are required (YYYY-MM-DD)' });

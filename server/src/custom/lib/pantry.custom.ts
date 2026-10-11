@@ -11,6 +11,8 @@
 // the next import — accepted ceiling, noted on the page, split manually.
 // =============================================================================
 
+import { isCalendarDate } from './validation.custom';
+
 /** Where the item is stored. The values are the client's Select options. */
 export const PANTRY_LOCATIONS = ['pantry', 'fridge', 'freezer', 'cellar', 'other'] as const;
 export type PantryLocation = (typeof PANTRY_LOCATIONS)[number];
@@ -52,18 +54,6 @@ const cleanText = (value: unknown, max: number): string | null => {
     if (typeof value !== 'string') return null;
     const trimmed = value.trim().slice(0, max);
     return trimmed.length > 0 ? trimmed : null;
-};
-
-/**
- * A real calendar day, not just four-two-two digits: '2026-13-45' matches the
- * shape but PostgreSQL rejects it on the DATE column (SQLSTATE 22008), which
- * would surface as a 500 instead of a stored row. Same round-trip check as
- * ai/receipt.custom.ts.
- */
-const isCalendarDate = (value: string): boolean => {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-    const parsed = new Date(`${value}T00:00:00Z`);
-    return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 };
 
 /** `Number(value)`, or the fallback when it is not a finite number. */
