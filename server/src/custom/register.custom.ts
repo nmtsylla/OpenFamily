@@ -5,8 +5,9 @@
 // custom route means adding it here.
 //
 // Position matters: the hook sits above the upstream rate limiters, because
-// these routes do not fan out to a user-supplied host — the weather and widget
-// surfaces read a fixed public API and carry their own limiter below.
+// these routes do not need upstream's 30-per-15-minutes outbound budget — the
+// weather and widget surfaces read a fixed public API, and the Home Assistant
+// proxy polls a device on a 30 s timer. Each carries its own limiter below.
 
 import type { Express } from 'express';
 import { isCustomFeatureEnabled } from './features.custom';
@@ -15,6 +16,7 @@ import customWeatherRateLimiter from './middleware/rateLimit.custom';
 import aiDashboardRoutes from './routes/aiDashboard.custom';
 import budgetAnalyticsRoutes from './routes/budgetAnalytics.custom';
 import budgetReceiptsRoutes from './routes/budgetReceipts.custom';
+import homeAssistantDevicesRoutes from './routes/homeAssistantDevices.custom';
 import mediaRoutes from './routes/media.custom';
 import weatherRoutes from './routes/weather.custom';
 
@@ -44,5 +46,13 @@ export const registerCustomRoutes = (app: Express): void => {
 
     if (isCustomFeatureEnabled('budgetAnalytics')) {
         app.use('/api/budget-analytics', budgetAnalyticsRoutes);
+    }
+
+    if (isCustomFeatureEnabled('familyDashboard')) {
+        // Unlike the surfaces above this one DOES reach a user-supplied host —
+        // the family's own Home Assistant, validated by safeFetch on every hop.
+        // It polls on a 30 s timer, far past upstream's 30-per-15-minutes
+        // outbound budget, so it takes the per-minute limiter instead.
+        app.use('/api/custom/ha', customWeatherRateLimiter, homeAssistantDevicesRoutes);
     }
 };
