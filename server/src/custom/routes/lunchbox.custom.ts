@@ -107,6 +107,11 @@ router.get('/', async (req: AuthRequest, res) => {
     try {
         const start = toNullIfEmpty(req.query.start_date) as string | null;
         const end = toNullIfEmpty(req.query.end_date) as string | null;
+        // Both are compared against a DATE column: a shape-only or absent check
+        // let 'abc' (22007) and '2026-02-30' (22008) reach Postgres as a 500.
+        if ((start && !isCalendarDate(start)) || (end && !isCalendarDate(end))) {
+            return res.status(400).json({ success: false, error: 'start_date and end_date must be YYYY-MM-DD' });
+        }
 
         const params: string[] = [req.userId!];
         let where = 'WHERE lb.user_id = $1';
@@ -306,6 +311,11 @@ router.get('/stats/:familyMemberId', async (req: AuthRequest, res) => {
         const { familyMemberId } = req.params;
         const start = toNullIfEmpty(req.query.start_date) as string | null;
         const end = toNullIfEmpty(req.query.end_date) as string | null;
+
+        // Same guard as GET /: both bounds are compared against a DATE column.
+        if ((start && !isCalendarDate(start)) || (end && !isCalendarDate(end))) {
+            return res.status(400).json({ success: false, error: 'start_date and end_date must be YYYY-MM-DD' });
+        }
 
         if (!(await ensureFamilyMemberBelongsToUser(familyMemberId, req.userId!))) {
             return res.status(400).json({ success: false, error: 'Family member not found' });
