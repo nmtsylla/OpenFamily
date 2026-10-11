@@ -1,4 +1,4 @@
 {
-  "collapse": "收起导航",
-  "expand": "展开导航"
+  "hideMobileTabs": "隐藏底部标签",
+  "showMobileTabs": "显示底部标签"
 }

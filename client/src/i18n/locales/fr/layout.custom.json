@@ -1,4 +1,4 @@
 {
-  "collapse": "Réduire la navigation",
-  "expand": "Développer la navigation"
+  "hideMobileTabs": "Masquer les onglets mobiles",
+  "showMobileTabs": "Afficher les onglets mobiles"
 }

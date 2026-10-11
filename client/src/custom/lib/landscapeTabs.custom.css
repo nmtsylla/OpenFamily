@@ -1,0 +1,22 @@
+.landscape-tabs-toggle {
+    display: none;
+}
+
+@media (orientation: landscape) and (max-width: 1023.98px) {
+    .landscape-tabs-toggle {
+        display: inline-flex;
+    }
+
+    main.pb-28 {
+        transition: padding-bottom var(--motion-base) var(--ease-soft);
+    }
+
+    html:has(.landscape-tabs-toggle[aria-expanded="false"]) nav.fixed.inset-x-0.bottom-0.pb-safe {
+        display: none;
+    }
+
+    html:has(.landscape-tabs-toggle[aria-expanded="false"]) main.pb-28 {
+        padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+    }
+}
+
