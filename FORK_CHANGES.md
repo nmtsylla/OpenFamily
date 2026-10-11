@@ -14,10 +14,11 @@ upstream tree (that tree is kept for reference at `/home/bsylla/OpenFamily-budge
 where the same features were spread over 50 upstream files and ~9000 inserted
 lines). Here they live in `custom/` locations with a single hook per upstream file.
 
-Measured divergence of this port: **34 upstream files touched, 1224 insertions,
-19 modified lines**. Every touched upstream file carries `FORK-START/END` markers
-except the three that cannot hold comments (`.env.example`, `package-lock.json`,
-`server/package.json` — each explained below).
+Measured divergence of this port: **34 upstream files touched, 1258 insertions,
+20 deletions** (recounted 2026-10-10 with the family dashboard in the tree; the
+feature itself adds none — it lives entirely in `custom/`). Every touched upstream
+file carries `FORK-START/END` markers except the three that cannot hold comments
+(`.env.example`, `package-lock.json`, `server/package.json` — each explained below).
 
 ## Custom features (new files only)
 
@@ -27,6 +28,7 @@ except the three that cannot hold comments (`.env.example`, `package-lock.json`,
 | Object storage for images (S3-compatible) | `server/src/custom/lib/{storage,media,storage-errors}.custom.ts`, `server/src/custom/middleware/media.custom.ts`, `server/src/custom/routes/media.custom.ts` | `CUSTOM_FEATURE_MEDIA_ENABLED` |
 | Receipt / bill import with line detail | `server/src/custom/routes/budgetReceipts.custom.ts`, `server/src/custom/ai/receipt.custom.ts`, `client/src/custom/components/{ReceiptImport,BudgetReceipts}.custom.tsx` | `CUSTOM_FEATURE_BUDGET_RECEIPTS_ENABLED` |
 | Budget analytics page | `server/src/custom/lib/budgetAnalytics.custom.ts`, `server/src/custom/routes/budgetAnalytics.custom.ts`, `client/src/custom/pages/BudgetAnalytics.custom.tsx` | `CUSTOM_FEATURE_BUDGET_ANALYTICS_ENABLED` |
+| Family dashboard (phase-aware wall tablet + Home Assistant control) | `server/src/custom/lib/homeAssistantDevices.custom.ts`, `server/src/custom/routes/homeAssistantDevices.custom.ts`, `client/src/custom/pages/FamilyDashboard.custom.tsx`, `client/src/custom/hooks/useHomeAssistant.custom.ts`, `client/src/custom/lib/familyPhase.custom.ts` | `CUSTOM_FEATURE_FAMILY_DASHBOARD_ENABLED` |
 | Feature flags / registration point | `server/src/custom/features.custom.ts`, `server/src/custom/register.custom.ts`, `server/src/custom/middleware/rateLimit.custom.ts` | — |
 | Client hooks for custom code | `client/src/custom/{nav.custom.ts,routes.custom.tsx}` | — |
 | Deploy assets | `deploy/README.md`, `deploy/up.sh`, `docker-compose.override.yml` | — |
@@ -35,7 +37,59 @@ except the three that cannot hold comments (`.env.example`, `package-lock.json`,
 Gating: a feature's `CUSTOM_FEATURE_*_ENABLED=false` unmounts its API routes and
 adds its module keys to `disabled_modules` in `/api/auth/me`, which hides the
 matching nav entry, page and dashboard widget through the client's existing module
-filter. Module keys: `weather`, `activities`, `budgetReceipts`, `budgetAnalytics`.
+filter. Module keys: `weather`, `activities`, `budgetReceipts`, `budgetAnalytics`,
+`familyDashboard`.
+
+### Family dashboard
+
+`/family-dashboard` is a chrome-less full-screen page for a wall tablet: a
+time-of-day phase (morning 06–09, day 09–17, evening 17–22, night 22–06) decides
+which widgets are on screen, and the phase can be cycled by swiping the content
+or tapping the badge in the top bar. It is the only custom feature that talks to
+Home Assistant in both directions.
+
+- **No upstream file is touched by this feature.** The page renders inside
+  `<Layout>` like every other custom route and covers the chrome with a
+  `fixed inset-0 z-[60]` layer — above Layout's own highest fixed element
+  (`z-50`). Upstream's Kiosk instead renders outside `<Layout>`, which would cost
+  a marked edit in `client/src/App.tsx`; that edit was deliberately not taken.
+- **Home Assistant credentials are reused, not re-configured.** The proxy reads
+  the family's existing `integrations` row (`family_id` + `type =
+  'homeassistant'`, unique through upstream's `ON CONFLICT (family_id, type)`
+  upsert), decrypts `encrypted_credentials` and calls HA through `safeFetch` with
+  the same `Authorization: Bearer` header and 15 s timeout as
+  `services/integrations/homeassistant.ts`. No new env var, no new table.
+- **The client reaches HA only through `/api/custom/ha`.** `GET /states` returns
+  the whitelisted domains (`light`, `switch`, `climate`, `media_player`, `scene`,
+  `input_boolean`, `cover`, `fan`, `lock`, `binary_sensor`, `camera`) with a
+  trimmed attribute set; `POST /services/:domain/:service` forwards a service
+  call verbatim, parent-only, with the domain whitelist and the entity/domain
+  match enforced in `lib/homeAssistantDevices.custom.ts`.
+- **Entity name heuristics, by design.** The coffee toggle matches
+  "café"/"cafe"/"coffee", the dinner scene "dîner"/"diner"/"dinner", the
+  nightlight "nuit"/"nightlight"/"veilleuse". A household whose entities are named
+  differently simply does not get those tiles — no config UI, no env var.
+- **The quick-toggle grid only lists domains that really take `turn_on`/`turn_off`**
+  (`light`, `switch`, `input_boolean`, `fan`, `media_player`, `climate`). `lock`
+  and `cover` are in the read whitelist but take `lock`/`unlock` and
+  `open_cover`/`close_cover`, so a tile for them would be a control that never
+  works; the lock appears in the Security card instead (amber while `unlocked`,
+  since a lock reads `locked`/`unlocked` and not `on`/`off`), and a cover has no
+  place in a v1 toggle grid.
+- **A service HA rejects is not an outage.** HA answering 4xx (a service that
+  domain does not implement, an entity that will not take it) comes back as
+  `400 homeassistant.service_rejected`; only HA 5xx and an unreachable host
+  become `502 homeassistant.unreachable`/`service_failed`. The client maps only
+  the latter to its offline banner, so one dead tile can never disable the whole
+  screen. HA's own 401/403 is folded into that 400 on purpose: forwarding it
+  would make the client's API layer read it as an expired OpenFamily session and
+  log the family out.
+- **Degradations are explicit.** No HA integration → full-screen setup banner
+  linking to `/integrations`, no HA cards. HA unreachable → sticky toast with a
+  retry button, every HA toggle disabled, and the read-only HA cards (security
+  pills, light count) hidden rather than left showing yesterday's state. No AI
+  model or no saved city → the morning clothing card falls back to "Vérifiez la
+  météo".
 
 ## Modifications to upstream files
 
@@ -118,7 +172,7 @@ instance from the earlier fork tree, rename these in your `.env`:
 | `MINIO_ENDPOINT` / `_ACCESS_KEY` / `_SECRET_KEY` / `_BUCKET` / `_REGION` | `CUSTOM_MINIO_*` |
 | `OPEN_METEO_BASE_URL` / `OPEN_METEO_GEOCODING_URL` | `CUSTOM_OPEN_METEO_*` |
 | `WEATHER_DEFAULT_LANG` / `_CACHE_TTL_MS` / `_REQUEST_TIMEOUT_MS` | `CUSTOM_WEATHER_*` |
-| — (new) | `CUSTOM_FEATURE_{WEATHER,MEDIA,BUDGET_RECEIPTS,BUDGET_ANALYTICS,AI_WIDGETS}_ENABLED` |
+| — (new) | `CUSTOM_FEATURE_{WEATHER,MEDIA,BUDGET_RECEIPTS,BUDGET_ANALYTICS,AI_WIDGETS,FAMILY_DASHBOARD}_ENABLED` |
 
 ## Translations
 
@@ -130,13 +184,23 @@ upstream locale file:
   the English strings — placeholders pending translation, required because
   `client/scripts/check-i18n.mjs` fails the build on any namespace missing from a
   locale)
-- `dashboard.custom`, `budget.custom`, `ai.custom` (six locales)
+- `dashboard.custom`, `budget.custom`, `ai.custom` (six locales; the family
+  dashboard's keys live in `dashboard.custom` alongside the two widget labels
+  already there, and its `ru`/`zh` files are English placeholders pending
+  translation, same rule as `analytics.custom`)
 
 ## Tests
 
-`server/test/{weather,aiProvider,budgetAnalytics}.custom.test.ts` — matched by the
-server's `tsx --test test/*.test.ts`. The client has no test runner; the custom UI
-was verified in a browser instead (see "Verification" below).
+`server/test/{weather,aiProvider,budgetAnalytics,homeAssistantDevices}.custom.test.ts`
+— matched by the server's `tsx --test test/*.test.ts`. The client has no test
+runner; the custom UI was verified in a browser instead (see "Verification" below).
+
+`homeAssistantDevices.custom.test.ts` covers the rules that decide what the
+dashboard may read and drive (domain whitelist, attribute trimming, entity/domain
+match, service-name shape) and how a non-2xx from HA is classified (a 4xx
+rejection must never surface as an outage, and HA's 401/403 must never surface as
+401), against `custom/lib/homeAssistantDevices.custom.ts` — which is why that
+logic sits in a lib rather than in the router.
 
 ## Endpoint moves (behaviour changes vs the earlier fork tree)
 
@@ -145,6 +209,11 @@ was verified in a browser instead (see "Verification" below).
   reads it back, so the client no longer needs `city`/`latitude`/… on the user object.
 - Everything else keeps its path: `/api/weather`, `/api/ai/dashboard`,
   `/api/media`, `/api/budget/receipts`, `/api/budget-analytics`.
+- `/api/custom/ha` (family dashboard only) is new, and is the one custom mount
+  that reaches a user-supplied host — the family's own Home Assistant. It
+  therefore sits behind the same per-minute custom limiter as the weather
+  surfaces rather than upstream's 30-per-15-minutes outbound budget, which a
+  30 s state poll would exhaust in seven minutes.
 
 ## Known gaps and inherited issues
 
@@ -230,3 +299,35 @@ dotenv never overrides a variable that is already set, so pinning is enough.
 - Browser: the analytics page renders in demo mode (nav entry, i18n labels,
   demo-derived numbers, no console errors) — this is the check that catches
   `<Routes>` children violations, which neither `tsc` nor the build can see
+- Family dashboard, against a throwaway Postgres 16 and a stub Home Assistant
+  (2026-10-10): `npm test` 31/31 (the 12 new ones in
+  `homeAssistantDevices.custom.test.ts`); `/api/custom/ha/states` filters the
+  non-whitelisted domains and trims the attributes; `POST /services/...` forwards
+  the body verbatim for a single entity, a list and a scene, and rejects a
+  non-whitelisted domain, a cross-domain target, a missing `entity_id` and a
+  service name carrying a path traversal (400 each); no integration → 404
+  `homeassistant.integration_not_found`, unreachable HA → 502
+  `homeassistant.unreachable`, no token → 401; with
+  `CUSTOM_FEATURE_FAMILY_DASHBOARD_ENABLED=false` the route answers 404 and
+  `/api/auth/me` reports `familyDashboard` as disabled
+- The lock/cover defect was reproduced before it was fixed, with a stub HA that
+  implements HA's real per-domain service table: tapping a `lock` tile sent
+  `lock.turn_on`, HA answered 400, the proxy turned that into 502 and the client
+  flashed "Home Assistant hors ligne" over the whole screen while disabling two
+  controls. After the fix the grid no longer lists lock/cover, every remaining
+  tile sends a service the domain implements (verified for switch/light/climate/
+  media_player with no banner at any point), `lock.turn_on` answers
+  `400 homeassistant.service_rejected` instead of 502, and the Security card's
+  lock dot goes amber on `unlocked` while a closed window stays green
+- Family dashboard in Chromium at 900×1600 portrait: every phase renders
+  (morning weather + clothing fallback + coffee toggle, day agenda/devices/
+  security/shopping, evening dinner/dimmer/bedtime, night clock + nightlight);
+  a tile tap reached HA as `light.turn_off`, the dimmer as `light.turn_on` with
+  `brightness_pct`, the scene button as `scene.turn_on`, "Tout éteindre" as
+  `light.turn_off` + `switch.turn_off`; the phase badge and a 60 px swipe both
+  cycle phases and wrap; the viewport meta is injected; `navigator.wakeLock`
+  is requested on mount; the night clock dims to `opacity-30` with the bottom
+  bar at `opacity-50` after five idle minutes and any touch restores both;
+  stopping HA shows the offline toast with the HA buttons disabled and the
+  read-only HA cards hidden, and restarting it clears the toast on retry; no
+  console errors and no horizontal overflow in any phase
