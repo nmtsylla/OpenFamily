@@ -106,6 +106,9 @@ const PantrySection: React.FC<{
     const [items, setItems] = useState<PantryItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    // Client-side search over the already-fetched slice: the API returns the
+    // whole (filtered) list, so a round-trip per keystroke would buy nothing.
+    const [query, setQuery] = useState('');
 
     const load = useCallback(async () => {
         try {
@@ -130,6 +133,16 @@ const PantrySection: React.FC<{
 
     useWebSocketUpdates('shopping', () => void load());
 
+    // Search matches the name or the category, case-insensitively.
+    const visible = useMemo(() => {
+        const needle = query.trim().toLowerCase();
+        if (needle === '') return items;
+        return items.filter(
+            (item) =>
+                item.name.toLowerCase().includes(needle) || item.category.toLowerCase().includes(needle),
+        );
+    }, [items, query]);
+
     const expiryLabel = (item: PantryItem): { text: string; variant: 'warning' | 'danger' } | null => {
         if (!item.expires_on) return null;
         const days = daysUntil(item.expires_on);
@@ -144,6 +157,17 @@ const PantrySection: React.FC<{
     return (
         <>
             {error && <p className="text-caption text-destructive">{error}</p>}
+            {items.length > 0 && (
+                <div className="mb-3">
+                    <Input
+                        type="search"
+                        placeholder={t('filters.search')}
+                        aria-label={t('filters.search')}
+                        value={query}
+                        onChange={(event) => setQuery(event.target.value)}
+                    />
+                </div>
+            )}
             {withDayHint && (
                 <p className="mb-2 text-micro text-muted-foreground">{t('filters.days', { days: EXPIRY_DAYS })}</p>
             )}
@@ -152,9 +176,11 @@ const PantrySection: React.FC<{
                 error ? null : (
                     <p className="py-8 text-center text-caption text-muted-foreground">{t(emptyKey)}</p>
                 )
+            ) : visible.length === 0 ? (
+                <p className="py-8 text-center text-caption text-muted-foreground">{t('list.noMatch')}</p>
             ) : (
                 <ul className="divide-y divide-border">
-                    {items.map((item) => {
+                    {visible.map((item) => {
                         const expiry = expiryLabel(item);
                         const low = item.low_stock_threshold !== null && item.quantity <= item.low_stock_threshold;
                         return (
