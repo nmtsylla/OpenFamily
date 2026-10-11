@@ -8,7 +8,7 @@
 // display boundary is the only conversion needed. The live deals come back as
 // numbers, and are display-only too.
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronDown, ChevronRight, Plus, Tag, Trash2 } from 'lucide-react';
 import { Button, Dialog, Input, Textarea, useToast } from '../../components/ui';
@@ -121,8 +121,15 @@ const PromoWatchlistPanel: React.FC = () => {
      * family's own logged prices and the live shop deals in parallel. The deal
      * check is the one that may fail on its own — PrijsProfeet being down must
      * not hide the prices already logged.
+     *
+     * One pane for the whole list, so only the newest open may fill it: opening
+     * card A then card B used to leave A's slower answer to paint under B's
+     * header. `requestId` is bumped on every open (and on close), and the
+     * awaited results are dropped unless they are still the current one.
      */
+    const requestId = useRef(0);
     const toggleHistory = async (item: WatchlistItem) => {
+        const request = (requestId.current += 1);
         if (openBarcode === item.barcode) {
             setOpenBarcode(null);
             return;
@@ -145,6 +152,7 @@ const PromoWatchlistPanel: React.FC = () => {
             }),
         ]);
 
+        if (request !== requestId.current) return;
         setHistory(prices ?? []);
         setOffers(deals ?? []);
         setOffersFailed(deals === null);

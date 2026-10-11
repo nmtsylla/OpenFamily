@@ -133,6 +133,10 @@ export function useDailyPromos() {
                 const response = await api.get<{ success: boolean; data: PromoPage }>(`${BASE}?${params}`);
                 // A response that is not a page (an unmocked demo route answers
                 // `[]`, for one) must read as "could not load", not crash the tab.
+                // Stale answers are dropped too: a filter change fires a new
+                // request, and the older one resolving last must not repaint the
+                // list with the abandoned filter's results.
+                if (cancelled) return;
                 const data = response.data;
                 if (data && Array.isArray(data.offers)) {
                     setPage(data);
