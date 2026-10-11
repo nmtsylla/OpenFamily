@@ -41,9 +41,11 @@ three that cannot hold comments (`.env.example`, `package-lock.json`,
 | Smart pantry — what the household has at home (locations, expiry, low stock), bridging the shopping list both ways, Grocy stock in, and the receipt import feeding it: the obviously stockable lines merge in under the brand-free name the AI read off the ticket, the rest wait in a review queue on the page; lunchbox AI and a "cook from what you have" tab out | `server/src/custom/lib/pantry.custom.ts`, `server/src/custom/lib/pantryMerge.custom.ts`, `server/src/custom/lib/validation.custom.ts`, `server/src/custom/routes/pantry.custom.ts`, `client/src/custom/pages/Pantry.custom.tsx`, `client/src/custom/components/PantryExpiryCard.custom.tsx`, `client/src/custom/lib/pantryMatch.custom.ts` | `CUSTOM_FEATURE_PANTRY_ENABLED` |
 | AI outing planner on the Planning page — real places around the family (OpenStreetMap/Overpass) ranked by the family's own model for the day, the weather, the people coming (whole family / with the kids / parents only) and what the children's cards say, plus place-less activity ideas; the chosen outing is added to the planning through upstream's own `/api/planning` | `server/src/custom/lib/places.custom.ts`, `server/src/custom/lib/{location,kids}.custom.ts` (extracted from the dashboard route when this needed the same answers), `server/src/custom/ai/outings.custom.ts`, `server/src/custom/routes/outings.custom.ts`, `client/src/custom/components/OutingPlanner.custom.tsx`, `client/src/custom/hooks/useOutings.custom.ts` | `CUSTOM_FEATURE_OUTINGS_ENABLED` |
 | Barcode scanning, product lookup and promo watchlist | `server/src/custom/lib/{openFoodFacts,product}.custom.ts`, `server/src/custom/routes/productScan.custom.ts`, `server/test/productScan.custom.test.ts`, `client/src/custom/pages/{ProductScanner,PromoWatchlist}.custom.tsx`, `client/src/custom/components/{BarcodeScanner,ProductCard}.custom.tsx`, `client/src/custom/hooks/{useProductScan,usePromoWatchlist}.custom.ts`, `client/src/custom/lib/product.custom.ts` | `CUSTOM_FEATURE_SCANNER_ENABLED` |
+| Live supermarket promotions (PrijsProfeet, free plan): the promo screen's daily list with product pictures, filtered by store / category / discount / text and paginated, the family's own "never show me this" terms, and the watch list's deals pane | `server/src/custom/lib/{prijsprofeet,promoExclusions}.custom.ts`, `client/src/custom/components/{DailyPromos,PromoOfferRow,PrijsProfeetCredit,PromoWatchlistPanel}.custom.tsx`, `client/src/custom/hooks/useDailyPromos.custom.ts` (routes, page, hooks and translations shared with the row above) | `CUSTOM_FEATURE_SCANNER_ENABLED` |
 | Feature flags / registration point | `server/src/custom/features.custom.ts`, `server/src/custom/register.custom.ts`, `server/src/custom/middleware/rateLimit.custom.ts` | — |
 | Client hooks for custom code | `client/src/custom/{nav.custom.ts,routes.custom.tsx}` | — |
 | Deploy assets | `deploy/README.md`, `deploy/up.sh`, `docker-compose.override.yml` | — |
+| Maintenance: clear the Budget / Meals / Pantry domains (dry run by default, `--yes` to delete) | `scripts/clean-custom-data.mjs` | — |
 | Translations | `client/src/i18n/locales/<lng>/{weather,activities,analytics,dashboard,budget,ai,lunchbox,pantry,scan}.custom.json` | — |
 
 Gating: a feature's `CUSTOM_FEATURE_*_ENABLED=false` unmounts its API routes and
@@ -90,7 +92,7 @@ otherwise.
 | `server/src/app.ts` | `custom-routes`, `budget-custom` | One `registerCustomRoutes(app)` hook (import + call, above the upstream limiters) and one added condition so `/api/ai/extract-receipt` skips the 1 MB default JSON parser |
 | `server/src/routes/auth.ts` | `custom-features`, `media` | Adds the env-disabled custom modules to `disabled_modules`; accepts an `s3:` avatar reference |
 | `server/src/routes/userSettings.ts` | `weather`, `custom-modules` | Adds the custom dashboard widget keys to `DASHBOARD_WIDGETS` (the list `parseDashboardPrefs` validates against — without it the widgets are silently dropped) and the custom module keys to `TOGGLEABLE_MODULES` (upstream rejects an unknown key in `PUT /api/auth/modules`, so a flag-disabled key reported through `/api/auth/me` would make the next module toggle fail with 400) |
-| `server/src/migrations/registry.ts` | `custom-migrations` | Appends the fork migrations (`custom/0001` … `custom/0005`) |
+| `server/src/migrations/registry.ts` | `custom-migrations` | Appends the fork migrations (`custom/0001` … `custom/0009-promo-exclusions`) |
 | `server/src/index.ts` | `media` | Ensures the bucket exists at startup when storage is configured |
 | `server/src/lib/postFields.ts`, `server/src/lib/recipeImage.ts` | `media` | Keeps an `s3:` media reference intact instead of treating it as a data URL |
 | `server/src/routes/dataTransfer.ts` | `media` | Stores inline images on import and answers with JSON instead of rethrowing |
@@ -228,6 +230,15 @@ next migration takes `core/0007`):
   Numbered 0008, not 0003: the fork's other features took `custom/0003` to
   `custom/0007` first, and two migrations must not share a number.
 
+- `custom/0009-promo-exclusions` — `custom_promo_exclusions` (one row per term a
+  family never wants to see in the promo screens, UNIQUE per `user_id`). It exists
+  because PrijsProfeet's own filters are store, category, price and savings, and
+  the fork does not get to add a "not this" to a third-party API: the terms are
+  applied to the page it returns (see `lib/promoExclusions.custom.ts`). The stored
+  term is normalized, so the UNIQUE is meaningful and a second "Café" typed with
+  its accent is not a second row. Applied to an existing database and to a fresh
+  `postgres:16` in the same pass (see the verification section).
+
 Every statement is idempotent (`IF NOT EXISTS`), and the ids must never be renamed
 or their SQL edited: the runner records `id` + SQL checksum in
 `openfamily_schema_migrations` (`server/src/migrations/runner.ts`).
@@ -246,11 +257,14 @@ instance from the earlier fork tree, rename these in your `.env`:
 | `WEATHER_DEFAULT_LANG` / `_CACHE_TTL_MS` / `_REQUEST_TIMEOUT_MS` | `CUSTOM_WEATHER_*` |
 | — (new) | `CUSTOM_FEATURE_{WEATHER,MEDIA,BUDGET_RECEIPTS,BUDGET_ANALYTICS,LUNCHBOX,PANTRY,OUTINGS,SCANNER,AI_WIDGETS}_ENABLED` |
 | — (new) | `CUSTOM_OVERPASS_URL`, `CUSTOM_OVERPASS_TIMEOUT_MS`, `CUSTOM_OUTINGS_RADIUS_KM`, `CUSTOM_OUTINGS_CACHE_TTL_MS` |
+| — (new) | `CUSTOM_PRIJSPROFEET_API_KEY` (optional — the free plan works key-less), `CUSTOM_PRIJSPROFEET_COUNTRIES` (default `be`) |
 
 All nine flags are listed in `docker-compose.yml`'s `FORK-START: deploy` block, so an
 operator on a Docker install can switch any of them off from `.env` (they were absent
 before the outing planner; unset still means enabled, so nothing changed for an
-existing `.env`).
+existing `.env`). `CUSTOM_PRIJSPROFEET_API_KEY` and `CUSTOM_PRIJSPROFEET_COUNTRIES`
+sit in the same block for the same reason: without a line there, a key set in `.env`
+never reaches the container.
 
 ## Translations
 
@@ -785,3 +799,177 @@ Follow-up pass (review notes), each with its check:
   `develop` (which already holds `custom/0003` to `custom/0007`), and the two
   indexes that duplicated an existing primary key / UNIQUE were dropped while the
   id was still unreleased
+
+### PrijsProfeet promotions in the promo watchlist (2026-10-11)
+
+The watchlist already held what the family saw in a store; a card now also shows
+what the shops are promoting on that barcode right now, from PrijsProfeet's free
+plan — which is the tier this integrates, and why nothing here needs a paid
+subscription:
+
+- **Only `/search` is called, one request per configured country** (`.nl` and
+  `.be` are separate hosts and one key works on both), merged and sorted
+  cheapest-first. `/match/*` (cross-retailer EAN matching) and `/shelf-prices`
+  (the regular price of the whole assortment) are Pro-only and are deliberately
+  not called, so a watched product with no running promotion shows no offer at
+  all: the free tier carries promotions, not an assortment. That is a property of
+  the plan, and the pane's empty state says so rather than pretending otherwise.
+- **`CUSTOM_PRIJSPROFEET_API_KEY` is optional.** Without it the per-IP caps apply;
+  with it, 150/min. Requests carry an identifying `User-Agent` spelled without
+  `bot`/`crawler`/`spider`/`slurp`, which the API answers 403 to when keyless.
+- **Attribution is a licence term of the free plan**: every screen showing the
+  data credits PrijsProfeet with a link. `promoCredits.via` renders it
+  under the rows, one link per country present (`.be` for the Belgian data), and
+  only when there is data to credit.
+- **A row whose EAN differs from the watched barcode is dropped**: a fuzzy search
+  answering another product is the one mistake a barcode-keyed watchlist must not
+  make. A chain that publishes no EAN is unverifiable rather than wrong, and
+  stays.
+- **Deals are never stored.** They change nightly, so the pane fetches them when
+  a card is opened, behind a 10-minute in-process cache (`ponytail:` note in
+  `lib/prijsprofeet.custom.ts`): no migration, and no write to `custom_products`.
+  When the check fails the pane says so and the family's own logged prices still
+  render underneath — verified by pointing the pane at a 502.
+- Verified live on 2026-10-11 against both hosts with the real free key
+  (`partner/usage` reported `plan: free`, 150/min): 12 bare-EAN searches, every
+  row matching the EAN or carrying none, none foreign, `promotion_status=active`
+  honoured; then the real Express router over HTTP — 401 without a token, 400 on
+  a malformed barcode, 200 with a live offer (AH Pistolet wit, `4 pour 0,99 €`,
+  `−49%`); then the page in a browser: the deals pane, the `−49%` badge, the
+  attribution link to `prijsprofeet.be`, the empty state for a product nobody
+  promotes, and the failure state.
+- Tests: `labelOf`, `normalizeOffers` (a foreign EAN dropped, a hostile document
+  yielding rows rather than exceptions, a `javascript:` URL yielding no link) and
+  `configuredCountries` (an unknown country falling back to `be`, duplicates
+  asked once) in `server/test/productScan.custom.test.ts`. Client strings land in
+  all six locale files; like the rest of the namespace, `en` and `fr` carry real
+  text and the other four fall back to English.
+- The credit line lives in one component (`components/PrijsProfeetCredit.custom.tsx`)
+  so both promo surfaces show it, one link per country on screen, and it renders
+  nothing when no data is shown — the licence term, in one place.
+
+### The promo screen's daily list (2026-10-11)
+
+The promo screen used to be the watchlist only. It now opens on *today's deals*,
+with the watchlist as its second tab:
+
+- **The day's promotions, filtered server-side.** `/api/products/promos` passes
+  the filters (store, category, minimum discount, free text, sort) to
+  PrijsProfeet's own `/search`, so `total` and `page` are the API's, not a
+  filtered page of a page. `/api/products/promos/filters` merges `/categories`
+  (the only source of real category names — the slugs would render as "Groente
+  Fruit") with `/filter-stats?promotion_status=active` (the counts the user is
+  filtering). Both are free endpoints.
+- **Cached for the day, which is what the API's freshness allows.** The upstream
+  fetches once per query and the result is kept until the next 07:30 *server*
+  time — deliberately late, so PrijsProfeet's night run (webhook ~07:05
+  Europe/Amsterdam) always lands before the boundary whatever the container's
+  timezone. The barcode pane keeps its 10-minute TTL instead: a card can be
+  reopened at any time. Verified: the same query answered in 173 ms and then 5 ms.
+- **One country per request.** The browsable list cannot merge two paginated
+  streams without faking paging, so it asks one host; the country selector appears
+  only when the deployment configures more than one. The watchlist's deals pane
+  still merges both, because it deals with a handful of rows. `CUSTOM_PRIJSPROFEET_COUNTRIES`
+  stays the single knob, and a country the deployment does not configure is never
+  asked (it falls back to the first configured one).
+- **Everything the client can send is vetted first** (`promoQueryOf`): the store
+  and category values must look like the identifiers the API's own facets produce,
+  the page number and size are clamped, and an unknown sort falls back to biggest
+  discount. A query nobody's UI could build (`country=fr`, `retailer=../../etc`,
+  `page=-1`, `page_size=9999`) comes back as the default page — verified over HTTP.
+- Rows, the price/`−X%` layout and the credit line are one shared component each
+  for both surfaces (`components/{PromoOfferRow,PrijsProfeetCredit}.custom.tsx`),
+  so the two cannot drift.
+- Verified live on 2026-10-11 with the real free key: `filters` → 5 623 active
+  deals, 7 Belgian stores with counts, 25 named categories; filtered query
+  (`colruyt` + `groente-fruit` + `min_savings=25`, price ascending) → 18 rows, the
+  first at 0.67 € (−50 %); then the same screen in a browser: 5 605 deals with
+  BE + NL configured, store filter narrowing to 1 435, category row giving 143,
+  paging `Page 2 / 6`, the country switch moving the list and the facets to the NL
+  host (9 600 deals) with the credit link following to `prijsprofeet.nl`, and the
+  watchlist tab opening a card whose deals pane renders through the shared row.
+- Tests: `normalizePromoPage`, `normalizePromoFilters` (facets with no deals
+  dropped, named from the categories list, fullest first), `promoQueryOf` (clamps,
+  drops what the API could not produce, never asks an unconfigured country, and
+  refuses a prototype key as a sort order or a country) and `labelOf` in
+  `server/test/productScan.custom.test.ts`.
+
+### Product pictures, the family's exclusions, and what the review found (2026-10-11)
+
+- **The rows carry the product, not just the chain.** `/search` already answers
+  `name`, `brand` and `image_url`; `normalizeOffers` kept only the offer, which
+  left a browsable list reading "Albert Heijn · 75 wasbeurten · 8,99 €" with no
+  product in it. The three fields are normalized now (`image_url` through the same
+  http(s) check as the product link) and `PromoOfferRow` renders picture, name and
+  brand behind `showProduct` — on for the daily list, off for the watchlist pane,
+  whose card header already names the product. The thumbnail is loaded from the
+  chain's own CDN with `referrerPolicy="no-referrer"` (several refuse a
+  referrer) and hides itself on error rather than showing a broken-image icon.
+- **"Never show me this" is the family's own filter**, because PrijsProfeet has
+  none: `custom_promo_exclusions` + `lib/promoExclusions.custom.ts`, applied by
+  the server to the page it returns (`hidden` counts what it removed from *this*
+  page, since the upstream `total` is what the shops publish). Matching is a
+  normalized (lowercase, accents stripped) substring of the name or the brand, so
+  a term typed by hand covers variants the row-clicked product name would not; a
+  one-letter term is refused, and the same list filters a watched product's deals
+  pane — "never show me this" cannot depend on which screen asked. The row's hide
+  button stores the product name, the filter bar takes any term, and the chips
+  take it back.
+- **Two real defects the pass found and fixed**, both in code this same ledger
+  entry describes:
+    - `DELETE /promo-exclusions/:id` never deleted anything. The SQL said
+      `WHERE id = $1 AND user_id = $2` and the parameters were passed
+      `[userId, id]`. It answered 404 on a row that plainly existed; the unit
+      tests could not see it (they exercise the pure matching, not the SQL), and
+      only the live check did. Fixed by passing the parameters in the order the
+      statement reads them.
+    - `exclusionsOf` selected `term` alone, so the list the client renders had no
+      `id` to delete by. It returns the rows now (`termsOf` maps them to the
+      comparable strings for the matching path).
+- **Prototype keys are not values.** `sort in PROMO_SORTS` and `country in HOSTS`
+  walk the prototype chain, so `sort=constructor` passed the whitelist and
+  stringified a function into `sort_by` (the API rejects that: a 502 for a query
+  no UI can build), and `CUSTOM_PRIJSPROFEET_COUNTRIES=constructor` would have
+  produced a garbage host URL. Both are `Object.hasOwn` now, with tests.
+- **The two upstream counts do not agree, and that is upstream's.** For the same
+  `promotion_status=active`, `/search` answers `total` 5605 where `/filter-stats`
+  answers 5623 (checked directly, curl, both hosts: 18 promotions exist in the
+  facet count that the list will not page to). The fork relays each endpoint's own
+  number rather than inventing one; the filter panel can therefore show a count a
+  hair above what the list reaches.
+- Verified on 2026-10-11, live, in this order:
+    - **Migrations**: `custom/0009-promo-exclusions` applied to the existing
+      database (server log: `applied: ["custom/0009-promo-exclusions"]`), then a
+      second boot with `applied: []` and `alreadyApplied: 15`; and a fresh
+      `postgres:16` container where the whole list applied, `custom/0009`
+      included.
+    - **The exclusions over HTTP against that database**: add `"  Café   TEST "`
+      → stored `cafe test`; adding it twice → the same row; a one-letter term →
+      400; the list → rows carrying their id; two terms live → the page of 24
+      came back as 20 with `hidden: 4` and no excluded brand left on it; delete →
+      200, delete again → 404; then the list empty, `hidden: 0`, and
+      `select count(*)` on the table back to 0 — the verification left no row
+      behind.
+    - **The screen in a browser**, against the real server and the real API: 24
+      rows with 24 thumbnails, each row naming its product and brand ("Omo Poeder
+      wasmiddel wit · Omo"), "5605 deals today"; the row's hide button → 23 rows
+      and `· 1 hidden by your exclusions` with a chip for the product; typing
+      `omo` → 20 rows, `· 4 hidden by your exclusions`, no Omo left; both chips
+      removed → back to 24 rows and no note.
+    - **The advisory about unclickable tabs**: the hit-test says the tab bar is
+      covered by the app's sticky header *at a scrolled offset* (the point
+      returned the header container, not the tab) — at the top of the page nothing
+      overlays it, and a real pointer click on the tab switches it. The earlier
+      timeouts were that scroll position (plus an open Select popup swallowing the
+      click), not a defect in the tab bar.
+    - **The demo build** (`VITE_DEMO=true`), whose mock API has no handler for the
+      promo routes: `/promo-watchlist` used to reach `page.offers.map` on the
+      array the fallback returns, i.e. a TypeError on the tab. `useDailyPromos`
+      now treats a response that is not a page as "could not load", and the demo
+      renders both tabs, the filter bar and "Could not load today's deals." with
+      zero page errors. The demo deliberately serves no promo fixtures, as it does
+      for the scanner: inventing promotions would put made-up prices behind a real
+      company's credit line.
+- Server suite: 77 tests pass, 16 of them the product-scan/promo file; `tsc`
+  clean on the server, and `npm run build` on the client (i18n parity + `tsc` +
+  Vite).
