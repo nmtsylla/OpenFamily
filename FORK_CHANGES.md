@@ -55,6 +55,7 @@ explained below.
 | Maintenance: clear the Budget / Meals / Pantry domains (dry run by default, `--yes` to delete) | `scripts/clean-custom-data.mjs` | — |
 | Translations | `client/src/i18n/locales/<lng>/{weather,activities,analytics,dashboard,budget,ai,lunchbox,pantry,outings,scan}.custom.json` | — |
 | Screen wake lock — the app keeps the screen awake while it is the visible page, which is what makes a wall tablet or a phone left on the kitchen counter usable as a display; the lock is re-asked for on every return to visible (the browser drops it itself when the page hides) and released on unmount, and it exists once, in a hook shared by the app-wide mount and by the family dashboard's own inline effect it replaced, which had the idempotence bug of stacking a second lock on a mount followed by a visible event | `client/src/custom/hooks/useScreenWakeLock.custom.ts`, `client/src/custom/components/ScreenWakeLock.custom.tsx` (mounted from `client/src/main.tsx`) | — (no flag: client-only, no server route and no API surface, so there is nothing for a `CUSTOM_FEATURE_*` variable to unmount; its scope is the installed display mode, which `isStandalonePwa` holds — `matchMedia('(display-mode: standalone)')` or `navigator.standalone` — because a browser tab's screen is the browser's business, while the dashboard holds the lock whatever the display mode, a wall tablet being a display) |
+| Collapsible navigation at wide widths | `client/src/custom/components/SidebarToggle.custom.tsx`, `client/src/custom/lib/sidebarCollapse.custom.css`, `client/src/i18n/locales/<lng>/layout.custom.json` | — (no flag: client-only, no server route and no API surface) |
 
 Gating: a feature's `CUSTOM_FEATURE_*_ENABLED=false` unmounts its API routes and
 adds its module keys to `disabled_modules` in `/api/auth/me`, which hides the
@@ -111,7 +112,7 @@ existed; the exact count of rewritten upstream lines is the next section's table
 | `server/src/services/ai/{openai,anthropic,gemini,ollama}.ts` | `ai` | Sends attachments to each provider; OpenAI-compatible gateways that need a session |
 | `server/src/db.ts` | `db-config` | Database TLS and connect timeout from `CUSTOM_POSTGRES_*` |
 | `client/src/App.tsx` | `custom-routes` | Mounts `customRoutes(isModuleEnabled)` inside `<Routes>` |
-| `client/src/components/layout/Layout.tsx` | `custom-nav` | Appends `customNavigation` / `customMobileTabs` to the upstream arrays |
+| `client/src/components/layout/Layout.tsx` | `custom-nav`, `nav-collapse` | Appends `customNavigation` / `customMobileTabs` to the upstream arrays; the second hook renders the sidebar collapse toggle in the header's left group |
 | `client/src/pages/Dashboard.tsx` | `weather`, `pantry` | Renders the custom dashboard widgets; the pantry expiry card has its own three `pantry` blocks, the weather blocks are untouched |
 | `client/src/pages/Settings.tsx` | `weather`, `budget-custom` | Weather location card, vision-model hint |
 | `client/src/pages/Budget.tsx` | `budget-custom` | Mounts the receipt import button and the imported-receipts section |
@@ -1394,3 +1395,25 @@ records every prompt it is asked to complete (no model involved):
   rendered "Garde-manger · Réfrigérateur · 0 L", and after confirming the pantry
   page read "Rien ici pour l'instant." while the shopping list read "1 article
   restant" with an unchecked `Lait — Alimentation — Qté: 1 L`.
+
+### Collapsible navigation on a wide screen (2026-10-11)
+
+- **The constraint is upstream's own `lg` breakpoint.** From 1024px the Layout
+  pins the sidebar open (`lg:translate-x-0`) and pads the content by 18rem
+  (`lg:pl-72`), so a tablet held in landscape cannot give that width back to the
+  page.
+- **One boolean, one projection.** The state lives in
+  `client/src/custom/components/SidebarToggle.custom.tsx` and its only projection
+  is the `nav-collapsed` class on `<html>`; `client/src/custom/lib/sidebarCollapse.custom.css`
+  reads it inside an `@media (min-width: 1024px)` block and overrides the computed
+  transform and padding. No upstream class string is edited — the two selectors
+  keep `aside:has(nav)` and `.lg\:pl-72` exactly as upstream wrote them.
+- **One additive hook in `Layout.tsx`.** The `nav-collapse` marker adds the
+  import and one `<SidebarToggle />` in the header's left group, at the same
+  `lg` breakpoint (the button is `hidden lg:inline-flex`); everything else is a
+  custom file.
+- **The preference persists in localStorage** (`sidebarCollapsed`), like the
+  theme, because it is a layout choice and not a per-visit act.
+- **Mobile is untouched.** Every rule is media-scoped to `lg`, so the sub-1024px
+  drawer keeps its own `-translate-x-full` / `translate-x-0` transform and the
+  mobile tab bar is not affected.

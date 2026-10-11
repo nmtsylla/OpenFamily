@@ -32,6 +32,9 @@ import { DemoBanner } from '../app/DemoBanner';
 // FORK-START: custom-nav
 import { customNavigation, customMobileTabs } from '../../custom/nav.custom';
 // FORK-END: custom-nav
+// FORK-START: nav-collapse
+import SidebarToggle from '../../custom/components/SidebarToggle.custom';
+// FORK-END: nav-collapse
 import { MagicInputButton } from '../app/MagicInput';
 
 interface LayoutProps {
@@ -249,6 +252,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                             >
                                 <Menu className="h-5 w-5" />
                             </button>
+                            {/* FORK-START: nav-collapse */}
+                            <SidebarToggle />
+                            {/* FORK-END: nav-collapse */}
                             <h1 className="text-caption font-semibold text-foreground">
                                 {currentPage ? t(currentPage.labelKey) : t('pageTitleFallback')}
                             </h1>
