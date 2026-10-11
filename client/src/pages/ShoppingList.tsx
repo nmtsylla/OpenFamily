@@ -6,6 +6,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { formatCurrency } from '../lib/utils';
 import { intlLocale } from '../i18n/format';
 import { Plus, Trash2, Check, ShoppingBag, Save, ListChecks, Store, ChevronLeft, Minus } from 'lucide-react';
+// FORK-START: product-scan
+import { ScanLine, Tag } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+// FORK-END: product-scan
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -78,6 +82,42 @@ const ShoppingList: React.FC = () => {
     // Which item's quantity is being edited inline, and the value being typed.
     const [editingQuantityId, setEditingQuantityId] = useState<string | null>(null);
     const [quantityDraft, setQuantityDraft] = useState('');
+
+    // FORK-START: product-scan
+    const navigate = useNavigate();
+    // Read through a second `useAuth()` call rather than the destructure above,
+    // so this block stays purely additive and survives upstream reshaping its
+    // own line. With the feature off (or the family hiding the module) the
+    // server reports `productScan` as disabled: no fetch, no button, no badge,
+    // and the page is upstream's page.
+    const { isModuleEnabled } = useAuth();
+    const scannerEnabled = isModuleEnabled('productScan');
+    // The barcode each scanned shopping row came from, by row id: one request
+    // for the whole family. Fetched once, because a row added from the scanner
+    // arrives through a route change that remounts this page anyway.
+    const [itemBarcodes, setItemBarcodes] = useState<Record<string, string>>({});
+    const [watchedItemId, setWatchedItemId] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!scannerEnabled) return;
+        api.get<{ success: boolean; data: Record<string, string> }>('/api/products/shopping-items/barcodes')
+            .then((response) => setItemBarcodes(response.data ?? {}))
+            // Offline, or the endpoint errored: the list just has no badge.
+            .catch(() => undefined);
+    }, [scannerEnabled]);
+
+    const watchPromo = async (item: ShoppingItem) => {
+        const barcode = itemBarcodes[item.id];
+        if (!barcode) return;
+        try {
+            await api.post('/api/products/promo-watchlist', { barcode });
+            setWatchedItemId(item.id);
+        } catch (err) {
+            console.error('Failed to watch the product:', err);
+            setError(t('scan.custom:errors.addFailed'));
+        }
+    };
+    // FORK-END: product-scan
 
     useEffect(() => {
         void Promise.all([loadItems(), loadTemplates()]).finally(() => setLoading(false));
@@ -521,6 +561,14 @@ const ShoppingList: React.FC = () => {
                         {t('shopping:storeMode.enter')}
                     </Button>
                 )}
+                {/* FORK-START: product-scan */}
+                {scannerEnabled ? (
+                    <Button variant="secondary" onClick={() => navigate('/scanner')}>
+                        <ScanLine className="mr-1 h-4 w-4" />
+                        {t('scan.custom:nav.scanner')}
+                    </Button>
+                ) : null}
+                {/* FORK-END: product-scan */}
             </div>
 
             <Card>
@@ -632,6 +680,24 @@ const ShoppingList: React.FC = () => {
                                     <p className="truncate text-body font-medium text-foreground">{item.name}</p>
                                     <div className="mt-1 flex flex-wrap items-center gap-2 text-micro">
                                         <span className="rounded-pill bg-primary-soft px-2 py-0.5 text-primary">{categoryLabel(item.category)}</span>
+
+                                        {/* FORK-START: product-scan */}
+                                        {scannerEnabled && itemBarcodes[item.id] ? (
+                                            <button
+                                                type="button"
+                                                title={t('scan.custom:scanner.watchBadgeHint')}
+                                                onClick={() => void watchPromo(item)}
+                                                className="flex min-h-8 items-center gap-1 rounded-pill border border-border px-2 py-1 text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+                                            >
+                                                {watchedItemId === item.id ? (
+                                                    <Tag className="h-3 w-3 text-primary" />
+                                                ) : (
+                                                    <ScanLine className="h-3 w-3" />
+                                                )}
+                                                {itemBarcodes[item.id]}
+                                            </button>
+                                        ) : null}
+                                        {/* FORK-END: product-scan */}
 
                                         {editingQuantityId === item.id ? (
                                             <span className="flex items-center gap-1">

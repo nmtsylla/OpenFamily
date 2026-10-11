@@ -5,7 +5,7 @@
 // key: the family-level module setting and the CUSTOM_FEATURE_*_ENABLED flag
 // (reported as disabled through /api/auth/me) hide it without any extra work.
 
-import { BarChart3, Package, Sandwich } from 'lucide-react';
+import { BarChart3, Package, Sandwich, ScanLine, Tag } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 export interface CustomNavEntry {
@@ -22,10 +22,16 @@ export const customNavigation: CustomNavEntry[] = [
     // Same reason for /lunchboxes: the upstream Meals entry matches /meals.
     { labelKey: 'lunchbox.custom:nav.lunchboxes', href: '/lunchboxes', icon: Sandwich, module: 'lunchbox' },
     { labelKey: 'pantry.custom:nav.pantry', href: '/pantry', icon: Package, module: 'pantry' },
+    { labelKey: 'scan.custom:nav.scanner', href: '/scanner', icon: ScanLine, module: 'productScan' },
+    { labelKey: 'scan.custom:nav.promoWatchlist', href: '/promo-watchlist', icon: Tag, module: 'productScan' },
 ];
 
 export const customMobileTabs: CustomNavEntry[] = [
     { labelKey: 'analytics.custom:nav.mobileBudgetAnalytics', href: '/budget-analytics', icon: BarChart3, module: 'budgetAnalytics' },
     { labelKey: 'lunchbox.custom:nav.mobileLunchboxes', href: '/lunchboxes', icon: Sandwich, module: 'lunchbox' },
     { labelKey: 'pantry.custom:nav.mobilePantry', href: '/pantry', icon: Package, module: 'pantry' },
+    // Scanning happens standing in a shop, where the sidebar is behind a menu,
+    // so it earns a tab. The watchlist does not: the bar renders its grid from
+    // this list's length, and a seventh tab is a crowd on a phone.
+    { labelKey: 'scan.custom:nav.mobileScanner', href: '/scanner', icon: ScanLine, module: 'productScan' },
 ];

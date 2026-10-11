@@ -40,16 +40,17 @@ three that cannot hold comments (`.env.example`, `package-lock.json`,
 | Lunchboxes + weekly nutritional read (ported from KeurTonux) | `server/src/custom/lib/lunchbox.custom.ts`, `server/src/custom/lib/aiSettings.custom.ts`, `server/src/custom/lib/promptLanguage.custom.ts`, `server/src/custom/ai/{lunchbox,nutrition}.custom.ts`, `server/src/custom/routes/lunchbox.custom.ts`, `client/src/custom/pages/Lunchboxes.custom.tsx`, `client/src/custom/components/{LunchboxAiDialog,NutritionAnalysisDialog}.custom.tsx` | `CUSTOM_FEATURE_LUNCHBOX_ENABLED` |
 | Smart pantry — what the household has at home (locations, expiry, low stock), bridging the shopping list both ways, Grocy stock in, and the receipt import feeding it: the obviously stockable lines merge in under the brand-free name the AI read off the ticket, the rest wait in a review queue on the page; lunchbox AI and a "cook from what you have" tab out | `server/src/custom/lib/pantry.custom.ts`, `server/src/custom/lib/pantryMerge.custom.ts`, `server/src/custom/lib/validation.custom.ts`, `server/src/custom/routes/pantry.custom.ts`, `client/src/custom/pages/Pantry.custom.tsx`, `client/src/custom/components/PantryExpiryCard.custom.tsx`, `client/src/custom/lib/pantryMatch.custom.ts` | `CUSTOM_FEATURE_PANTRY_ENABLED` |
 | AI outing planner on the Planning page — real places around the family (OpenStreetMap/Overpass) ranked by the family's own model for the day, the weather, the people coming (whole family / with the kids / parents only) and what the children's cards say, plus place-less activity ideas; the chosen outing is added to the planning through upstream's own `/api/planning` | `server/src/custom/lib/places.custom.ts`, `server/src/custom/lib/{location,kids}.custom.ts` (extracted from the dashboard route when this needed the same answers), `server/src/custom/ai/outings.custom.ts`, `server/src/custom/routes/outings.custom.ts`, `client/src/custom/components/OutingPlanner.custom.tsx`, `client/src/custom/hooks/useOutings.custom.ts` | `CUSTOM_FEATURE_OUTINGS_ENABLED` |
+| Barcode scanning, product lookup and promo watchlist | `server/src/custom/lib/{openFoodFacts,product}.custom.ts`, `server/src/custom/routes/productScan.custom.ts`, `server/test/productScan.custom.test.ts`, `client/src/custom/pages/{ProductScanner,PromoWatchlist}.custom.tsx`, `client/src/custom/components/{BarcodeScanner,ProductCard}.custom.tsx`, `client/src/custom/hooks/{useProductScan,usePromoWatchlist}.custom.ts`, `client/src/custom/lib/product.custom.ts` | `CUSTOM_FEATURE_SCANNER_ENABLED` |
 | Feature flags / registration point | `server/src/custom/features.custom.ts`, `server/src/custom/register.custom.ts`, `server/src/custom/middleware/rateLimit.custom.ts` | — |
 | Client hooks for custom code | `client/src/custom/{nav.custom.ts,routes.custom.tsx}` | — |
 | Deploy assets | `deploy/README.md`, `deploy/up.sh`, `docker-compose.override.yml` | — |
-| Translations | `client/src/i18n/locales/<lng>/{weather,activities,analytics,dashboard,budget,ai,lunchbox,pantry}.custom.json` | — |
+| Translations | `client/src/i18n/locales/<lng>/{weather,activities,analytics,dashboard,budget,ai,lunchbox,pantry,scan}.custom.json` | — |
 
 Gating: a feature's `CUSTOM_FEATURE_*_ENABLED=false` unmounts its API routes and
 adds its module keys to `disabled_modules` in `/api/auth/me`, which hides the
 matching nav entry, page and dashboard widget through the client's existing module
 filter. Module keys: `weather`, `activities`, `budgetReceipts`, `budgetAnalytics`,
-`lunchbox`, `pantry`, `outings`.
+`lunchbox`, `pantry`, `outings`, `productScan`.
 
 ## Ported from KeurTonux (`tonux/KeurTonux`, local checkout `/home/bsylla/keurtonux`)
 
@@ -112,6 +113,7 @@ otherwise.
 | `DOCUMENTATION.md`, `ROADMAP.md`, `README.md`, `README.fr.md`, `README.zh-CN.md` | `docs` | Feature documentation |
 | `docker-compose.yml` | `deploy` | Custom env vars for the server service, `CUSTOM_FEATURE_*_ENABLED` included (without a line there, a variable set in `.env` never reaches the container — the documented kill switch could not be used on a Docker install) |
 | `server/package.json`, `package-lock.json` | (none, JSON) | `@aws-sdk/client-s3` dependency and the `test` script; lockfile regenerated, never hand-edited |
+| `client/package.json`, `package-lock.json` | (none, JSON) | `react-zxing` dependency; lockfile updated with `npm install --legacy-peer-deps` so the workspace's react/react-dom stay on the versions already locked (19.2.7/19.2.7) — a plain `npm install` re-resolved `react` to 19.3.0 against `react-dom` 19.2.7 and crashed every page at runtime |
 
 ### Modified (non-additive) upstream lines — the complete list
 
@@ -173,12 +175,19 @@ paints that in ~200 ms before asking for the model's answer (see
 ## Dependency changes
 
 - `@aws-sdk/client-s3@^3.1148.0` (server) — S3-compatible image storage
+- `react-zxing@^2.1.0` (client, resolves to 2.2.0 + `@zxing/library@0.20.0`) — barcode
+  decoding for the scanner page. `zxing-wasm` was dropped from the plan: it is only
+  needed by react-zxing v3 (`barcode-detector`), while v2 decodes in pure JS and
+  needs no WASM asset — one less thing to ship to the WebView.
 - `server/package.json` — `"test": "tsx --test test/*.test.ts"`
-- `package-lock.json` regenerated for the above; no other version changed
+- `package-lock.json` regenerated for the above; no other version changed. The
+  `react-zxing` install was done with `npm install --legacy-peer-deps` (see the
+  `client/package.json` row above): it leaves the locked `react`/`react-dom`
+  versions alone, and only adds `react-zxing` and its three transitive packages.
 
 ## Custom migrations
 
-Both live in the reserved `custom/` namespace (upstream ends at `core/0006`, so its
+They live in the reserved `custom/` namespace (upstream ends at `core/0006`, so its
 next migration takes `core/0007`):
 
 - `custom/0001-users-location` — `users.city`, `country_code`, `latitude`, `longitude`
@@ -211,6 +220,14 @@ next migration takes `core/0007`):
   cannot be mapped (the id is all they hold) and stay inert — the products they counted are
   still in the pantry, which is the point.
 
+- `custom/0008-product-scan` — `custom_products` (the Open Food Facts cache),
+  `custom_promo_watchlist`, `custom_promo_prices`, `custom_shopping_item_barcodes`
+  (+ one index: the two other candidates duplicated a primary key and the
+  watchlist's UNIQUE). No upstream table is touched: the link from a shopping row
+  to the barcode it was scanned from lives in its own table, keyed by the row's id.
+  Numbered 0008, not 0003: the fork's other features took `custom/0003` to
+  `custom/0007` first, and two migrations must not share a number.
+
 Every statement is idempotent (`IF NOT EXISTS`), and the ids must never be renamed
 or their SQL edited: the runner records `id` + SQL checksum in
 `openfamily_schema_migrations` (`server/src/migrations/runner.ts`).
@@ -227,10 +244,10 @@ instance from the earlier fork tree, rename these in your `.env`:
 | `MINIO_ENDPOINT` / `_ACCESS_KEY` / `_SECRET_KEY` / `_BUCKET` / `_REGION` | `CUSTOM_MINIO_*` |
 | `OPEN_METEO_BASE_URL` / `OPEN_METEO_GEOCODING_URL` | `CUSTOM_OPEN_METEO_*` |
 | `WEATHER_DEFAULT_LANG` / `_CACHE_TTL_MS` / `_REQUEST_TIMEOUT_MS` | `CUSTOM_WEATHER_*` |
-| — (new) | `CUSTOM_FEATURE_{WEATHER,MEDIA,BUDGET_RECEIPTS,BUDGET_ANALYTICS,LUNCHBOX,PANTRY,OUTINGS,AI_WIDGETS}_ENABLED` |
+| — (new) | `CUSTOM_FEATURE_{WEATHER,MEDIA,BUDGET_RECEIPTS,BUDGET_ANALYTICS,LUNCHBOX,PANTRY,OUTINGS,SCANNER,AI_WIDGETS}_ENABLED` |
 | — (new) | `CUSTOM_OVERPASS_URL`, `CUSTOM_OVERPASS_TIMEOUT_MS`, `CUSTOM_OUTINGS_RADIUS_KM`, `CUSTOM_OUTINGS_CACHE_TTL_MS` |
 
-All eight flags are listed in `docker-compose.yml`'s `FORK-START: deploy` block, so an
+All nine flags are listed in `docker-compose.yml`'s `FORK-START: deploy` block, so an
 operator on a Docker install can switch any of them off from `.env` (they were absent
 before the outing planner; unset still means enabled, so nothing changed for an
 existing `.env`).
@@ -248,10 +265,12 @@ upstream locale file:
 - `dashboard.custom`, `budget.custom`, `ai.custom` (six locales)
 - `lunchbox.custom`, `pantry.custom` (six locales)
 - `outings.custom` (six locales)
+- `scan.custom` (six locales; `es`, `pt`, `ru`, `zh` are copies of the English
+  strings, same placeholder rule as `analytics.custom`)
 
 ## Tests
 
-`server/test/{weather,aiProvider,budgetAnalytics,aiPrompt,lunchbox,pantry,receipt,outings}.custom.test.ts` — matched by the
+`server/test/{weather,aiProvider,budgetAnalytics,aiPrompt,lunchbox,pantry,receipt,outings,productScan}.custom.test.ts` — matched by the
 server's `tsx --test test/*.test.ts`. `aiPrompt` covers the activities user prompt
 and the cache-key digest it shares a normalizer with: what the family wrote on a
 child's card has to reach the model, and two children with different notes must
@@ -668,3 +687,88 @@ Follow-up pass (review notes), each with its check:
   `/api/pantry/pending` off the `shopping` broadcast, which the server sends for
   queued lines even when nothing was merged
 
+### Barcode scanning & promo watchlist (2026-10-10)
+
+- `npm run build` (shared + server + client) passes, including `check:i18n`
+  (6 languages, 29 namespaces) and `tsc`
+- Migrations against a real Postgres 16: `custom/0008-product-scan` applied on a
+  fresh schema (4 tables + 1 index), and on a clone of a database that already
+  carried unrelated `custom/000x` migrations — the second run reported
+  `applied: []`, `alreadyApplied: 9`
+- Server exercised end to end against that database, with live Open Food Facts
+  calls: `GET /api/products/lookup/<ean>` returned a cached row in 63 ms after the
+  first lookup, 404 for an unknown barcode, 400 for a malformed one; watchlist
+  add/upsert/delete (+404 on a second delete, 404 for a non-uuid id); promo price
+  log/history with `best_promo_price` aggregated into the watchlist row (400 on a
+  zero price, 404 for a barcode Open Food Facts does not know); shopping-item
+  barcode link, bulk map, 404 for another family's item id, 401 unauthenticated
+- With `CUSTOM_FEATURE_SCANNER_ENABLED=false`: `/api/products/*` answers 404,
+  `/api/auth/me` reports `productScan` disabled, the key round-trips through
+  `PUT /api/auth/modules` (200) while an unknown key is still rejected (400), and
+  `/api/budget-analytics/overview` stays up
+- Browser, on the built client: sidebar shows Scanner + Promos (and the mobile bar
+  a Scan tab); a barcode typed into the scanner resolves to the product card
+  (name, brand, category, quantity, Nutri-Score badge); "add to the shopping list"
+  creates the row, links the barcode and lands on `/shopping` with the barcode
+  badge on the row; that badge adds the product to the watchlist without clearing
+  a target price already set; the watchlist shows the target, logs a promo price
+  and shows it as best promo, expands the price history, and "stop watching"
+  removes the row; with the flag off the two nav entries disappear and
+  `/scanner` + `/promo-watchlist` both redirect to `/`
+- The camera itself was not exercised (headless browser, no device): the failure
+  path is what the browser run covered — react-zxing reports the error, the page
+  says the camera is unavailable and offers the manual barcode field
+- Static demo (`VITE_DEMO=1`, `--mode demo`): builds; `/scanner` answers "product
+  not found" and `/promo-watchlist` renders its empty state, with no console
+  errors — the lookup hook reads the demo's `ok([])` catch-all as "not found"
+  rather than as a product, which is what a demo with no Open Food Facts should say
+
+Follow-up pass (review notes), each with its check:
+
+- **`nutriscore_grade` could break the lookup it was part of.** OFF answers
+  `"unknown"` / `"not-applicable"` for a score it never computed, and the column is
+  one character: unvalidated, that string failed the INSERT with `22001` and turned
+  the lookup — and every watch built on it — into a 502. The grade is now kept only
+  when it is one letter A-E. Checked with the real `lookupProduct` against a
+  stubbed OFF body (and permanently in `server/test/productScan.custom.test.ts`):
+  `unknown`, `not-applicable` and an absent field → `null`, `B` → `b`
+- **`name` and `brand` were written unsliced** into `VARCHAR(255)` / `VARCHAR(160)`,
+  unlike `category` and `quantity` three lines below: the same `22001` failure mode
+  from the same external source. Both are sliced now
+- **`ShoppingList`'s scan block was not gated on the module**, so with the feature
+  off the button stayed visible and the bulk barcode request still fired (a silent
+  404). No other custom component behaved that way. Verified in a browser against a
+  stub API: with `productScan` in `disabled_modules`, `/shopping` renders neither
+  the button nor the nav entries and issues **zero** `/api/products/*` requests;
+  with the module enabled the button, the barcode badge and the badge's watch POST
+  all appear. Production fires the bulk request once: the 2 requests seen in dev
+  are React StrictMode's double-invoked effect
+- **The promo watch was written after the shopping item**, so a watch failure threw
+  after the row already existed: the page said the add failed, the dialog stayed
+  open, and a retry created a duplicate row. The watch now comes first — it is the
+  only step that can fail on the third-party side — and the barcode link stays
+  best-effort last. Verified against the stub: watch → item → barcode link, in that
+  order; with the watch answering 500, only the watch request is sent, the dialog
+  stays open and the page says the add failed. No second Open Food Facts call
+  appears on that path: `ensureProduct` finds the row the scan just cached
+- **The mapping and the validators had no tests.** `normalizeProduct` and
+  `firstCategory` are exported from `lib/openFoodFacts.custom.ts`, and the barcode
+  and price rules live in `lib/product.custom.ts`, so
+  `server/test/productScan.custom.test.ts` covers them: the grade gate (including
+  `UNKNOWN`), the name/brand/category/quantity/image fallbacks, the 8-13 digit
+  barcode rule, and the price rule (comma decimals, rounding to cents, zero and
+  negatives rejected). 24 tests pass
+- **A malformed manual entry reported a failed connection.** `1234` reached the
+  route, came back 400, and the page blamed the network. It is now refused locally
+  with its own message and its own keys, and without taking the scan lock — checked
+  in the browser: `1234` shows "That is not a barcode" with **zero** requests, and
+  the next, valid barcode still resolves
+- **The row badge reused the scanner's "Watch for promos only" as its tooltip**,
+  where that string means the opposite thing. It has its own key
+  (`scanner.watchBadgeHint`), and logging a price now refreshes the history pane
+  already open on that product instead of leaving it stale. Both checked in the
+  browser; the new strings keep `check:i18n` parity across the six locales
+- The migration was renumbered to `custom/0008-product-scan` on the merge into
+  `develop` (which already holds `custom/0003` to `custom/0007`), and the two
+  indexes that duplicated an existing primary key / UNIQUE were dropped while the
+  id was still unreleased

@@ -391,5 +391,56 @@ export const coreMigrations: readonly Migration[] = [
                 AND pi.source_ref = r.id::text`,
         ],
     },
+    {
+        // Barcode scanning: a scanned EAN is looked up on Open Food Facts and
+        // cached in custom_products, then used as the key for a promotion
+        // watchlist and the promo prices the family logs in stores.
+        //
+        // No upstream table is touched. The link from a shopping-list row to the
+        // barcode it was scanned from lives in its own table, keyed by the
+        // shopping item's id, so shopping_items keeps upstream's shape.
+        id: 'custom/0008-product-scan',
+        statements: [
+            `CREATE TABLE IF NOT EXISTS custom_products (
+                barcode VARCHAR(13) PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                brand VARCHAR(160),
+                category VARCHAR(50),
+                image_url TEXT,
+                quantity VARCHAR(50),
+                unit VARCHAR(20),
+                nutriscore_grade VARCHAR(1),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )`,
+            `CREATE TABLE IF NOT EXISTS custom_promo_watchlist (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                barcode VARCHAR(13) NOT NULL REFERENCES custom_products(barcode) ON DELETE CASCADE,
+                target_price DECIMAL(10, 2),
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (user_id, barcode)
+            )`,
+            `CREATE TABLE IF NOT EXISTS custom_promo_prices (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                barcode VARCHAR(13) NOT NULL REFERENCES custom_products(barcode) ON DELETE CASCADE,
+                store_name VARCHAR(120),
+                promo_price DECIMAL(10, 2) NOT NULL,
+                regular_price DECIMAL(10, 2),
+                notes TEXT,
+                logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )`,
+            `CREATE TABLE IF NOT EXISTS custom_shopping_item_barcodes (
+                shopping_item_id UUID PRIMARY KEY REFERENCES shopping_items(id) ON DELETE CASCADE,
+                barcode VARCHAR(13) NOT NULL
+            )`,
+            // Only the one index neither table already carries: `user_id` is the
+            // leading column of the watchlist's UNIQUE, and the barcode link is
+            // keyed by its primary key.
+            'CREATE INDEX IF NOT EXISTS idx_promo_prices_user_barcode ON custom_promo_prices(user_id, barcode)',
+        ],
+    },
     // FORK-END: custom-migrations
 ];

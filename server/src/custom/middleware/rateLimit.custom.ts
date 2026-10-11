@@ -1,6 +1,7 @@
 // Rate limiter for the custom surfaces that talk to a FIXED host: Open-Meteo
-// through the weather service, the two dashboard widgets that wrap it, and the
-// lunchbox AI calls (same fixed provider the /api/ai routes use).
+// through the weather service, the two dashboard widgets that wrap it, the
+// lunchbox AI calls (same fixed provider the /api/ai routes use), and the product
+// lookup on Open Food Facts (hit on a cache miss, so a scan burst is bounded too).
 //
 // Upstream's outboundRateLimiter guards paths that fan out to a USER-SUPPLIED
 // host (AI providers, recipe import, integrations) — nothing to probe here — and

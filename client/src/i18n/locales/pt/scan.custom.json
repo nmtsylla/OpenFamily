@@ -1,0 +1,71 @@
+{
+  "nav": {
+    "scanner": "Scanner",
+    "promoWatchlist": "Promos",
+    "mobileScanner": "Scan"
+  },
+  "scanner": {
+    "title": "Scan a product",
+    "subtitle": "Point the camera at a food barcode to get the product.",
+    "hint": "Hold the barcode inside the frame.",
+    "lookingUp": "Looking it up…",
+    "notFound": "Product not found",
+    "notFoundHint": "Open Food Facts does not know this barcode yet. You can type it in, or start the camera again.",
+    "errorHint": "The lookup did not go through. Check the connection and try again.",
+    "invalid": "That is not a barcode",
+    "invalidHint": "A barcode is 8 to 13 digits. Check the number and try again.",
+    "manualLabel": "Barcode",
+    "lookup": "Look up",
+    "addToList": "Add to the shopping list",
+    "watchOnly": "Watch for promos only",
+    "watchBadgeHint": "Watch this product for promos",
+    "scanAgain": "Scan another",
+    "stop": "Stop the camera",
+    "start": "Start the camera",
+    "watchAdded": "Added to the promo watchlist",
+    "noCamera": "No camera",
+    "noCameraHint": "The browser refused camera access, or there is no camera here. Type the barcode instead."
+  },
+  "productCard": {
+    "nutriscore": "Nutri-Score"
+  },
+  "addToList": {
+    "title": "Add to the shopping list",
+    "name": "Name",
+    "category": "Category",
+    "quantity": "Quantity",
+    "unit": "Unit",
+    "price": "Price",
+    "watch": "Also watch this product for promotions",
+    "targetPrice": "Target price",
+    "targetPricePlaceholder": "Optional",
+    "cancel": "Cancel",
+    "submit": "Add"
+  },
+  "promoWatchlist": {
+    "title": "Promo watchlist",
+    "subtitle": "The products you are waiting for a discount on.",
+    "empty": "Nothing is being watched yet.",
+    "emptyHint": "Scan a product and tick “watch for promos” to start.",
+    "targetPrice": "Target",
+    "bestPromo": "Best promo",
+    "noPromo": "None logged yet",
+    "logPrice": "Log a promo price",
+    "stopWatching": "Stop watching",
+    "store": "Store",
+    "promoPrice": "Promo price",
+    "regularPrice": "Regular price",
+    "notes": "Notes",
+    "save": "Save",
+    "saved": "Promo price logged",
+    "history": "Price history",
+    "noHistory": "No price logged for this product yet."
+  },
+  "errors": {
+    "loadFailed": "Could not load the list.",
+    "lookupFailed": "The product lookup failed.",
+    "addFailed": "Could not add the product.",
+    "removeFailed": "Could not stop watching this product.",
+    "priceInvalid": "Enter a price above zero."
+  }
+}
