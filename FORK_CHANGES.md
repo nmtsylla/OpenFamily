@@ -383,16 +383,16 @@ was verified in a browser instead (see "Verification" below).
   not a directory).
 - `analytics.custom.json` exists for all six locales, but its `es`/`pt`/`ru`/`zh`
   files are English placeholders pending translation (required by `check-i18n`).
-- **The main bundle is within ~500 bytes of the PWA's precache limit.** The client
-  build runs `vite-plugin-pwa` in `injectManifest` mode with workbox's default
-  `maximumFileSizeToCacheInBytes` of 2 MiB (2,097,152 B); the main chunk measures
-  2,096.28 kB, so the build fails the moment ~1 kB of strings or code is added to
-  anything eager. That is why the kiosk rework deleted as many `dashboard.custom`
-  keys as it added, and why the lazy chunks (scanner, family dashboard) must stay
-  lazy. The real fix is either raising that limit in `client/vite.config.ts` (an
-  upstream file, would need a `FORK-START/END` marker) or splitting the i18n
-  payload; neither is urgent while the margin holds, but the next feature that adds
-  eager code will hit it.
+- **The main bundle was within ~500 bytes of the PWA's precache limit — closed on
+  2026-10-11 by `df16f56` (the four remaining eager custom pages moved into their
+  own chunks, −87 kB).** Recorded because it shaped the kiosk rework: the branch it
+  was measured on (`6ce1c4e`) built a 2,096.76 kB main chunk against workbox's 2 MiB
+  `maximumFileSizeToCacheInBytes` (2,097,152 B), i.e. a few hundred bytes of
+  headroom, so the rework deleted as many `dashboard.custom` keys as it added
+  instead of shaving the margin. On the merged tree the main chunk measures
+  2,009.33 kB. The rule that fixed it still applies to anything new: a page or a
+  heavy import is what counts, so keep it behind `React.lazy`, and measure
+  `dist/assets/index-*.js` after adding i18n keys — the locale JSON is eager.
 - **`custom/0005-pantry-name-unique` used to abort startup on a database that
   already held duplicate pantry rows — closed on 2026-10-11.** `CREATE UNIQUE
   INDEX` raises 23505 if two `source <> 'grocy'` rows share `(user_id, name_key)`
@@ -1292,8 +1292,11 @@ demo deliberately serves none of them, see the promo section above):
 - The House sheet rendered the toggle grid (ON/OFF tiles), the security pills
   (amber for the `unlocked` lock, green for the closed door) and both scenes.
 - `npm run build` passes: `check:i18n` (6 languages), `tsc`, Vite; the dashboard
-  stays a lazy chunk (35.5 kB) and the main bundle ends at 2,096.28 kB, 480 bytes
-  *below* where it started.
+  stays a lazy chunk (35.2 kB) and the eager bundle came out 480 bytes *smaller* than
+  the branch base it was measured against (`6ce1c4e`: 2,096.28 kB vs 2,096.76 kB —
+  that base was itself within 500 bytes of workbox's 2 MiB precache limit, which is
+  why keys were traded rather than added; on the merged tree the main chunk is
+  2,009.33 kB, see "Known gaps").
 
 ### The two AI surfaces read the pantry (2026-10-11)
 
