@@ -1,0 +1,71 @@
+{
+  "nav": {
+    "scanner": "Scanner",
+    "promoWatchlist": "Promos",
+    "mobileScanner": "Scan"
+  },
+  "scanner": {
+    "title": "Scanner un produit",
+    "subtitle": "Visez le code-barres d'un produit alimentaire avec la caméra.",
+    "hint": "Placez le code-barres dans le cadre.",
+    "lookingUp": "Recherche en cours…",
+    "notFound": "Produit introuvable",
+    "notFoundHint": "Open Food Facts ne connaît pas encore ce code-barres. Saisissez-le à la main, ou relancez la caméra.",
+    "errorHint": "La recherche n'a pas abouti. Vérifiez la connexion et réessayez.",
+    "invalid": "Ce n'est pas un code-barres",
+    "invalidHint": "Un code-barres comporte de 8 à 13 chiffres. Vérifiez le numéro et réessayez.",
+    "manualLabel": "Code-barres",
+    "lookup": "Rechercher",
+    "addToList": "Ajouter à la liste de courses",
+    "watchOnly": "Surveiller les promos seulement",
+    "watchBadgeHint": "Surveiller les promos de ce produit",
+    "scanAgain": "Scanner un autre produit",
+    "stop": "Arrêter la caméra",
+    "start": "Démarrer la caméra",
+    "watchAdded": "Ajouté à la liste de promos",
+    "noCamera": "Caméra indisponible",
+    "noCameraHint": "Le navigateur a refusé l'accès à la caméra, ou il n'y en a pas. Saisissez le code-barres à la main."
+  },
+  "productCard": {
+    "nutriscore": "Nutri-Score"
+  },
+  "addToList": {
+    "title": "Ajouter à la liste de courses",
+    "name": "Nom",
+    "category": "Catégorie",
+    "quantity": "Quantité",
+    "unit": "Unité",
+    "price": "Prix",
+    "watch": "Surveiller aussi les promos sur ce produit",
+    "targetPrice": "Prix cible",
+    "targetPricePlaceholder": "Facultatif",
+    "cancel": "Annuler",
+    "submit": "Ajouter"
+  },
+  "promoWatchlist": {
+    "title": "Suivi des promos",
+    "subtitle": "Les produits dont vous attendez une promotion.",
+    "empty": "Aucun produit suivi pour l'instant.",
+    "emptyHint": "Scannez un produit et cochez « surveiller les promos » pour commencer.",
+    "targetPrice": "Cible",
+    "bestPromo": "Meilleure promo",
+    "noPromo": "Aucun prix relevé",
+    "logPrice": "Relever un prix promo",
+    "stopWatching": "Ne plus suivre",
+    "store": "Magasin",
+    "promoPrice": "Prix promo",
+    "regularPrice": "Prix normal",
+    "notes": "Notes",
+    "save": "Enregistrer",
+    "saved": "Prix promo enregistré",
+    "history": "Historique des prix",
+    "noHistory": "Aucun prix relevé pour ce produit."
+  },
+  "errors": {
+    "loadFailed": "Impossible de charger la liste.",
+    "lookupFailed": "La recherche du produit a échoué.",
+    "addFailed": "Impossible d'ajouter le produit.",
+    "removeFailed": "Impossible d'arrêter le suivi de ce produit.",
+    "priceInvalid": "Saisissez un prix supérieur à zéro."
+  }
+}
