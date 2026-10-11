@@ -5,6 +5,9 @@ import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { WebSocketProvider } from './contexts/WebSocketContext';
 import { AppToastProvider } from './components/ui';
+// FORK-START: custom-wake-lock
+import ScreenWakeLock from './custom/components/ScreenWakeLock.custom';
+// FORK-END: custom-wake-lock
 import App from './App';
 import { isNative, initServerConfig } from './lib/serverConfig';
 import { initDeepLinks } from './lib/deepLinks';
@@ -28,6 +31,9 @@ void initServerConfig().finally(() => {
                         <AuthProvider>
                             <WebSocketProvider>
                                 <App />
+                                {/* FORK-START: custom-wake-lock */}
+                                <ScreenWakeLock />
+                                {/* FORK-END: custom-wake-lock */}
                             </WebSocketProvider>
                         </AuthProvider>
                     </AppToastProvider>

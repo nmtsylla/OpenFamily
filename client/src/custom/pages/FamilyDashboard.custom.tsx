@@ -11,6 +11,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { CONDITION_ICON, weatherCondition } from '../lib/weatherCode.custom';
 import { useDashboardWeather, useWeeklyForecast, type DailyForecastDTO } from '../hooks/useWeather.custom';
 import { findByName, isOn, useHomeAssistant, type HaDevice, type HaDeviceState } from '../hooks/useHomeAssistant.custom';
+import { useScreenWakeLock } from '../hooks/useScreenWakeLock.custom';
 import {
     formatCountdown, minutesUntil, overrideExpiry, resolvePhase, shiftPhase,
     type FamilyPhase, type PhaseOverride,
@@ -1033,40 +1034,9 @@ const FamilyDashboard: React.FC = () => {
         return () => meta.remove();
     }, []);
 
-    // Keep the screen on while the dashboard is the visible page. The release in
-    // the cleanup is what makes this safe on navigation away.
-    useEffect(() => {
-        interface WakeLockSentinelLike { release: () => Promise<void> }
-        interface WakeLockNavigator { wakeLock?: { request: (type: 'screen') => Promise<WakeLockSentinelLike> } }
-
-        const navigatorWithWakeLock = navigator as Navigator & WakeLockNavigator;
-        let lock: WakeLockSentinelLike | null = null;
-        let disposed = false;
-
-        const acquire = async () => {
-            try {
-                const next = await navigatorWithWakeLock.wakeLock?.request('screen');
-                if (!next) return;
-                // A lock the browser released on its own (tab hidden) must not be
-                // released again in the cleanup.
-                lock = disposed ? null : next;
-                if (disposed) void next.release().catch(() => undefined);
-            } catch {
-                /* unsupported or denied — the tablet's own keep-awake setting covers it */
-            }
-        };
-
-        void acquire();
-        const onVisible = () => {
-            if (document.visibilityState === 'visible') void acquire();
-        };
-        document.addEventListener('visibilitychange', onVisible);
-        return () => {
-            disposed = true;
-            document.removeEventListener('visibilitychange', onVisible);
-            void lock?.release().catch(() => undefined);
-        };
-    }, []);
+    // A wall tablet is a display, so the dashboard locks the screen whatever the
+    // display mode — the app-wide mount only covers the installed app.
+    useScreenWakeLock();
 
     // The clock and every countdown are minute-precision, so the tick only
     // commits a new Date when the minute actually changes.
