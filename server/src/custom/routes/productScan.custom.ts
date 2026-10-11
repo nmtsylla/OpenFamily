@@ -12,6 +12,12 @@
 //   DELETE /api/products/promo-watchlist/:id          stop watching
 //   POST   /api/products/promo-watchlist/:barcode/prices   log a promo price seen in a store
 //   GET    /api/products/promo-watchlist/:barcode/prices   price history (50 latest)
+//   GET    /api/products/promo-watchlist/:barcode/offers   what is on promotion now, from PrijsProfeet
+//   GET    /api/products/promos                            today's promotions, filtered and paginated
+//   GET    /api/products/promos/filters                    the filter choices (stores, categories) and their counts
+//   GET    /api/products/promo-exclusions                  terms this family never wants to see
+//   POST   /api/products/promo-exclusions                  add one ({"term": "coca"})
+//   DELETE /api/products/promo-exclusions/:id              remove one
 //   POST   /api/products/shopping-items/:id/barcode   remember which barcode an item came from
 //   GET    /api/products/shopping-items/barcodes      every linked barcode of the family, one map
 
@@ -19,6 +25,8 @@ import { Router } from 'express';
 import { query } from '../../db';
 import { authMiddleware, AuthRequest } from '../../middleware/auth';
 import { lookupProduct, type OpenFoodFactsProduct } from '../lib/openFoodFacts.custom';
+import { addExclusion, applyExclusions, exclusionsOf, normalizeTerm, removeExclusion, termsOf } from '../lib/promoExclusions.custom';
+import { dealsForBarcode, promoCountryOf, promoFilters, promoQueryOf, searchPromos } from '../lib/prijsprofeet.custom';
 import { barcodeOf, optionalPrice } from '../lib/product.custom';
 
 const router = Router();
@@ -236,6 +244,102 @@ router.get('/promo-watchlist/:barcode/prices', async (req: AuthRequest, res) => 
         res.json({ success: true, data: result.rows });
     } catch (error) {
         console.error('Get promo prices error:', error);
+        res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+});
+
+// What the shops are promoting on this barcode right now (PrijsProfeet, free
+// plan). Best-effort and read-only: the watchlist predates it and still works
+// without it, so an upstream outage is a 502 the pane renders as "could not
+// check", never a broken page. Deal data is not stored — it changes nightly, and
+// caching a snapshot in the database would only be a way to show stale prices.
+// The family's exclusions apply here too: one term, both surfaces.
+router.get('/promo-watchlist/:barcode/offers', async (req: AuthRequest, res) => {
+    const barcode = barcodeOf(req.params.barcode);
+    if (!barcode) {
+        return res.status(400).json({ success: false, error: 'Invalid barcode' });
+    }
+
+    try {
+        const [offers, terms] = await Promise.all([dealsForBarcode(barcode), termsOf(req.userId!)]);
+        res.json({ success: true, data: applyExclusions(offers, terms).offers });
+    } catch (error) {
+        console.error('PrijsProfeet offers error:', error);
+        res.status(502).json({ success: false, error: 'Offers unavailable' });
+    }
+});
+
+// Today's promotions, browsable: every filter is applied by PrijsProfeet itself,
+// so paging stays honest (`total` is its count, not a page of results). The
+// queries are cached until the next morning, which is when the API refreshes the
+// chains — see lib/prijsprofeet.custom.ts.
+//
+// The family's own exclusions are the one thing the API cannot do, so the page
+// comes back first and the terms are applied to it: `hidden` says how many rows
+// of THIS page they removed, since the upstream `total` counts what the shop
+// publishes, not what this household wants to see.
+router.get('/promos', async (req: AuthRequest, res) => {
+    try {
+        const [page, terms] = await Promise.all([
+            searchPromos(promoQueryOf(req.query as Record<string, unknown>)),
+            termsOf(req.userId!),
+        ]);
+        res.json({ success: true, data: { ...page, ...applyExclusions(page.offers, terms) } });
+    } catch (error) {
+        console.error('PrijsProfeet promo list error:', error);
+        res.status(502).json({ success: false, error: 'Promotions unavailable' });
+    }
+});
+
+// The choices for the filter panel — the stores and categories this country
+// actually has deals in, with their counts.
+router.get('/promos/filters', async (req: AuthRequest, res) => {
+    try {
+        res.json({ success: true, data: await promoFilters(promoCountryOf(req.query.country)) });
+    } catch (error) {
+        console.error('PrijsProfeet filter error:', error);
+        res.status(502).json({ success: false, error: 'Promotions unavailable' });
+    }
+});
+
+// The terms this family never wants to see. One list, shared by both promo
+// surfaces: the daily list and a watched product's deals pane.
+router.get('/promo-exclusions', async (req: AuthRequest, res) => {
+    try {
+        res.json({ success: true, data: await exclusionsOf(req.userId!) });
+    } catch (error) {
+        console.error('Get promo exclusions error:', error);
+        res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+});
+
+router.post('/promo-exclusions', async (req: AuthRequest, res) => {
+    const term = normalizeTerm(req.body?.term);
+    if (!term) {
+        return res.status(400).json({ success: false, error: 'Invalid term' });
+    }
+
+    try {
+        res.json({ success: true, data: await addExclusion(req.userId!, term) });
+    } catch (error) {
+        console.error('Add promo exclusion error:', error);
+        res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+});
+
+router.delete('/promo-exclusions/:id', async (req: AuthRequest, res) => {
+    const { id } = req.params;
+    if (!UUID_RE.test(id)) {
+        return res.status(404).json({ success: false, error: 'Not found' });
+    }
+
+    try {
+        if (!(await removeExclusion(req.userId!, id))) {
+            return res.status(404).json({ success: false, error: 'Not found' });
+        }
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Remove promo exclusion error:', error);
         res.status(500).json({ success: false, error: 'Internal server error' });
     }
 });

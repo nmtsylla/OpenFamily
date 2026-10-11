@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../lib/api';
-import type { ScanProduct } from '../lib/product.custom';
+import type { PromoOffer, ScanProduct } from '../lib/product.custom';
 
 const BASE = '/api/products';
 
@@ -90,5 +90,13 @@ export function usePromoWatchlist() {
         return response.data ?? [];
     }, []);
 
-    return { watchlist, loading, error, refetch, addWatch, removeWatch, logPrice, fetchPrices };
+    /** The live deals for a barcode. Throws when PrijsProfeet could not be asked. */
+    const fetchOffers = useCallback(async (barcode: string): Promise<PromoOffer[]> => {
+        const response = await api.get<{ success: boolean; data: PromoOffer[] }>(
+            `${BASE}/promo-watchlist/${encodeURIComponent(barcode)}/offers`
+        );
+        return response.data ?? [];
+    }, []);
+
+    return { watchlist, loading, error, refetch, addWatch, removeWatch, logPrice, fetchPrices, fetchOffers };
 }

@@ -1,279 +1,47 @@
-// The promo watchlist: what the family is waiting for a discount on, and the
-// prices they have actually seen.
+// The Promos screen: today's promotions in the shops, and the family's own watch
+// list. The two live as tabs because they answer the same question at different
+// distances — what is on offer around here today, and what am I waiting to drop
+// below a price — and the list is the one to open by default.
 //
-// Prices are stored as decimals and come back as strings ("2.50"): they are
-// formatted for display, never arithmetically combined, so Number() at the
-// display boundary is the only conversion needed.
+// Both surfaces render PrijsProfeet data, whose free plan requires the credit
+// line each of them shows (components/PrijsProfeetCredit.custom.tsx).
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronDown, ChevronRight, Plus, Tag, Trash2 } from 'lucide-react';
-import { Button, Dialog, Input, Textarea, useToast } from '../../components/ui';
-import { useAuth } from '../../contexts/AuthContext';
-import { formatCurrency, formatDate } from '../../lib/utils';
-import { usePromoWatchlist, type PromoPrice, type WatchlistItem } from '../hooks/usePromoWatchlist.custom';
-import { optionalNumber } from '../lib/product.custom';
-
-interface LogPriceDialogProps {
-    item: WatchlistItem;
-    onClose: () => void;
-    onSave: (barcode: string, input: { store_name: string; promo_price: number; regular_price: number | null; notes: string }) => Promise<void>;
-}
-
-const LogPriceDialog: React.FC<LogPriceDialogProps> = ({ item, onClose, onSave }) => {
-    const { t } = useTranslation('scan.custom');
-    const [store, setStore] = useState('');
-    const [promoPrice, setPromoPrice] = useState('');
-    const [regularPrice, setRegularPrice] = useState('');
-    const [notes, setNotes] = useState('');
-    const [saving, setSaving] = useState(false);
-    const [invalid, setInvalid] = useState(false);
-
-    const parsedPromo = optionalNumber(promoPrice);
-
-    const submit = async (event: React.FormEvent) => {
-        event.preventDefault();
-        if (parsedPromo === null || parsedPromo <= 0) {
-            setInvalid(true);
-            return;
-        }
-        setInvalid(false);
-        setSaving(true);
-        try {
-            await onSave(item.barcode, {
-                store_name: store.trim(),
-                promo_price: parsedPromo,
-                regular_price: optionalNumber(regularPrice),
-                notes: notes.trim(),
-            });
-        } finally {
-            setSaving(false);
-        }
-    };
-
-    return (
-        <Dialog open onOpenChange={(open) => !open && onClose()} title={item.name} description={t('promoWatchlist.logPrice')}>
-            <form onSubmit={submit} className="space-y-4">
-                <Input label={t('promoWatchlist.store')} value={store} onChange={(e) => setStore(e.target.value)} />
-                <div className="grid grid-cols-2 gap-3">
-                    <Input
-                        label={t('promoWatchlist.promoPrice')}
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={promoPrice}
-                        onChange={(e) => setPromoPrice(e.target.value)}
-                        error={invalid ? t('errors.priceInvalid') : undefined}
-                        required
-                    />
-                    <Input
-                        label={t('promoWatchlist.regularPrice')}
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={regularPrice}
-                        onChange={(e) => setRegularPrice(e.target.value)}
-                    />
-                </div>
-                <Textarea
-                    label={t('promoWatchlist.notes')}
-                    rows={2}
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                />
-                <div className="flex justify-end gap-2">
-                    <Button type="button" variant="ghost" onClick={onClose}>
-                        {t('addToList.cancel')}
-                    </Button>
-                    <Button type="submit" disabled={saving}>
-                        {t('promoWatchlist.save')}
-                    </Button>
-                </div>
-            </form>
-        </Dialog>
-    );
-};
+import { Tag } from 'lucide-react';
+import { Tabs } from '../../components/ui';
+import DailyPromos from '../components/DailyPromos.custom';
+import PromoWatchlistPanel from '../components/PromoWatchlistPanel.custom';
 
 const PromoWatchlist: React.FC = () => {
     const { t } = useTranslation('scan.custom');
-    const { showToast } = useToast();
-    const { user } = useAuth();
-    const currency = user?.currency || 'EUR';
-    const { watchlist, loading, error, removeWatch, logPrice, fetchPrices } = usePromoWatchlist();
-
-    const [openBarcode, setOpenBarcode] = useState<string | null>(null);
-    const [history, setHistory] = useState<PromoPrice[]>([]);
-    const [logging, setLogging] = useState<WatchlistItem | null>(null);
-
-    /** The history is fetched on first open and kept until another card opens. */
-    const toggleHistory = async (item: WatchlistItem) => {
-        if (openBarcode === item.barcode) {
-            setOpenBarcode(null);
-            return;
-        }
-        setOpenBarcode(item.barcode);
-        setHistory([]);
-        try {
-            setHistory(await fetchPrices(item.barcode));
-        } catch (fetchError) {
-            console.error('Failed to load the price history:', fetchError);
-            showToast({ title: t('errors.loadFailed') });
-        }
-    };
-
-    const stopWatching = async (item: WatchlistItem) => {
-        try {
-            await removeWatch(item.id);
-        } catch (removeError) {
-            console.error('Failed to stop watching:', removeError);
-            showToast({ title: t('errors.removeFailed') });
-        }
-    };
-
-    const savePrice: LogPriceDialogProps['onSave'] = async (barcode, input) => {
-        try {
-            await logPrice(barcode, input);
-            setLogging(null);
-            showToast({ title: t('promoWatchlist.saved') });
-            // The pane is open on this product for a reason: the price just logged
-            // belongs in the list below it, not in the next visit's.
-            if (openBarcode === barcode) setHistory(await fetchPrices(barcode));
-        } catch (saveError) {
-            console.error('Failed to log the promo price:', saveError);
-            showToast({ title: t('errors.priceInvalid') });
-        }
-    };
-
-    if (loading) {
-        return (
-            <div className="flex h-full min-h-[50vh] items-center justify-center">
-                <div className="spinner-brand" />
-            </div>
-        );
-    }
 
     return (
-        <div className="mx-auto max-w-2xl space-y-5">
+        <div className="mx-auto max-w-4xl space-y-5">
             <div className="flex items-center gap-3">
                 <div className="rounded-card bg-primary-soft p-3 text-primary">
                     <Tag className="h-7 w-7" />
                 </div>
                 <div className="flex-1">
-                    <h1 className="text-h1 text-foreground">{t('promoWatchlist.title')}</h1>
-                    <p className="text-body text-muted-foreground">{t('promoWatchlist.subtitle')}</p>
+                    <h1 className="text-h1 text-foreground">{t('promos.title')}</h1>
                 </div>
             </div>
 
-            {error ? (
-                <div className="rounded-input border border-danger/30 bg-danger/10 px-4 py-3 text-caption text-danger">
-                    {t('errors.loadFailed')}
-                </div>
-            ) : null}
-
-            {watchlist.length === 0 ? (
-                <div className="rounded-card border border-dashed border-border bg-card py-16 text-center">
-                    <Tag className="mx-auto mb-3 h-12 w-12 text-muted-foreground/30" />
-                    <p className="text-body font-semibold text-foreground">{t('promoWatchlist.empty')}</p>
-                    <p className="mt-1 text-caption text-muted-foreground">{t('promoWatchlist.emptyHint')}</p>
-                </div>
-            ) : null}
-
-            {watchlist.map((item) => {
-                const open = openBarcode === item.barcode;
-                const Chevron = open ? ChevronDown : ChevronRight;
-                return (
-                    <div key={item.id} className="overflow-hidden rounded-card border border-border bg-card">
-                        <div className="flex items-center gap-3 p-4">
-                            {item.image_url ? (
-                                <img
-                                    src={item.image_url}
-                                    alt=""
-                                    className="h-14 w-14 flex-shrink-0 rounded-card bg-surface-2 object-contain"
-                                />
-                            ) : (
-                                <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-card bg-surface-2 text-muted-foreground">
-                                    <Tag className="h-5 w-5" />
-                                </div>
-                            )}
-
-                            <button
-                                type="button"
-                                onClick={() => void toggleHistory(item)}
-                                aria-expanded={open}
-                                className="flex min-w-0 flex-1 items-center gap-2 text-left"
-                            >
-                                <div className="min-w-0 flex-1">
-                                    <p className="truncate text-body font-medium text-foreground">{item.name}</p>
-                                    {item.brand ? (
-                                        <p className="truncate text-micro text-muted-foreground">{item.brand}</p>
-                                    ) : null}
-                                    <div className="mt-1 flex flex-wrap gap-2 text-micro text-muted-foreground">
-                                        {item.target_price ? (
-                                            <span>
-                                                {t('promoWatchlist.targetPrice')} :{' '}
-                                                {formatCurrency(Number(item.target_price), currency)}
-                                            </span>
-                                        ) : null}
-                                        <span className={item.best_promo_price ? 'font-semibold text-primary' : ''}>
-                                            {t('promoWatchlist.bestPromo')} :{' '}
-                                            {item.best_promo_price
-                                                ? formatCurrency(Number(item.best_promo_price), currency)
-                                                : t('promoWatchlist.noPromo')}
-                                        </span>
-                                    </div>
-                                </div>
-                                <Chevron className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-                            </button>
-                        </div>
-
-                        <div className="flex flex-wrap gap-2 border-t border-border px-4 py-3">
-                            <Button size="sm" onClick={() => setLogging(item)}>
-                                <Plus className="mr-1 h-4 w-4" />
-                                {t('promoWatchlist.logPrice')}
-                            </Button>
-                            <Button size="sm" variant="ghost" onClick={() => void stopWatching(item)}>
-                                <Trash2 className="mr-1 h-4 w-4" />
-                                {t('promoWatchlist.stopWatching')}
-                            </Button>
-                        </div>
-
-                        {open ? (
-                            <div className="border-t border-border bg-surface-2/40 px-4 py-3">
-                                <p className="mb-2 text-caption font-semibold uppercase tracking-wide text-muted-foreground">
-                                    {t('promoWatchlist.history')}
-                                </p>
-                                {history.length === 0 ? (
-                                    <p className="text-caption text-muted-foreground">{t('promoWatchlist.noHistory')}</p>
-                                ) : (
-                                    <ul className="space-y-1.5">
-                                        {history.map((price) => (
-                                            <li key={price.id} className="flex items-baseline justify-between gap-3 text-caption">
-                                                <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                                                    {formatDate(price.logged_at)}
-                                                    {price.store_name ? ` · ${price.store_name}` : ''}
-                                                    {price.notes ? ` · ${price.notes}` : ''}
-                                                </span>
-                                                <span className="flex-shrink-0 font-semibold text-foreground">
-                                                    {formatCurrency(Number(price.promo_price), currency)}
-                                                    {price.regular_price ? (
-                                                        <span className="ml-2 font-normal text-muted-foreground line-through">
-                                                            {formatCurrency(Number(price.regular_price), currency)}
-                                                        </span>
-                                                    ) : null}
-                                                </span>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                )}
-                            </div>
-                        ) : null}
-                    </div>
-                );
-            })}
-
-            {logging ? (
-                <LogPriceDialog item={logging} onClose={() => setLogging(null)} onSave={savePrice} />
-            ) : null}
+            <Tabs
+                defaultValue="daily"
+                tabs={[
+                    {
+                        value: 'daily',
+                        label: t('dailyPromos.tab'),
+                        content: <DailyPromos />,
+                    },
+                    {
+                        value: 'watchlist',
+                        label: t('dailyPromos.watchlistTab'),
+                        content: <PromoWatchlistPanel />,
+                    },
+                ]}
+            />
         </div>
     );
 };

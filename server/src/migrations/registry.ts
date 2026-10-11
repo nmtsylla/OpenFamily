@@ -442,5 +442,27 @@ export const coreMigrations: readonly Migration[] = [
             'CREATE INDEX IF NOT EXISTS idx_promo_prices_user_barcode ON custom_promo_prices(user_id, barcode)',
         ],
     },
+    {
+        // PrijsProfeet filters by store, category, price and so on, but it has no
+        // "never show me this" — a family that does not want a brand or a product
+        // has to be spared it on our side, after the upstream page comes back
+        // (see lib/promoExclusions.custom.ts). The terms are keyed by the same
+        // user_id every custom table uses, so the exclusion is the household's
+        // and follows it from one device to the next.
+        //
+        // The term is stored normalized (lowercase, no accents): the UNIQUE is
+        // then meaningful, and a second "Café" typed differently is not a second
+        // row.
+        id: 'custom/0009-promo-exclusions',
+        statements: [
+            `CREATE TABLE IF NOT EXISTS custom_promo_exclusions (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                term VARCHAR(40) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (user_id, term)
+            )`,
+        ],
+    },
     // FORK-END: custom-migrations
 ];
