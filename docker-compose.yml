@@ -66,6 +66,11 @@ services:
       CUSTOM_OVERPASS_TIMEOUT_MS: ${CUSTOM_OVERPASS_TIMEOUT_MS:-20000}
       CUSTOM_OUTINGS_RADIUS_KM: ${CUSTOM_OUTINGS_RADIUS_KM:-10}
       CUSTOM_OUTINGS_CACHE_TTL_MS: ${CUSTOM_OUTINGS_CACHE_TTL_MS:-43200000}
+      # Promo watchlist deals (PrijsProfeet) — its free plan needs no key, so the
+      # key only raises the rate limit. `be` = the Belgian chains, `nl` = the
+      # Dutch ones, `be,nl` = both merged into one list.
+      CUSTOM_PRIJSPROFEET_API_KEY: ${CUSTOM_PRIJSPROFEET_API_KEY:-}
+      CUSTOM_PRIJSPROFEET_COUNTRIES: ${CUSTOM_PRIJSPROFEET_COUNTRIES:-be}
       # Feature kill switches. Listed here for the same reason as the block
       # above: a variable set in .env only reaches the container through this
       # `environment:` map, so without these lines a Docker install could not
