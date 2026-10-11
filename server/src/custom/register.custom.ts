@@ -5,8 +5,9 @@
 // custom route means adding it here.
 //
 // Position matters: the hook sits above the upstream rate limiters, because
-// these routes do not fan out to a user-supplied host — the weather and widget
-// surfaces read a fixed public API and carry their own limiter below.
+// these routes do not need upstream's 30-per-15-minutes outbound budget — the
+// weather and widget surfaces read a fixed public API, and the Home Assistant
+// proxy polls a device on a 30 s timer. Each carries its own limiter below.
 
 import type { Express } from 'express';
 import { isCustomFeatureEnabled } from './features.custom';
@@ -15,6 +16,7 @@ import customRateLimiter from './middleware/rateLimit.custom';
 import aiDashboardRoutes from './routes/aiDashboard.custom';
 import budgetAnalyticsRoutes from './routes/budgetAnalytics.custom';
 import budgetReceiptsRoutes from './routes/budgetReceipts.custom';
+import homeAssistantDevicesRoutes from './routes/homeAssistantDevices.custom';
 import lunchboxRoutes from './routes/lunchbox.custom';
 import mediaRoutes from './routes/media.custom';
 import outingsRoutes from './routes/outings.custom';
@@ -78,5 +80,13 @@ export const registerCustomRoutes = (app: Express): void => {
         // Behind the same limiter as the weather surface: this router fans out
         // to a third-party API (Open Food Facts) on a cache miss.
         app.use('/api/products', customRateLimiter, productScanRoutes);
+    }
+
+    if (isCustomFeatureEnabled('familyDashboard')) {
+        // Like the product scan above, this one DOES reach a host outside this
+        // server — the family's own Home Assistant, re-vetted by safeFetch on
+        // every hop. It polls on a 30 s timer, far past upstream's
+        // 30-per-15-minutes outbound budget, so it takes the per-minute limiter.
+        app.use('/api/custom/ha', customRateLimiter, homeAssistantDevicesRoutes);
     }
 };

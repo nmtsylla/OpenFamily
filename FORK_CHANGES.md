@@ -42,6 +42,7 @@ three that cannot hold comments (`.env.example`, `package-lock.json`,
 | AI outing planner on the Planning page — real places around the family (OpenStreetMap/Overpass) ranked by the family's own model for the day, the weather, the people coming (whole family / with the kids / parents only) and what the children's cards say, plus place-less activity ideas; the chosen outing is added to the planning through upstream's own `/api/planning` | `server/src/custom/lib/places.custom.ts`, `server/src/custom/lib/{location,kids}.custom.ts` (extracted from the dashboard route when this needed the same answers), `server/src/custom/ai/outings.custom.ts`, `server/src/custom/routes/outings.custom.ts`, `client/src/custom/components/OutingPlanner.custom.tsx`, `client/src/custom/hooks/useOutings.custom.ts` | `CUSTOM_FEATURE_OUTINGS_ENABLED` |
 | Barcode scanning, product lookup and promo watchlist | `server/src/custom/lib/{openFoodFacts,product}.custom.ts`, `server/src/custom/routes/productScan.custom.ts`, `server/test/productScan.custom.test.ts`, `client/src/custom/pages/{ProductScanner,PromoWatchlist}.custom.tsx`, `client/src/custom/components/{BarcodeScanner,ProductCard}.custom.tsx`, `client/src/custom/hooks/{useProductScan,usePromoWatchlist}.custom.ts`, `client/src/custom/lib/product.custom.ts` | `CUSTOM_FEATURE_SCANNER_ENABLED` |
 | Live supermarket promotions (PrijsProfeet, free plan): the promo screen's daily list with product pictures, filtered by store / category / discount / text and paginated, the family's own "never show me this" terms, and the watch list's deals pane | `server/src/custom/lib/{prijsprofeet,promoExclusions}.custom.ts`, `client/src/custom/components/{DailyPromos,PromoOfferRow,PrijsProfeetCredit,PromoWatchlistPanel}.custom.tsx`, `client/src/custom/hooks/useDailyPromos.custom.ts` (routes, page, hooks and translations shared with the row above) | `CUSTOM_FEATURE_SCANNER_ENABLED` |
+| Family dashboard — a chrome-less full-screen page for a wall tablet whose layout follows the time of day (morning / day / evening / night, cycleable by swipe or badge tap), reading the family's own appointments, tasks, meal plans and shopping list, and driving Home Assistant devices both ways through `/api/custom/ha` | `server/src/custom/lib/homeAssistantDevices.custom.ts`, `server/src/custom/routes/homeAssistantDevices.custom.ts`, `server/test/homeAssistantDevices.custom.test.ts`, `client/src/custom/pages/FamilyDashboard.custom.tsx`, `client/src/custom/hooks/useHomeAssistant.custom.ts`, `client/src/custom/lib/familyPhase.custom.ts` (keys in `dashboard.custom`) | `CUSTOM_FEATURE_FAMILY_DASHBOARD_ENABLED` |
 | Feature flags / registration point | `server/src/custom/features.custom.ts`, `server/src/custom/register.custom.ts`, `server/src/custom/middleware/rateLimit.custom.ts` | — |
 | Client hooks for custom code | `client/src/custom/{nav.custom.ts,routes.custom.tsx}` | — |
 | Deploy assets | `deploy/README.md`, `deploy/up.sh`, `docker-compose.override.yml` | — |
@@ -52,7 +53,7 @@ Gating: a feature's `CUSTOM_FEATURE_*_ENABLED=false` unmounts its API routes and
 adds its module keys to `disabled_modules` in `/api/auth/me`, which hides the
 matching nav entry, page and dashboard widget through the client's existing module
 filter. Module keys: `weather`, `activities`, `budgetReceipts`, `budgetAnalytics`,
-`lunchbox`, `pantry`, `outings`, `productScan`.
+`lunchbox`, `pantry`, `outings`, `productScan`, `familyDashboard`.
 
 ## Ported from KeurTonux (`tonux/KeurTonux`, local checkout `/home/bsylla/keurtonux`)
 
@@ -255,11 +256,11 @@ instance from the earlier fork tree, rename these in your `.env`:
 | `MINIO_ENDPOINT` / `_ACCESS_KEY` / `_SECRET_KEY` / `_BUCKET` / `_REGION` | `CUSTOM_MINIO_*` |
 | `OPEN_METEO_BASE_URL` / `OPEN_METEO_GEOCODING_URL` | `CUSTOM_OPEN_METEO_*` |
 | `WEATHER_DEFAULT_LANG` / `_CACHE_TTL_MS` / `_REQUEST_TIMEOUT_MS` | `CUSTOM_WEATHER_*` |
-| — (new) | `CUSTOM_FEATURE_{WEATHER,MEDIA,BUDGET_RECEIPTS,BUDGET_ANALYTICS,LUNCHBOX,PANTRY,OUTINGS,SCANNER,AI_WIDGETS}_ENABLED` |
+| — (new) | `CUSTOM_FEATURE_{WEATHER,MEDIA,BUDGET_RECEIPTS,BUDGET_ANALYTICS,LUNCHBOX,PANTRY,OUTINGS,SCANNER,AI_WIDGETS,FAMILY_DASHBOARD}_ENABLED` |
 | — (new) | `CUSTOM_OVERPASS_URL`, `CUSTOM_OVERPASS_TIMEOUT_MS`, `CUSTOM_OUTINGS_RADIUS_KM`, `CUSTOM_OUTINGS_CACHE_TTL_MS` |
 | — (new) | `CUSTOM_PRIJSPROFEET_API_KEY` (optional — the free plan works key-less), `CUSTOM_PRIJSPROFEET_COUNTRIES` (default `be`) |
 
-All nine flags are listed in `docker-compose.yml`'s `FORK-START: deploy` block, so an
+All ten flags are listed in `docker-compose.yml`'s `FORK-START: deploy` block, so an
 operator on a Docker install can switch any of them off from `.env` (they were absent
 before the outing planner; unset still means enabled, so nothing changed for an
 existing `.env`). `CUSTOM_PRIJSPROFEET_API_KEY` and `CUSTOM_PRIJSPROFEET_COUNTRIES`
@@ -276,7 +277,9 @@ upstream locale file:
   the English strings — placeholders pending translation, required because
   `client/scripts/check-i18n.mjs` fails the build on any namespace missing from a
   locale)
-- `dashboard.custom`, `budget.custom`, `ai.custom` (six locales)
+- `dashboard.custom`, `budget.custom`, `ai.custom` (six locales; `dashboard.custom`
+  also carries the family dashboard's keys, and its `ru`/`zh` files are copies of
+  the English strings, same placeholder rule as `analytics.custom`)
 - `lunchbox.custom`, `pantry.custom` (six locales)
 - `outings.custom` (six locales)
 - `scan.custom` (six locales; `es`, `pt`, `ru`, `zh` are copies of the English
@@ -284,7 +287,7 @@ upstream locale file:
 
 ## Tests
 
-`server/test/{weather,aiProvider,budgetAnalytics,aiPrompt,lunchbox,pantry,receipt,outings,productScan}.custom.test.ts` — matched by the
+`server/test/{weather,aiProvider,budgetAnalytics,aiPrompt,lunchbox,pantry,receipt,outings,productScan,homeAssistantDevices}.custom.test.ts` — matched by the
 server's `tsx --test test/*.test.ts`. `aiPrompt` covers the activities user prompt
 and the cache-key digest it shares a normalizer with: what the family wrote on a
 child's card has to reach the model, and two children with different notes must
@@ -297,7 +300,13 @@ survive validation, a non-boolean verdict never reads as yes, and a line typed b
 hand carries neither. `outings`
 covers the Overpass answer (categories, unnamed and duplicated places, a `ref`
 pointing at a place that was never offered) and the outing window (the model's
-suggestion when it fits inside a day, the requested length otherwise). The client
+suggestion when it fits inside a day, the requested length otherwise).
+`homeAssistantDevices` covers the rules that decide what the family dashboard may
+read and drive (domain whitelist, attribute trimming, entity/domain match,
+service-name shape) and how a non-2xx from Home Assistant is classified: a 4xx is
+that HA rejected the call and must never read as an outage, and HA's own 401/403
+must never surface as a 401, which is what the client's API layer treats as an
+expired session. The client
 has no test runner; the custom UI
 was verified in a browser instead (see "Verification" below).
 
@@ -308,6 +317,12 @@ was verified in a browser instead (see "Verification" below).
   reads it back, so the client no longer needs `city`/`latitude`/… on the user object.
 - Everything else keeps its path: `/api/weather`, `/api/ai/dashboard`,
   `/api/media`, `/api/budget/receipts`, `/api/budget-analytics`.
+- `/api/custom/ha` (family dashboard only) is new, and is the second custom mount
+  that reaches a host outside this server — the family's own Home Assistant, which
+  `safeFetch` re-vets on every redirect hop. It therefore takes the per-minute
+  `customRateLimiter` like the product scan rather than upstream's
+  30-per-15-minutes outbound budget, which a 30 s state poll would exhaust in
+  seven minutes.
 
 ## Known gaps and inherited issues
 
@@ -973,3 +988,90 @@ with the watchlist as its second tab:
 - Server suite: 77 tests pass, 16 of them the product-scan/promo file; `tsc`
   clean on the server, and `npm run build` on the client (i18n parity + `tsc` +
   Vite).
+
+### Family dashboard (2026-10-11)
+
+A full-screen, chrome-less page for a wall tablet (`/family-dashboard`): a
+time-of-day phase (morning 06–09, day 09–17, evening 17–22, night 22–06) decides
+which widgets are on screen, the phase is cycleable by swiping the content or
+tapping the top bar's badge, and the family's Home Assistant is driven both ways
+through `/api/custom/ha`. **No upstream file was touched by this feature.**
+
+- **Chrome-less without an upstream edit.** The route lives in
+  `customRoutes` like every other custom page, i.e. inside upstream's `<Layout>`,
+  and the page covers the chrome with a `fixed inset-0 z-[60]` layer — above
+  Layout's own highest fixed element (`z-50`). Upstream's Kiosk instead renders
+  outside `<Layout>`, which would have cost a marked edit in `client/src/App.tsx`;
+  that edit was deliberately not taken.
+- **The HA credentials are reused, not re-configured.** The proxy reads the
+  family's existing `integrations` row (`family_id` + `type = 'homeassistant'`,
+  unique through upstream's `ON CONFLICT (family_id, type)` upsert), decrypts
+  `encrypted_credentials` and calls HA through `safeFetch` with the same
+  `Authorization: Bearer` header and 15 s timeout as
+  `services/integrations/homeassistant.ts`. No new env var, no new table.
+- **The client reaches HA only through the proxy.** `GET /states` returns the
+  whitelisted domains (`light`, `switch`, `climate`, `media_player`, `scene`,
+  `input_boolean`, `cover`, `fan`, `lock`, `binary_sensor`, `camera`) with a
+  trimmed attribute set; `POST /services/:domain/:service` forwards a service call
+  verbatim, parent-only, with the domain whitelist and the entity/domain match
+  enforced in `lib/homeAssistantDevices.custom.ts`.
+- **The quick-toggle grid only lists domains that really take
+  `turn_on`/`turn_off`** (`light`, `switch`, `input_boolean`, `fan`,
+  `media_player`, `climate`). `lock` and `cover` are in the read whitelist but take
+  `lock`/`unlock` and `open_cover`/`close_cover`; the lock appears in the Security
+  card instead, amber while `unlocked` (a lock reads `locked`/`unlocked`, so the
+  generic `state === 'on'` check would have kept every lock green), and a cover has
+  no place in a v1 toggle grid.
+- **A service HA rejects is not an outage.** HA answering 4xx (a service that
+  domain does not implement, an entity that will not take it) comes back as
+  `400 homeassistant.service_rejected`; only HA 5xx and an unreachable host become
+  `502 homeassistant.unreachable`/`service_failed`. The client maps only the latter
+  to its offline banner, so one dead tile can never disable the whole screen. HA's
+  own 401/403 folds into that 400 on purpose: forwarding it would make the client's
+  API layer read an expired OpenFamily session and log the family out.
+- **Entity name heuristics, by design.** The coffee toggle matches
+  "café"/"cafe"/"coffee", the dinner scene "dîner"/"diner"/"dinner", the nightlight
+  "nuit"/"nightlight"/"veilleuse". A household whose entities are named differently
+  simply does not get those tiles — no config UI, no env var.
+- **Degradations are explicit.** No HA integration → full-screen setup banner
+  linking to `/integrations`, no HA cards. HA unreachable → sticky toast with a
+  retry button, every HA toggle disabled, and the read-only HA cards (security
+  pills, light count) hidden rather than left showing yesterday's state. No AI
+  model or no saved city → the morning clothing card falls back to "Vérifiez la
+  météo".
+
+What was exercised, on a throwaway Postgres 16 and a stub Home Assistant:
+
+- `npm test` (server): **31/31**, the 12 new ones in
+  `homeAssistantDevices.custom.test.ts`. `tsc` clean on the server and the client;
+  `npm run build` at the root passes, `check:i18n` included (6 languages). The
+  client was built and driven in Chromium at 900×1600 portrait.
+- Through the HTTP layer: `/states` filters the non-whitelisted domains and trims
+  the attributes; `POST /services/...` forwards the body verbatim for a single
+  entity, a list and a scene, and rejects a non-whitelisted domain, a cross-domain
+  target, a missing `entity_id` and a service name carrying a path traversal (400
+  each); no integration → 404 `homeassistant.integration_not_found`; unreachable HA
+  → 502 `homeassistant.unreachable` on both endpoints; no token → 401. With
+  `CUSTOM_FEATURE_FAMILY_DASHBOARD_ENABLED=false` the route answers 404 and
+  `/api/auth/me` reports `familyDashboard` as disabled.
+- In the browser, against the stub HA: every phase renders (morning weather +
+  clothing fallback + coffee toggle, day agenda/devices/security/shopping, evening
+  dinner/dimmer/bedtime, night clock + nightlight); a tile tap reached HA as
+  `light.turn_off`, the dimmer as `light.turn_on` with `brightness_pct`, the scene
+  button as `scene.turn_on`, "Tout éteindre" as `light.turn_off` +
+  `switch.turn_off`; the badge tap and a 60 px swipe both cycle the phase and wrap;
+  the viewport meta is injected; `navigator.wakeLock` is requested on mount; the
+  night clock dims to `opacity-30` with the bottom bar at `opacity-50` after five
+  idle minutes and any touch restores both; stopping HA shows the offline toast
+  with the HA buttons disabled and the read-only HA cards hidden, and restarting it
+  clears the toast on retry; zero console errors and zero horizontal overflow in
+  every phase; every interactive element measures ≥ 56 px.
+- **The lock/cover defect was reproduced before it was fixed.** A stub HA
+  implementing HA's real per-domain service table showed that tapping a `lock` tile
+  sent `lock.turn_on`, HA answered 400, the proxy turned that into a 502 and the
+  client flashed "Home Assistant hors ligne" over the whole screen while disabling
+  two controls. After the fix the grid no longer lists lock/cover, every remaining
+  tile sends a service its domain implements (verified for switch / light / climate
+  / media_player with no banner at any moment), `lock.turn_on` answers
+  `400 homeassistant.service_rejected` instead of 502, and the Security card's lock
+  dot goes amber on `unlocked` while a closed window stays green.
