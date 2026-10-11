@@ -131,15 +131,16 @@ existed; the exact count of rewritten upstream lines is the next section's table
 ### Modified (non-additive) upstream lines — the complete list
 
 35 lines in 17 files (39 with `package-lock.json`), all wrapped in markers. The
-per-file counts below re-measured 2026-10-11 (`git diff upstream/main...develop --
-<file> | grep -c '^-[^-]'`); three rows were wrong before (`routes/auth.ts` 2 → 6,
-`routes/userSettings.ts` 2 → 1, `ROADMAP.md` 2 → 1).
+per-file counts were re-measured 2026-10-11 with `git diff --numstat
+upstream/main...develop -- <file>` (the deleted column — not `grep -c '^-[^-]'`,
+which misses a deleted line that itself starts with `-`, as `ROADMAP.md`'s does);
+two rows were wrong before (`routes/auth.ts` 2 → 6, `routes/userSettings.ts` 2 → 1).
 
 | File | Lines | What |
 |------|-------|------|
 | `server/src/services/ai/assistant.ts` | 2 | the parse schema's `type` enum carries `pantry_item`; the meals recipe line gains its ingredient suffix when the pantry is on |
 | `server/src/services/ai/index.ts` | 4 | the four provider calls in `aiCompleteWithUsage` pass the request with the no-deliberation line appended |
-| `server/src/routes/auth.ts` | 6 | The avatar data-URL format/size checks are skipped for an `s3:` reference (wrapped in `if (!isMediaRef(...))`); re-measured: 2 comment lines + two 3-line `if` blocks |
+| `server/src/routes/auth.ts` | 6 | The avatar data-URL format/size checks are skipped for an `s3:` reference (wrapped in `if (!isMediaRef(...))`); re-measured: the two checks and their comment, nested one level deeper |
 | `server/src/services/ai/openai.ts` | 2 | `chatCompletionUrl(baseUrl)`, `messageContent(request)` |
 | `server/src/services/ai/anthropic.ts` | 2 | `max_tokens` 2048 → 4096; user content carries attachments |
 | `server/src/services/ai/gemini.ts` | 1 | request parts carry attachments |
@@ -148,7 +149,7 @@ per-file counts below re-measured 2026-10-11 (`git diff upstream/main...develop 
 | `server/src/routes/userSettings.ts` | 1 | `DASHBOARD_WIDGETS` spreads the custom widget keys; `TOGGLEABLE_MODULES` is an appended line, not a rewrite |
 | `client/src/contexts/AuthContext.tsx` | 1 | `DASHBOARD_WIDGETS` lists the custom widget keys (weather, activities, pantry) |
 | `README.md`, `README.fr.md`, `README.zh-CN.md` | 1 each | Feature row appended to the budget line |
-| `ROADMAP.md` | 1 | The receipt-import bullet (the second bullet below it is an appended line) |
+| `ROADMAP.md` | 2 | The receipt-import bullet, rewritten as a fork block (the line itself starts with `-`, which a `grep '^-[^-]'` count misses) |
 | `server/src/lib/safeFetch.ts` | 1 | the `fetch` call passes `requestInit` (the credentials-stripped headers) instead of `init` |
 | `server/src/routes/ai.ts` | 5 | the parse prompt's 4th argument and the proposal filter; the recipes `SELECT` (adds `ingredients`) and the row mapping that keeps only its string lines; the `buildMealsPrompt` call passes `pantryItems` |
 | `client/src/components/app/MagicInput.tsx` | 3 | the `AiProposal` union carries `PantryProposal`; the card's title chain and its type label know that type |
@@ -217,6 +218,17 @@ next migration takes `core/0007`):
   two indexes. The fork's own table on purpose: upstream's `meal_plans` has one row per
   date+meal type and no "for whom", so adding lunchboxes there would mean altering an
   upstream table (KeurTonux's approach) instead of adding beside it.
+- `custom/0005-pantry-dedupe` — folds the owned rows that share a `name_key` (the
+  surviving lowest-id row takes their summed quantity, the rest are deleted; Grocy
+  rows untouched) so the unique indexes below can be created on a database that is
+  not empty. Placed in the array immediately BEFORE `custom/0005-pantry-name-unique`
+  — the runner applies the registry in array order, and `validateRegistry` checks
+  ids for shape and uniqueness only — because a bare `CREATE UNIQUE INDEX` on
+  duplicates raises 23505, the migration throws, and the server dies at startup with
+  `0005` unrecorded, so no later migration could ever repair it. Verified on a
+  scratch Postgres 16: with two owned `lait` rows (2 + 3) and one Grocy row,
+  `custom/0005-pantry-name-unique` alone fails (`could not create unique index`),
+  while dedupe → index applies both, leaves one owned row at 5 and the Grocy row at 1.
 - `custom/0005-pantry-name-unique` — two PARTIAL unique indexes on `custom_pantry_items`: one
   for `source <> 'grocy'`, one for `source = 'grocy'`. The merge invariant (one row per folded
   name) is enforced by the database rather than by a SELECT-then-INSERT, so two concurrent
@@ -369,46 +381,18 @@ was verified in a browser instead (see "Verification" below).
   not a directory).
 - `analytics.custom.json` exists for all six locales, but its `es`/`pt`/`ru`/`zh`
   files are English placeholders pending translation (required by `check-i18n`).
-- **`custom/0005-pantry-name-unique` can abort startup on a database that already
-  holds duplicate pantry rows.** `CREATE UNIQUE INDEX` raises 23505 if two
-  `source <> 'grocy'` rows share `(user_id, name_key)` — exactly the duplicates
-  the pre-0005 SELECT-then-INSERT path could create — and the runner rethrows, so
-  the process dies with no migration able to repair it (`0005` never records, so
-  nothing after it runs). The fork's own instance was empty at the time, which is
-  a property of that database, not of the migration. The id and SQL are frozen
-  (a rename re-runs the statements, an edit fails the checksum), and the
-  historical list in `db.ts` is closed by its own comment, so the remedy is a
-  one-shot, run before upgrading such an instance:
-
-  ```sql
-  -- 1. the surviving row (lowest id) takes the summed quantity
-  WITH folded AS (
-    SELECT user_id, name_key, min(id) AS keep_id, sum(quantity) AS total
-      FROM custom_pantry_items
-     WHERE source <> 'grocy'
-     GROUP BY user_id, name_key
-    HAVING count(*) > 1
-  )
-  UPDATE custom_pantry_items p
-     SET quantity = folded.total
-    FROM folded
-   WHERE p.id = folded.keep_id;
-
-  -- 2. and the duplicates go
-  WITH folded AS (
-    SELECT user_id, name_key, min(id) AS keep_id
-      FROM custom_pantry_items
-     WHERE source <> 'grocy'
-     GROUP BY user_id, name_key
-    HAVING count(*) > 1
-  )
-  DELETE FROM custom_pantry_items p
-   USING folded
-   WHERE p.user_id = folded.user_id
-     AND p.name_key = folded.name_key
-     AND p.source <> 'grocy'
-     AND p.id <> folded.keep_id;
-  ```
+- **`custom/0005-pantry-name-unique` used to abort startup on a database that
+  already held duplicate pantry rows — closed on 2026-10-11.** `CREATE UNIQUE
+  INDEX` raises 23505 if two `source <> 'grocy'` rows share `(user_id, name_key)`
+  — exactly the duplicates the pre-0005 SELECT-then-INSERT path could create — and
+  the runner rethrows, so the process died at startup with `0005` unrecorded and
+  nothing after it ever running. The frozen id and SQL rule out touching `0005`
+  and the historical list in `db.ts` is closed by its own comment, so the repair
+  is a new migration, `custom/0005-pantry-dedupe`, placed BEFORE `0005` in the
+  registry array (the runner applies array order; `validateRegistry` checks shape
+  and uniqueness, not order). Any instance — including one that already boot-looped
+  on an earlier revision — is fixed by upgrading: the dedupe applies first, then
+  `0005` finds a database with nothing left to fold. See "Custom migrations".
 - **The custom rate limiter keys on `req.ip` with `trust proxy = 1`, and one
   instance is mounted on every custom router.** Behind the documented
   `cloudflared → nginx → server` chain the recorded hop is nginx's, so every
@@ -458,6 +442,15 @@ a smoke run) produced the fixes below. Everything not fixed here is recorded in
   caches key on client-supplied text and never evicted (a TTL does not bound a map
   whose expired entries are only ever replaced by their exact key). Both now evict
   the oldest entry past a fixed ceiling.
+- **The pantry's unique index could not be created on a database that already
+  held duplicates** (a boot loop, and no later migration could repair it). Closed
+  with `custom/0005-pantry-dedupe`, placed before `0005` in the registry array —
+  see "Custom migrations" and the known-gaps entry, both updated.
+- **The lunchbox list and stats routes took unvalidated query dates.**
+  `GET /api/lunchbox` and `GET /api/lunchbox/stats/:memberId` passed
+  `?start_date=abc` (22007) and `2026-02-30` (22008) straight into a `DATE`
+  comparison, answering 500 where the message is a 400; both now validate with
+  the same `isCalendarDate` guard as the rest of the router.
 - **Tests.** `server/test/receipt.custom.test.ts` gains the duplicate guard's
   identity (one ticket, one fingerprint whatever the spelling), its distinctness
   (another day/amount/shop) and its non-Latin behaviour (the `[a-z0-9]` stripping
@@ -465,19 +458,30 @@ a smoke run) produced the fixes below. Everything not fixed here is recorded in
   exists for); `pantry.custom.test.ts` gains `isCalendarDate`. 100 tests pass.
 - **Ledger corrections.** The divergence figures are re-measured above; the
   `client/src/pages/ShoppingList.tsx` and `server/src/lib/safeFetch.ts` rows were
-  missing from "Modifications to upstream files"; three per-file counts in
+  missing from "Modifications to upstream files"; two per-file counts in
   "Modified (non-additive) upstream lines" were wrong (`routes/auth.ts` 2 → 6,
-  `routes/userSettings.ts` 2 → 1, `ROADMAP.md` 2 → 1); the marker-less file list
+  `routes/userSettings.ts` 2 → 1) and the note now states the measuring command,
+  because `grep -c '^-[^-]'` also undercounts a deleted line that itself starts
+  with `-` (`ROADMAP.md`'s, which is 2 and always was); the marker-less file list
   is four files, not three (`.env.example` holds `#` comments — it uses the
   `# --- Custom ---` section convention); `outings.custom.json` was missing from
   the translations row; and the stale "the fork's only modified upstream line"
   comment in `routes/auth.ts` now says what it actually wraps.
 
 Verification for the pass: `cd server && npm test` (100 pass, 0 fail),
-`npx tsc --noEmit` clean in `server/` and `client/`, and a throwaway script that
-put a same-host and a cross-host redirect in front of a recording server
-(same-host hop kept `Authorization`/`X-API-Key`, cross-host hop dropped both and
-kept an unrelated header) — the script was deleted after the run.
+`npx tsc --noEmit` clean in `server/` and `client/`, and two throwaway scripts,
+both deleted after their run:
+
+- a same-host and a cross-host redirect in front of a recording server — the
+  same-host hop kept `Authorization`/`X-API-Key`, the cross-host hop dropped both
+  and kept an unrelated header;
+- a scratch Postgres 16 (Docker) holding two owned `lait` rows (2 + 3) and one
+  Grocy row, then `runVersionedMigrations` on the real registry: with
+  `custom/0005-pantry-name-unique` alone the run fails (`could not create unique
+  index`), and with `custom/0005-pantry-dedupe` before it both migrations apply,
+  one owned row survives at quantity 5 and the Grocy row is untouched at 1. (The
+  first cut of the dedupe used `min(id)`, which Postgres rejects for a `uuid`
+  column — `min(id::text)::uuid` fixes it; the smoke run is what caught it.)
 
 ## Deployment
 
