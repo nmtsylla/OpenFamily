@@ -364,7 +364,7 @@ export function useWeeklyForecast(
     enabled: boolean,
     days = 7,
 ): AsyncResult<WeeklyForecastDTO | null> {
-    return useCachedQuery(
+    const result = useCachedQuery(
         `weather-weekly:${geoKey(override)}:${days}`,
         async () => {
             const response = await api.post<{ success: boolean; data: WeeklyForecastDTO }>(
@@ -375,6 +375,10 @@ export function useWeeklyForecast(
         },
         enabled,
     );
+    // The dialog is coordinate-dependent like the cards: another member's save
+    // must not leave an already-open week for the previous city on screen.
+    useWebSocketUpdates('family', result.refetch);
+    return result;
 }
 
 /**

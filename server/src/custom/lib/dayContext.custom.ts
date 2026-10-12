@@ -63,7 +63,7 @@ export const EVENING_CUTOFF_HOUR = 18;
  */
 export interface TargetDay extends DayContext {
     dayOffset: 0 | 1;
-    /** ISO instant of the next local 18:00. */
+    /** ISO instant the snapshot stops being true: the earlier of the next local 18:00 and midnight. */
     flipsAt: string;
 }
 
@@ -81,12 +81,19 @@ export const resolveTargetDay = (now: Date = new Date()): TargetDay => {
     target.setDate(target.getDate() + dayOffset);
     const context = resolveDayContext(toDateKey(target));
 
-    // The next local 18:00: today's when it is still ahead, tomorrow's otherwise.
-    const flip = new Date(now);
-    flip.setHours(EVENING_CUTOFF_HOUR, 0, 0, 0);
+    // Two instants can invalidate the snapshot, and the nearer one wins: the
+    // cutoff that moves the day, and midnight, which turns the same day from
+    // "tomorrow" into "today". Without the midnight anchor an evening page keeps
+    // labelling the current day as tomorrow until the following 18:00.
+    const nextCutoff = new Date(now);
+    nextCutoff.setHours(EVENING_CUTOFF_HOUR, 0, 0, 0);
     if (dayOffset === 1) {
-        flip.setDate(flip.getDate() + 1);
+        nextCutoff.setDate(nextCutoff.getDate() + 1);
     }
+    const nextMidnight = new Date(now);
+    nextMidnight.setHours(24, 0, 0, 0);
+
+    const flip = nextMidnight < nextCutoff ? nextMidnight : nextCutoff;
 
     return { ...context, dayOffset, flipsAt: flip.toISOString() };
 };

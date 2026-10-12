@@ -81,6 +81,34 @@ test('resolveTargetDay: the picked date always matches the offset', () => {
     }
 });
 
+test('resolveTargetDay: flipsAt is the nearer of the cutoff and midnight', () => {
+    // Before the cutoff the label is stable until 18:00.
+    const morning = resolveTargetDay(new Date(2026, 2, 11, 9, 0));
+    assert.equal(morning.date, '2026-03-11');
+    assert.equal(morning.dayOffset, 0);
+    assert.equal(new Date(morning.flipsAt).getTime(), new Date(2026, 2, 11, 18, 0, 0).getTime());
+
+    // From the cutoff the day is tomorrow, but the label flips back at midnight.
+    const evening = resolveTargetDay(new Date(2026, 2, 11, 18, 0));
+    assert.equal(evening.dayOffset, 1);
+    assert.equal(new Date(evening.flipsAt).getTime(), new Date(2026, 2, 12, 0, 0, 0).getTime());
+
+    const lateEvening = resolveTargetDay(new Date(2026, 2, 11, 23, 30));
+    assert.equal(lateEvening.dayOffset, 1);
+    assert.equal(new Date(lateEvening.flipsAt).getTime(), new Date(2026, 2, 12, 0, 0, 0).getTime());
+
+    // After midnight the same day is "today" again, and the next cutoff is 18:00.
+    const afterMidnight = resolveTargetDay(new Date(2026, 2, 12, 0, 30));
+    assert.equal(afterMidnight.date, '2026-03-12');
+    assert.equal(afterMidnight.dayOffset, 0);
+    assert.equal(new Date(afterMidnight.flipsAt).getTime(), new Date(2026, 2, 12, 18, 0, 0).getTime());
+
+    for (const hour of [0, 8, 17, 18, 23]) {
+        const now = new Date(2026, 2, 11, hour, 30);
+        assert.ok(new Date(resolveTargetDay(now).flipsAt) > now, `flipsAt must be ahead at ${hour}:30`);
+    }
+});
+
 test('toDateKey uses the local calendar, not UTC', () => {
     assert.equal(toDateKey(new Date(2026, 0, 5, 1, 30)), '2026-01-05');
 });
