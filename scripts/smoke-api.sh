@@ -203,27 +203,44 @@ request DELETE "/api/lunchbox/$LUNCHBOX_ID" >/dev/null
 # FORK-END: lunchbox
 
 # FORK-START: outings
-# The outing planner. Without a saved city and without coordinates it must answer
-# NO_LOCATION — the panel turns that code into its "save a city" screen — and with
-# coordinates it must come back with real OpenStreetMap places even though no model
-# is configured for this fresh family (ai: disabled, nearest-first and unranked).
-# It is the one custom route whose answer depends on a third-party service, so a
-# provider outage shows up here as `placesSource: unavailable`, not as a failure.
 outings_location=$(curl -sS -o /tmp/openfamily-outings-loc.json -w "%{http_code}" -X POST "$API_BASE/api/outings/suggest" \
-  -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d '{"party":"family"}')
+  -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" -d '{"party":"family","location":"saved"}')
 if [[ "$outings_location" != "400" ]] || ! grep -q 'NO_LOCATION' /tmp/openfamily-outings-loc.json; then
-  echo "[FAIL] POST /api/outings/suggest answered $outings_location without any location" >&2
+  echo "[FAIL] POST /api/outings/suggest answered $outings_location without a saved location" >&2
   cat /tmp/openfamily-outings-loc.json >&2
   exit 1
 fi
 rm -f /tmp/openfamily-outings-loc.json
 
+request PUT "/api/weather/location" '{"city":"Gent"}' >/dev/null
+
+home_before=$(request GET "/api/weather/location")
+assert_success "$home_before"
+
+area=$(request POST "/api/outings/area" '{"city":"Sint-Niklaas"}')
+assert_success "$area"
+area_city=$(echo "$area" | jq -r '.data.city')
+area_lat=$(echo "$area" | jq -r '.data.latitude')
+area_lon=$(echo "$area" | jq -r '.data.longitude')
+
+home_after=$(request GET "/api/weather/location")
+assert_success "$home_after"
+if [[ "$(echo "$home_before" | jq -cS '.data')" != "$(echo "$home_after" | jq -cS '.data')" ]]; then
+  echo "[FAIL] Temporary area lookup changed the saved home location" >&2
+  exit 1
+fi
+
 outings=$(request POST "/api/outings/suggest" \
-  "{\"party\":\"kids\",\"duration\":\"short\",\"latitude\":51.165,\"longitude\":4.1407,\"date\":\"$(date -u +%Y-%m-%d)\"}")
+  "{\"party\":\"kids\",\"duration\":\"short\",\"location\":\"area\",\"city\":\"$area_city\",\"latitude\":$area_lat,\"longitude\":$area_lon,\"date\":\"$(date -u +%Y-%m-%d)\"}")
 assert_success "$outings"
 echo "$outings" | jq -e '.data.ai == "disabled"' >/dev/null
 echo "$outings" | jq -e '.data.placesSource == "osm" and (.data.places | length) > 0' >/dev/null
 echo "$outings" | jq -e '.data.places[0].startTime and .data.places[0].endTime' >/dev/null
+
+outings_current=$(request POST "/api/outings/suggest" \
+  "{\"party\":\"kids\",\"duration\":\"short\",\"location\":\"current\",\"latitude\":$area_lat,\"longitude\":$area_lon,\"date\":\"$(date -u +%Y-%m-%d)\"}")
+assert_success "$outings_current"
+echo "$outings_current" | jq -e '.data.placesSource == "osm" and (.data.places | length) > 0' >/dev/null
 # FORK-END: outings
 
 echo "[11/12] Dashboard"

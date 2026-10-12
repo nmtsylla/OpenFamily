@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+
 import {
     Baby,
     Binoculars,
@@ -21,34 +21,23 @@ import {
     ExternalLink,
     Home,
     Sun,
+    Utensils,
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Select, useToast } from '../../components/ui';
-import { useSavedLocation, type GeoOverride } from '../hooks/useWeather.custom';
+import { useSavedLocation } from '../hooks/useWeather.custom';
 import {
     outingsQueryKey,
     useOutings,
     type OutingDuration,
+    type OutingLocation,
     type OutingParty,
     type OutingPlaceDTO,
     type PlaceCategory,
 } from '../hooks/useOutings.custom';
 
-// =============================================================================
-// OutingPlanner — the AI-assisted outing planner on the Planning page.
-//
-// Reads as one form: who is coming, which day, how long — then "Suggest
-// outings". The server grounds the answer in OpenStreetMap (real places around
-// the family) and asks the configured model to rank them for that day, those
-// people and those constraints; the panel adds the one that is picked to the
-// planning through upstream's own /api/planning entry, so the week stays in one
-// place.
-//
-// No AI model configured is a working mode, not an error: the nearest places
-// still come back, unranked (the server says so through `ai`, and the panel
-// repeats it above the list).
-// =============================================================================
+
 
 const CATEGORY_ICON: Record<PlaceCategory, React.ComponentType<{ className?: string }>> = {
     playground: Baby,
@@ -61,6 +50,7 @@ const CATEGORY_ICON: Record<PlaceCategory, React.ComponentType<{ className?: str
     swimming: Waves,
     library: BookOpen,
     viewpoint: Binoculars,
+    halal_restaurant: Utensils,
 };
 
 const PARTIES: OutingParty[] = ['family', 'kids', 'parents'];
@@ -81,7 +71,6 @@ interface FamilyMemberLite {
     role: string;
 }
 
-/** The members an outing is recorded for: everyone, or the adults alone. */
 const membersForParty = (members: FamilyMemberLite[], party: OutingParty): string[] => {
     const chosen = party === 'parents' ? members.filter((m) => m.role !== 'Enfant') : members;
     return chosen.map((m) => m.id);
@@ -90,12 +79,13 @@ const membersForParty = (members: FamilyMemberLite[], party: OutingParty): strin
 const OutingPlanner: React.FC = () => {
     const { t } = useTranslation('outings.custom');
     const { isModuleEnabled } = useAuth();
-    const navigate = useNavigate();
     const { showToast } = useToast();
     const savedLocation = useSavedLocation();
-    const { data, dataKey, loading, error, suggest } = useOutings();
-
-    const [override, setOverride] = useState<GeoOverride | null>(null);
+    const { result, loading, error, suggest } = useOutings();
+    const [location, setLocation] = useState<OutingLocation>({ kind: 'saved' });
+    const [area, setArea] = useState('');
+    const [areaBusy, setAreaBusy] = useState(false);
+    const [areaError, setAreaError] = useState<string | null>(null);
     const [party, setParty] = useState<OutingParty>('family');
     const [duration, setDuration] = useState<OutingDuration>('half_day');
     const [date, setDate] = useState(() => dateKey(new Date()));
@@ -103,21 +93,18 @@ const OutingPlanner: React.FC = () => {
     const [added, setAdded] = useState<Record<string, boolean>>({});
     const [addError, setAddError] = useState<string | null>(null);
     const members = useRef<FamilyMemberLite[] | null>(null);
-
-    const hasLocation = override !== null || savedLocation.data?.latitude != null;
     const enabled = isModuleEnabled('outings');
-
-    // An answer belongs to the form it was asked for: the hook carries the key it
-    // stored `data` under, so a control changed since then already shows nothing
-    // (rather than the previous outing under the new party or day).
-    const formKey = outingsQueryKey({ party, duration, date, override });
-    const visible = data && dataKey === formKey ? data : null;
+    const hasSavedLocation = savedLocation.data?.latitude != null && savedLocation.data?.longitude != null;
+    const hasLocation = location.kind !== 'saved' || hasSavedLocation;
+    const formKey = outingsQueryKey({ party, duration, date, location });
+    const visible = result?.key === formKey ? result.data : null;
     const isShownAnswer = visible !== null;
 
     const handleSuggest = async (force: boolean) => {
         setAddError(null);
-        await suggest({ party, duration, date, override, force });
+        await suggest({ party, duration, date, location, force });
     };
+
 
     const loadMembers = async (): Promise<FamilyMemberLite[]> => {
         if (members.current) return members.current;
@@ -160,18 +147,55 @@ const OutingPlanner: React.FC = () => {
     };
 
     const useMyPosition = () => {
-        if (!navigator.geolocation) return;
+        setAreaError(null);
+        const showPositionError = () => showToast({ title: t('position.unavailable') });
+        if (!navigator.geolocation) {
+            showPositionError();
+            return;
+        }
         navigator.geolocation.getCurrentPosition(
             (position) => {
-                setOverride({
-                    latitude: position.coords.latitude,
-                    longitude: position.coords.longitude,
+                setArea('');
+                setAreaError(null);
+                setLocation({
+                    kind: 'current',
+                    coordinates: {
+                        latitude: position.coords.latitude,
+                        longitude: position.coords.longitude,
+                    },
                 });
             },
-            () => undefined,
+            showPositionError,
             { timeout: 10_000 },
         );
     };
+
+    const useArea = async () => {
+        const city = area.trim();
+        if (!city) return;
+        setAreaBusy(true);
+        setAreaError(null);
+        try {
+            const response = await api.post<{
+                success: boolean;
+                data: { city: string; country_code: string | null; latitude: number; longitude: number };
+                error?: string;
+            }>('/api/outings/area', { city });
+            if (!response.success) throw new Error(response.error ?? 'AREA_LOOKUP_FAILED');
+            const { city: resolvedCity, country_code, latitude, longitude } = response.data;
+            setLocation({
+                kind: 'area',
+                coordinates: { latitude, longitude },
+                label: [resolvedCity, country_code].filter(Boolean).join(', '),
+            });
+            setArea('');
+        } catch (err) {
+            setAreaError(err instanceof Error && /CITY_NOT_FOUND/i.test(err.message) ? 'notFound' : 'lookupError');
+        } finally {
+            setAreaBusy(false);
+        }
+    };
+
 
     const weatherLine = useMemo(() => {
         if (!visible?.weather) return null;
@@ -195,40 +219,68 @@ const OutingPlanner: React.FC = () => {
                             {t('title')}
                         </CardTitle>
                         <p className="mt-1 text-caption text-muted-foreground">
-                            {savedLocation.data?.city && !override
-                                ? t('subtitle', { city: savedLocation.data.city })
-                                : t('subtitleNoCity')}
+                            {location.kind === 'area'
+                                ? t('subtitle', { city: location.label })
+                                : location.kind === 'saved' && savedLocation.data?.city
+                                  ? t('subtitle', { city: savedLocation.data.city })
+                                  : t('subtitleNoCity')}
                         </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        {override ? (
-                            <Badge variant="primary">
-                                <MapPin className="mr-1 h-3 w-3" />
-                                {t('position.current')}
-                            </Badge>
-                        ) : savedLocation.data?.city ? (
-                            <Badge variant="secondary">
-                                <MapPin className="mr-1 h-3 w-3" />
-                                {savedLocation.data.city}
-                            </Badge>
-                        ) : null}
-                        <Button variant="ghost" size="sm" onClick={useMyPosition}>
-                            {t('position.use')}
-                        </Button>
                     </div>
                 </div>
             </CardHeader>
             <CardContent className="space-y-4 pt-2">
-                {!hasLocation ? (
-                    <div className="rounded-input border border-dashed border-border px-4 py-6 text-center">
-                        <p className="text-body font-medium">{t('noLocation.title')}</p>
-                        <p className="mt-1 text-caption text-muted-foreground">{t('noLocation.subtitle')}</p>
-                        <Button className="mt-4" onClick={() => navigate('/settings')}>
-                            {t('noLocation.cta')}
+                <div className="space-y-2 rounded-input border border-border p-3">
+                    <div className="flex flex-wrap gap-2">
+                        <Button
+                            size="sm"
+                            variant={location.kind === 'saved' && hasSavedLocation ? 'primary' : 'secondary'}
+                            disabled={areaBusy || !hasSavedLocation}
+                            onClick={() => {
+                                setArea('');
+                                setAreaError(null);
+                                setLocation({ kind: 'saved' });
+                            }}
+                        >
+                            {t('position.saved')}
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant={location.kind === 'current' ? 'primary' : 'secondary'}
+                            disabled={areaBusy}
+                            onClick={useMyPosition}
+                        >
+                            {t('position.use')}
+                        </Button>
+                        {location.kind === 'area' ? (
+                            <Badge variant="primary">
+                                <MapPin className="mr-1 h-3 w-3" />
+                                {location.label}
+                            </Badge>
+                        ) : null}
+                    </div>
+                    <div className="flex flex-wrap items-end gap-2">
+                        <div className="min-w-48 flex-1">
+                            <Input
+                                label={t('area.label')}
+                                value={area}
+                                disabled={areaBusy}
+                                onChange={(event) => {
+                                    setArea(event.target.value);
+                                    setAreaError(null);
+                                }}
+                                placeholder={t('area.placeholder')}
+                            />
+                        </div>
+                        <Button disabled={areaBusy || !area.trim()} onClick={() => void useArea()}>
+                            {areaBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                            {t('area.use')}
                         </Button>
                     </div>
-                ) : (
-                    <>
+                    {areaError ? <p role="alert" className="text-caption text-danger">{t(`area.${areaError}`)}</p> : null}
+                    {!hasLocation ? <p className="text-micro text-muted-foreground">{t('noLocation.subtitle')}</p> : null}
+                </div>
+                <>
+
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                             <div className="space-y-2">
                                 <span className="text-micro font-medium text-muted-foreground">
@@ -270,7 +322,7 @@ const OutingPlanner: React.FC = () => {
 
                         <div className="flex flex-wrap items-center gap-2">
                             <Button
-                                disabled={loading}
+                                disabled={loading || areaBusy || !hasLocation}
                                 onClick={() => void handleSuggest(isShownAnswer)}
                             >
                                 {loading ? (
@@ -293,7 +345,7 @@ const OutingPlanner: React.FC = () => {
 
                         {visible ? (
                             <div className="space-y-4">
-                                {visible.ai !== 'ok' ? (
+                                {visible.ai !== 'ok' && (visible.ai === 'pending' || visible.places.length > 0) ? (
                                     <p className="flex items-center gap-2 rounded-input border border-border bg-surface-2 px-3 py-2 text-micro text-muted-foreground">
                                         {visible.ai === 'pending' ? (
                                             <Loader2 className="h-3 w-3 flex-shrink-0 animate-spin" />
@@ -305,8 +357,11 @@ const OutingPlanner: React.FC = () => {
                                               : t('ai.failed')}
                                     </p>
                                 ) : null}
-                                {visible.placesSource === 'unavailable' ? (
+                                {visible.placesSource === 'unavailable' && visible.ideas.length > 0 ? (
                                     <p className="text-micro text-muted-foreground">{t('source.unavailable')}</p>
+                                ) : null}
+                                {visible.places.some((place) => place.category === 'halal_restaurant') ? (
+                                    <p className="text-micro text-muted-foreground">{t('source.halalNote')}</p>
                                 ) : null}
 
                                 {visible.places.length > 0 ? (
@@ -435,8 +490,7 @@ const OutingPlanner: React.FC = () => {
                                 ) : null}
                             </div>
                         ) : null}
-                    </>
-                )}
+                </>
             </CardContent>
         </Card>
     );

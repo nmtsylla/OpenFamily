@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { projectOutingParticipants } from '../src/custom/lib/kids.custom';
 import {
     buildOverpassQuery,
     clearPlacesCache,
@@ -7,10 +8,12 @@ import {
     isIndoorCategory,
     overpassFailure,
     parseOverpassResponse,
+    preserveNearestHalalRestaurant,
     rankPlaces,
     resetPlacesConfigCache,
     type NearbyPlace,
 } from '../src/custom/lib/places.custom';
+
 import {
     buildOutingsUserPrompt,
     outingWindow,
@@ -18,23 +21,9 @@ import {
     type OutingPlanningInput,
 } from '../src/custom/ai/outings.custom';
 
-// =============================================================================
-// Outing planner: the pure halves of the feature.
-//
-// Two things decide whether the planner is any good, and neither needs a network
-// or a model to check:
-//   1. what OpenStreetMap's answer becomes — the categories, the distances, the
-//      unnamed and duplicated places that must not reach the family;
-//   2. what the model's answer becomes — a `ref` that points at a place that was
-//      never offered is an invented venue and has to be dropped, and the order of
-//      the picks IS the ranking, so it must survive validation.
-// =============================================================================
 
 const round = (value: number, digits = 1) => Number(value.toFixed(digits));
 
-// ---------------------------------------------------------------------------
-// Overpass
-// ---------------------------------------------------------------------------
 
 test('haversineKm matches a known distance (Paris → London, ~344 km)', () => {
     const km = haversineKm(48.8566, 2.3522, 51.5074, -0.1278);
@@ -46,20 +35,16 @@ test('buildOverpassQuery asks for every mapped category around the point', () =>
     const query = buildOverpassQuery(51.165, 4.14, 10_000);
     assert.match(query, /\[out:json\]/);
     assert.match(query, /\(around:10000,51\.165,4\.14\)/);
-    // One `nwr` clause per OSM key, values as a regex: the one-clause-per-tag
-    // version times the public instance out (measured: 504).
     assert.match(query, /nwr\["leisure"~"\^\(playground\|park\|water_park\|swimming_pool\)\$"\]/);
     assert.match(query, /nwr\["tourism"~"\^\(zoo\|aquarium\|museum\|theme_park\|attraction\|viewpoint\)\$"\]/);
     assert.match(query, /nwr\["amenity"="library"\]/);
-    assert.equal(query.split('nwr[').length - 1, 3);
-    // The cap Overpass applies BEFORE our distance sort: it must be generous,
-    // because only ~a quarter of the elements it returns are named.
+    assert.match(query, /nwr\["amenity"="restaurant"\]\["diet:halal"="only"\]/);
+
+
     assert.match(query, /out center 400;/);
 });
 
 test('overpassFailure reads a 200-with-remark as a failure, not as an empty area', () => {
-    // Measured shape: HTTP 200, `elements: []`, and the reason in `remark`. Taken
-    // as data it would say "no place here" and cache that for half a day.
     assert.equal(
         overpassFailure({
             version: 0.6,
@@ -90,13 +75,9 @@ test('parseOverpassResponse keeps named places, nearest first, categories resolv
                 lon: 4.141,
                 tags: { name: 'Aire de jeux', leisure: 'playground' },
             },
-            // A zoo is also a tourist attraction: the zoo clause comes first.
             { type: 'node', id: 33, lat: 51.18, lon: 4.16, tags: { name: 'Zoo', tourism: 'zoo', attraction: 'yes' } },
-            // Nameless: not a proposal anyone can act on.
             { type: 'node', id: 44, lat: 51.1601, lon: 4.1401, tags: { leisure: 'playground' } },
-            // Nothing we map.
             { type: 'node', id: 55, lat: 51.16, lon: 4.14, tags: { name: 'Boulangerie', shop: 'bakery' } },
-            // No coordinates at all.
             { type: 'node', id: 66, tags: { name: 'Fantôme', leisure: 'park' } },
             null,
         ],
@@ -119,8 +100,34 @@ test('parseOverpassResponse keeps named places, nearest first, categories resolv
     assert.equal(round(places[0].distanceKm, 2), 0.13);
 });
 
+test('parseOverpassResponse accepts only restaurants tagged diet:halal=only', () => {
+    const places = parseOverpassResponse({ elements: [
+        { type: 'node', id: 1, lat: 51.16, lon: 4.14, tags: { name: 'Only', amenity: 'restaurant', 'diet:halal': 'only' } },
+        { type: 'node', id: 2, lat: 51.16, lon: 4.14, tags: { name: 'Some', amenity: 'restaurant', 'diet:halal': 'yes' } },
+        { type: 'node', id: 3, lat: 51.16, lon: 4.14, tags: { name: 'Unknown', amenity: 'restaurant' } },
+        { type: 'node', id: 4, lat: 51.16, lon: 4.14, tags: { name: 'Other', amenity: 'cafe', 'diet:halal': 'only' } },
+    ] }, 51.16, 4.14);
+    assert.deepEqual(places.map(({ name, category }) => [name, category]), [['Only', 'halal_restaurant']]);
+});
+
+test('nearest halal-only restaurant survives both fixed caps without changing retained order', () => {
+    const places = Array.from({ length: 20 }, (_, index) => ({
+        id: `osm:node/${index}`,
+        name: `Place ${index}`,
+        category: index === 19 ? 'halal_restaurant' as const : 'park' as const,
+        latitude: 0,
+        longitude: 0,
+        distanceKm: index + 1,
+        openingHours: null,
+        website: null,
+        fee: null,
+    }));
+    assert.deepEqual(preserveNearestHalalRestaurant(places, 18).map((place) => place.name).slice(-3), ['Place 15', 'Place 16', 'Place 19']);
+    assert.deepEqual(preserveNearestHalalRestaurant(places, 6).map((place) => place.name), ['Place 0', 'Place 1', 'Place 2', 'Place 3', 'Place 4', 'Place 19']);
+});
+
+
 test('parseOverpassResponse drops the second copy of a place and refuses junk payloads', () => {
-    // The same playground mapped twice (a node and a small way around it).
     const payload = {
         elements: [
             { type: 'node', id: 1, lat: 51.165, lon: 4.14, tags: { name: 'Speeltuin', leisure: 'playground' } },
@@ -164,13 +171,16 @@ test('rankPlaces keeps distance order when dry, and puts indoor venues first whe
         place('Aire', 'playground', 0.2),
         place('Musée', 'museum', 4),
         place('Parc', 'park', 1),
+        place('Halal Café', 'halal_restaurant', 3),
         place('Biblio', 'library', 6),
     ];
 
-    assert.deepEqual(rankPlaces(places, false).map((p) => p.name), ['Aire', 'Parc', 'Musée', 'Biblio']);
-    assert.deepEqual(rankPlaces(places, true).map((p) => p.name), ['Musée', 'Biblio', 'Aire', 'Parc']);
+    assert.deepEqual(rankPlaces(places, false).map((p) => p.name), ['Aire', 'Parc', 'Halal Café', 'Musée', 'Biblio']);
+    assert.deepEqual(rankPlaces(places, true).map((p) => p.name), ['Halal Café', 'Musée', 'Biblio', 'Aire', 'Parc']);
+    assert.equal(isIndoorCategory('halal_restaurant'), true);
     assert.equal(isIndoorCategory('aquarium'), true);
     assert.equal(isIndoorCategory('park'), false);
+
 });
 
 test('clearPlacesCache empties the in-process cache', () => {
@@ -178,9 +188,6 @@ test('clearPlacesCache empties the in-process cache', () => {
     assert.doesNotThrow(() => clearPlacesCache());
 });
 
-// ---------------------------------------------------------------------------
-// The model's answer
-// ---------------------------------------------------------------------------
 
 test('validateOutingPlan drops a ref that was never offered, and keeps the ranking order', () => {
     const plan = validateOutingPlan(
@@ -236,7 +243,6 @@ test('outingWindow uses the model suggestion when it fits, the requested length 
         startTime: '11:15',
         endTime: '12:45',
     });
-    // The model proposed neither: the family's "half a day" decides.
     assert.deepEqual(outingWindow({ startTime: null, durationMinutes: null }, 'half_day'), {
         startTime: '10:00',
         endTime: '14:00',
@@ -249,13 +255,10 @@ test('outingWindow uses the model suggestion when it fits, the requested length 
         startTime: '09:30',
         endTime: '17:30',
     });
-    // 22:00 + 8 h would wrap past midnight, where end_time is a clock time again.
     assert.deepEqual(outingWindow({ startTime: '22:00', durationMinutes: 480 }, 'half_day'), {
         startTime: '10:00',
         endTime: '14:00',
     });
-    // Ending EXACTLY at midnight is the same trap one minute earlier: 24:00 is
-    // not a time upstream's planner accepts, so this outing would 400.
     assert.deepEqual(outingWindow({ startTime: '22:00', durationMinutes: 120 }, 'short'), {
         startTime: '10:00',
         endTime: '12:00',
@@ -266,9 +269,6 @@ test('outingWindow uses the model suggestion when it fits, the requested length 
     });
 });
 
-// ---------------------------------------------------------------------------
-// The prompt
-// ---------------------------------------------------------------------------
 
 const baseInput: OutingPlanningInput = {
     party: 'kids',
@@ -276,9 +276,9 @@ const baseInput: OutingPlanningInput = {
     date: '2026-06-13',
     city: 'Sint-Niklaas',
     weather: { label: 'Pluie faible', tempMin: 12, tempMax: 16, precipitationProbability: 70 },
-    kids: [
-        { name: 'Léa', ageYears: 7, notes: 'Peur des chiens', allergies: ['arachides'] },
-        { name: 'Tom', ageYears: 10, notes: null, allergies: [] },
+    participants: [
+        { name: 'Léa', role: 'Enfant', ageYears: 7, notes: 'Peur des chiens', allergies: ['arachides'], medications: ['inhalateur'] },
+        { name: 'Tom', role: 'Enfant', ageYears: 10, notes: null, allergies: [], medications: [] },
     ],
     places: [
         {
@@ -295,6 +295,52 @@ const baseInput: OutingPlanningInput = {
     ],
 };
 
+test('participant projection includes profile context and excludes children for parents', () => {
+    const rows = [
+        { id: 10, user_id: 20, name: 'Parent', role: 'Parent', birth_date: null, allergies: '[]', medications: null, vaccines: '[]', notes: '', medical_notes: 'Needs a quiet outing', emergency_contact: 'private', color: 'red' },
+        { id: 11, user_id: 20, name: 'Child', role: 'Enfant', birth_date: null, allergies: '["peanuts"]', medications: null, vaccines: '["inhaler"]', notes: null, medical_notes: 'Avoid dogs', emergency_contact: 'private', color: 'blue' }
+    ];
+    assert.deepEqual(projectOutingParticipants(rows, 'parents'), [
+        { name: 'Parent', role: 'Parent', ageYears: null, allergies: [], medications: [], notes: 'Needs a quiet outing' },
+    ]);
+    assert.deepEqual(projectOutingParticipants(rows, 'family'), [
+        { name: 'Parent', role: 'Parent', ageYears: null, allergies: [], medications: [], notes: 'Needs a quiet outing' },
+        { name: 'Child', role: 'Enfant', ageYears: null, allergies: ['peanuts'], medications: ['inhaler'], notes: 'Avoid dogs' },
+    ]);
+});
+
+test('participant projection uses the family default for a missing role', () => {
+    assert.deepEqual(projectOutingParticipants([{
+        name: 'Member',
+        role: null,
+        birth_date: null,
+        allergies: null,
+        medications: null,
+        vaccines: null,
+        notes: null,
+        medical_notes: null,
+    }], 'family'), [
+        { name: 'Member', role: 'Autre', ageYears: null, allergies: [], medications: [], notes: null },
+    ]);
+});
+
+test('participant projection derives the age from a real birth date', () => {
+    // A January 1st birthday has always already happened this year, so the age
+    // is the plain year difference whatever the run date.
+    const birthYear = new Date().getFullYear() - 9;
+    const rows = [{
+        name: 'Member',
+        role: 'Enfant',
+        birth_date: `${birthYear}-01-01`,
+        allergies: null,
+        medications: null,
+        vaccines: null,
+        notes: null,
+        medical_notes: null,
+    }];
+    assert.equal(projectOutingParticipants(rows, 'family')[0].ageYears, 9);
+});
+
 test('buildOutingsUserPrompt carries the places, the party, the kids and the weather', () => {
     const prompt = buildOutingsUserPrompt(baseInput, 'fr');
 
@@ -303,21 +349,44 @@ test('buildOutingsUserPrompt carries the places, the party, the kids and the wea
     assert.match(prompt, /un ou deux adultes avec les enfants/);
     assert.match(prompt, /une demi-journée/);
     assert.match(prompt, /Pluie faible, 12–16°C, pluie 70%/);
-    assert.match(prompt, /^- Léa \(7 ans\) \(Peur des chiens — allergies: arachides\)$/m);
-    assert.match(prompt, /^- Tom \(10 ans\)$/m);
+    assert.match(prompt, /^- Léa \(Enfant\) — 7 ans; allergies: arachides; traitements: inhalateur; Peur des chiens$/m);
+    assert.match(prompt, /^- Tom \(Enfant\) — 10 ans$/m);
     assert.match(prompt, /1\. Musée communal — museum \(2\.4 km, Tu-Su 10:00-17:00, tarif: yes, https:\/\/example\.org\)/);
-    // The number of picks asked for never exceeds the number of places offered.
     assert.match(prompt, /au maximum 1 lieu/);
+    const englishPrompt = buildOutingsUserPrompt(baseInput, 'en');
+    assert.match(
+        englishPrompt,
+        /^- Léa \(Enfant\) — 7 years old; allergies: arachides; medications: inhalateur; Peur des chiens$/m,
+    );
+});
+
+test('buildOutingsUserPrompt labels restaurants with the halal-only category', () => {
+    const restaurant: NearbyPlace = {
+        id: 'osm:node/2',
+        name: 'Al Amal',
+        category: 'halal_restaurant',
+        latitude: 51.17,
+        longitude: 4.15,
+        distanceKm: 3.1,
+        openingHours: null,
+        website: null,
+        fee: null,
+    };
+    const prompt = buildOutingsUserPrompt({ ...baseInput, places: [restaurant] }, 'en');
+    assert.match(prompt, /1\. Al Amal — halal-only restaurant/);
 });
 
 test('buildOutingsUserPrompt says so when there is no place and no forecast', () => {
     const prompt = buildOutingsUserPrompt(
-        { ...baseInput, party: 'parents', kids: [], weather: null, places: [], city: null, duration: 'full_day' },
+        { ...baseInput, party: 'parents', participants: [], weather: null, places: [], city: null, duration: 'full_day' },
+
+
         'en',
     );
     assert.match(prompt, /the parents only, without the children/);
     assert.match(prompt, /the whole day/);
     assert.match(prompt, /forecast unavailable/);
     assert.match(prompt, /- none/);
-    assert.match(prompt, /return no 'picks'/);
+    assert.match(prompt, /do not name any venue or restaurant in the ideas/);
+
 });

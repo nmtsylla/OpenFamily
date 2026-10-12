@@ -18,21 +18,18 @@ import { useAuth } from '../../contexts/AuthContext';
 import { aiErrorKey } from '../../components/app/MagicInput';
 import { Button, Dialog, Input, Select } from '../../components/ui';
 
-// Ported from KeurTonux's LunchboxAiDialog: describe the pantry, get up to three
-// ready-to-pack lunchboxes back. The server owns the prompt (and the language
-// directive), so this file only collects the pantry and shows the ideas.
 
-/** Server-side enum, mirrored here so we don't import server code. */
 type LunchboxLocation = 'school' | 'daycare' | 'outing' | 'work' | 'travel' | 'other';
 
 export interface LunchboxIdea {
     main: string;
     fruit: string;
     snack: string;
-    drink: string;
+    drink?: string;
     reasoning: string;
     warnings: string[];
 }
+
 
 interface FamilyMemberLite {
     id: string;
@@ -42,16 +39,12 @@ interface FamilyMemberLite {
 interface Props {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    /** Child the lunchbox is for — drives age and allergies on the server. */
     familyMember?: FamilyMemberLite | null;
-    /** Picking an idea pre-fills the parent form's four fields. */
     onIdeaApplied: (idea: LunchboxIdea) => void;
 }
 
-// Stored DATA values (server enum) — labels resolved at render time through i18n.
 const LOCATION_VALUES: LunchboxLocation[] = ['school', 'daycare', 'outing', 'work', 'travel', 'other'];
 
-// Remembered between opens: a family shouldn't re-enter their pantry every day.
 const STORAGE_KEY = 'openfamily.lunchboxAi.prefs.v1';
 
 interface RememberedPrefs {
@@ -86,7 +79,6 @@ const loadPrefs = (): RememberedPrefs => {
     }
 };
 
-// Generic chip-list input; a comma-separated paste is supported.
 const ChipListInput: React.FC<{
     label: string;
     icon: React.ReactNode;
@@ -171,9 +163,6 @@ export const LunchboxAiDialog: React.FC<Props> = ({ open, onOpenChange, familyMe
     const [ideas, setIdeas] = useState<LunchboxIdea[]>([]);
     const [appliedIdx, setAppliedIdx] = useState<number | null>(null);
 
-    // The pantry is the seed now: one bucket per item decides which chip list it
-    // lands in. The four lists stay free text (the server endpoint is unchanged),
-    // so this only fills them; localStorage stays the manual fallback.
     const loadFromPantry = async () => {
         setLoadingPantry(true);
         try {
@@ -206,8 +195,6 @@ export const LunchboxAiDialog: React.FC<Props> = ({ open, onOpenChange, familyMe
         }
     };
 
-    // Hydrated once, deliberately not reset on each open: the family's usual
-    // pantry stays sticky from one day to the next.
     useEffect(() => {
         const prefs = loadPrefs();
         setMains(prefs.mains);
@@ -226,10 +213,6 @@ export const LunchboxAiDialog: React.FC<Props> = ({ open, onOpenChange, familyMe
         }
         setError('');
         setGenerating(true);
-        // The previous ideas stay on screen: the model takes 15-60 s at the
-        // gateway, and emptying the list turns "give me other ideas" into the
-        // same wait with nothing to read. Only the applied index resets, since
-        // it points into the list that is about to be replaced.
         setAppliedIdx(null);
         try {
             localStorage.setItem(
@@ -257,8 +240,6 @@ export const LunchboxAiDialog: React.FC<Props> = ({ open, onOpenChange, familyMe
             );
             setIdeas(response.success ? response.data.ideas : []);
         } catch (err) {
-            // The server answers with the machine-readable AI_* codes the rest of
-            // the app already translates; anything else shows its own message.
             const key = aiErrorKey(err);
             setError(key ? t(`ai:errors.${key}`) : err instanceof Error ? err.message : t('lunchbox.custom:ai.errors.generate'));
         } finally {

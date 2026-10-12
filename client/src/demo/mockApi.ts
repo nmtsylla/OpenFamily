@@ -961,17 +961,47 @@ async function route(method: string, path: string, q: Record<string, string>, bo
     // The demo has no OpenStreetMap and no model, so the planner is answered with
     // a fixed, plausible set (the page's own "add to the planning" button then
     // goes through the mock /api/planning above, like any other entry).
+    const isDemoOutingArea = (value: unknown): boolean =>
+        typeof value === 'string' &&
+        value.trim().toLowerCase().replace(/,\s*(?:be|belgium)$/, '') === 'sint-niklaas';
+    if (path === '/api/outings/area' && method === 'POST') {
+        const city = typeof body.city === 'string' ? body.city.trim() : '';
+        if (!isDemoOutingArea(city)) throw new Error('CITY_NOT_FOUND');
+        return ok({ city: 'Sint-Niklaas', country_code: 'BE', latitude: 51.16, longitude: 4.14 });
+    }
+
+    const demoOutingIdeas = [
+        { title: 'Chasse au trésor dans le quartier', description: 'Une liste de dix choses à photographier, à faire à pied autour de la maison.', indoor: false },
+        { title: 'Après-midi jeux de société', description: 'Sortir les jeux oubliés, un goûter, et pas d’écran jusqu’au dîner.', indoor: true },
+    ];
+
     if (path === '/api/outings/suggest' && method === 'POST') {
         const date = typeof body.date === 'string' ? body.date : new Date().toISOString().slice(0, 10);
         const party = typeof body.party === 'string' ? body.party : 'family';
+        const duration = typeof body.duration === 'string' ? body.duration : 'half_day';
+        if (body.location === 'current') {
+            return ok({
+                date,
+                party,
+                duration,
+                city: null,
+                weather: null,
+                ai: 'failed',
+                placesSource: 'unavailable',
+                places: [],
+                ideas: demoOutingIdeas,
+            });
+        }
+        if (body.location === 'area' && !isDemoOutingArea(body.city)) throw new Error('CITY_NOT_FOUND');
+        const city = 'Sint-Niklaas';
         // Two-phase like the server: the instant call carries the places and says
         // the ranking is still to come, so the demo exercises the same panel path.
         const instant = body.instant === true;
         return ok({
             date,
             party,
-            duration: typeof body.duration === 'string' ? body.duration : 'half_day',
-            city: 'Sint-Niklaas',
+            duration,
+            city,
             weather: { label: 'Partiellement nuageux', tempMin: 11, tempMax: 17, weatherCode: 2, precipitationProbability: 20 },
             ai: instant ? 'pending' : 'ok',
             placesSource: 'osm',
@@ -998,10 +1028,7 @@ async function route(method: string, path: string, q: Record<string, string>, bo
                     startTime: '10:00', endTime: '12:00',
                 },
             ],
-            ideas: [
-                { title: 'Chasse au trésor dans le quartier', description: 'Une liste de dix choses à photographier, à faire à pied autour de la maison.', indoor: false },
-                { title: 'Après-midi jeux de société', description: 'Sortir les jeux oubliés, un goûter, et pas d’écran jusqu’au dîner.', indoor: true },
-            ],
+            ideas: demoOutingIdeas,
         });
     }
     // FORK-END: outings

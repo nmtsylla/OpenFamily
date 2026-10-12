@@ -1,13 +1,10 @@
 // =============================================================================
-// The family's children, as the prompt builders need them.
+// Family-profile projections for AI prompts.
 //
-// Extracted from the dashboard widget route when the outing planner needed the
-// same rows: a child's birth date, the notes the family wrote on their card and
-// their allergies are what makes an AI suggestion about THEM rather than about
-// children in general.
-//
-// `notes` and `allergies` are server-only. They feed a prompt and are projected
-// out of every response, so a child's medical notes never reach the browser.
+// `loadFamilyKids` supplies activity prompts. Outing prompts use
+// `loadOutingParticipants` excludes contact details and filters children out of
+// parent-only prompts. Routes return display fields to clients; allergies,
+// medications and notes go only to model prompts.
 // =============================================================================
 
 import { query } from '../../db';
@@ -23,7 +20,7 @@ export interface FamilyKid {
     allergies: string[];
 }
 
-export const ageYearsFromBirthDate = (birthDate: unknown, fallback: number): number => {
+export const ageYearsFromBirthDate = (birthDate: unknown, fallback: number | null): number | null => {
     if (!(birthDate instanceof Date) && typeof birthDate !== 'string') return fallback;
     const d = birthDate instanceof Date ? birthDate : new Date(`${birthDate}T00:00:00`);
     if (Number.isNaN(d.getTime())) return fallback;
@@ -36,7 +33,6 @@ export const ageYearsFromBirthDate = (birthDate: unknown, fallback: number): num
     return Math.max(0, Math.min(120, age));
 };
 
-/** The free-text notes, read the way the family card displays them (`notes ?? medical_notes`). */
 const pickNotes = (notes: unknown, medicalNotes: unknown): string | null => {
     for (const value of [notes, medicalNotes]) {
         if (typeof value === 'string' && value.trim()) return value;
@@ -58,8 +54,46 @@ export const loadFamilyKids = async (userId: string): Promise<FamilyKid[]> => {
         name: String(r.name),
         color: String(r.color),
         birth_date: r.birth_date === null || r.birth_date === undefined ? null : String(r.birth_date),
-        ageYears: ageYearsFromBirthDate(r.birth_date, 8),
+        ageYears: ageYearsFromBirthDate(r.birth_date, 8) ?? 8,
         notes: pickNotes(r.notes, r.medical_notes),
         allergies: parseStringArray(r.allergies),
     }));
+};
+
+export interface OutingParticipant {
+    name: string;
+    role: string;
+    ageYears: number | null;
+    allergies: string[];
+    medications: string[];
+    notes: string | null;
+}
+
+export const projectOutingParticipants = (
+    rows: Array<Record<string, unknown>>,
+    party: 'family' | 'kids' | 'parents',
+): OutingParticipant[] => rows
+    .filter((row) => party !== 'parents' || row.role !== 'Enfant')
+    .map((row) => {
+        const ageYears = ageYearsFromBirthDate(row.birth_date, null);
+        return {
+            name: String(row.name),
+            role: typeof row.role === 'string' && row.role ? row.role : 'Autre',
+            ageYears,
+            allergies: parseStringArray(row.allergies),
+            medications: parseStringArray(row.medications ?? row.vaccines),
+            notes: pickNotes(row.notes, row.medical_notes),
+        };
+    });
+
+
+export const loadOutingParticipants = async (userId: string, party: 'family' | 'kids' | 'parents'): Promise<OutingParticipant[]> => {
+    const result = await query(
+        `SELECT name, role, birth_date, allergies, medications, vaccines, notes, medical_notes
+         FROM family_members
+         WHERE user_id = $1 AND ($2 <> 'parents' OR role <> 'Enfant')
+         ORDER BY birth_date NULLS LAST, name ASC`,
+        [userId, party],
+    );
+    return projectOutingParticipants(result.rows as Array<Record<string, unknown>>, party);
 };
