@@ -1407,3 +1407,39 @@ The toggle is available only in landscape below 1024px. Its local `aria-expanded
 state drives CSS that hides the fixed bottom tab bar and reduces `main.pb-28` to
 1rem plus the safe-area inset when collapsed. Portrait, desktop, and sidebar
 behavior remain unchanged.
+
+### The weather card keeps its dialog through a refetch (2026-10-12)
+
+Client-only, inside `client/src/custom/`; no upstream file touched. The dashboard's
+weather card renders `WeatherDetailsDialog` inside its success branch, and the two
+places under it that could blank that branch were both wrong. `useCachedQuery`'s
+catch discarded the payload it already had, and `useSavedLocation` reported
+`loading: true` on every refetch while it still held the city. The saved city is
+refetched on every `family` WebSocket frame, so any saved-city change — including
+another member's — dropped the card to its skeleton and unmounted the reader's open
+dialog, which came back only when the response landed. A refetch answered with an
+error was worse: the dialog stayed closed and the card claimed no city while one
+was saved.
+
+Reproduced in Chromium at 390x844 against the dev client on the dev server, with
+the weather endpoints stubbed (the demo build hides the widget and has no weather
+backend) and a stand-in `WebSocket` so a `family` frame could be pushed on demand.
+Stub responses were delayed 400-700 ms so the transient render was observable:
+
+- before: 250 ms after the frame the card was its skeleton and `[role=dialog]`
+  counted 0; at +950 ms the dialog was back — the blink the report describes;
+- after: 50 samples at 50 ms across the refetch pinned the dialog count at 1, with
+  the clothing query still refetching on schedule (2 → 4 calls);
+- with the refetch answered 503: before, the dialog closed and the card fell to its
+  "no city" empty state; after, both the dialog and the city stayed on screen.
+
+`loading` now means "nothing to show yet", the contract `useWidgetPhases` keeps in
+the same file, and a failed refetch keeps the last payload. `npx tsc --noEmit` is
+clean. Three candidates were tested in the browser and ruled out: nothing behind a
+modal is reachable (no click-through holes over a full-viewport grid at 390x844 and
+834x1112, so a tap there can only dismiss), the toast viewport's `z-[100]` does not
+paint above a dialog's `z-50`, and a shared session-position change re-keys the card
+without closing the dialog. The other custom dialog hosts (lunchboxes, pantry,
+scanner, receipts, promo watchlist) keep their dialogs outside any refetch-driven
+branch; the scanner's and the receipts section's only ways to drop a dialog are
+user actions or a genuinely empty list.
