@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../../lib/api';
+import { useWebSocketUpdates } from '../../hooks/useWebSocketUpdates';
 import i18n from '../../i18n';
 
 // =============================================================================
@@ -58,15 +59,20 @@ export type DayMode = 'school' | 'home';
 export type DayReason = 'school_day' | 'weekend' | 'default_summer';
 
 /**
- * Which day the dashboard is talking about, and why. The server picks tomorrow
- * during term (lay out the outfit tonight) and today on a home day (what do we
- * DO this morning?) — so the widget reads this rather than assuming.
+ * Which day the dashboard is talking about, and why. The server picks it from
+ * the hour (before 18:00 today, from 18:00 tomorrow) and sends the offset that
+ * picked it, so the widget reads `dayOffset` instead of judging the date itself;
+ * `flipsAt` is the instant the answer goes stale.
  */
 export interface DayContextDTO {
     /** YYYY-MM-DD */
     date: string;
     mode: DayMode;
     reason: DayReason;
+    /** 0 = today, 1 = tomorrow. */
+    dayOffset: 0 | 1;
+    /** ISO instant of the next local 18:00. */
+    flipsAt: string;
 }
 
 export interface DashboardWeatherDTO {
@@ -238,6 +244,31 @@ const geoKey = (override: GeoOverride | null): string =>
     override ? `${override.latitude.toFixed(2)},${override.longitude.toFixed(2)}` : 'saved';
 
 /**
+ * Keep the widget on the server's target day. `flipsAt` is the 18:00 the server
+ * says it picked the day against: once it passes, the answer on screen is stale,
+ * so refetch. A 60 s poll covers a page left open forever; the visibility handler
+ * covers a tablet that slept through the boundary (background tabs throttle
+ * timers, so the interval alone can miss it by much more than a minute).
+ */
+function useTargetExpiry(flipsAt: string | undefined, refetch: () => void): void {
+    const refetchRef = useRef(refetch);
+    refetchRef.current = refetch;
+
+    useEffect(() => {
+        if (!flipsAt) return;
+        const check = () => {
+            if (Date.now() >= new Date(flipsAt).getTime()) refetchRef.current();
+        };
+        const id = window.setInterval(check, 60_000);
+        document.addEventListener('visibilitychange', check);
+        return () => {
+            window.clearInterval(id);
+            document.removeEventListener('visibilitychange', check);
+        };
+    }, [flipsAt]);
+}
+
+/**
  * One widget, two phases. The fast phase carries what needs no model at all
  * (weather, kids, the offline activity bank) and lands in a couple of hundred
  * milliseconds; the slow one carries the model's answer and can take anywhere
@@ -309,7 +340,7 @@ export function useDashboardWeather(override: GeoOverride | null, enabled: boole
     // switching the interface must not serve the previous language.
     const key = `weather-clothing:${widgetLanguage()}:${geoKey(override)}`;
     const body = { ...(override ?? {}), lang: widgetLanguage() };
-    return useWidgetPhases(
+    const result = useWidgetPhases(
         key,
         () =>
             postWidget(
@@ -320,6 +351,11 @@ export function useDashboardWeather(override: GeoOverride | null, enabled: boole
         () => postWidget('/api/ai/dashboard/clothing-suggestions', body, isDashboardWeather),
         enabled,
     );
+    // Another member saving a city changes the answer, and so does the 18:00
+    // flip — the cache key carries no day, so both must drop it.
+    useWebSocketUpdates('family', result.refetch);
+    useTargetExpiry(result.data?.dayContext.flipsAt, result.refetch);
+    return result;
 }
 
 /** The multi-day forecast behind the "weather details" dialog. */
@@ -360,12 +396,17 @@ export function useKidsActivities(
         lang: widgetLanguage(),
         ...(exclude.length > 0 ? { exclude } : {}),
     };
-    return useWidgetPhases(
+    const result = useWidgetPhases(
         key,
         () => postWidget('/api/ai/dashboard/kids-activities', { ...body, instant: true }, isKidsActivities),
         () => postWidget('/api/ai/dashboard/kids-activities', body, isKidsActivities),
         enabled,
     );
+    // Same two invalidation sources as the clothing card: a family-wide city
+    // change, and the 18:00 cutoff that moves the target day.
+    useWebSocketUpdates('family', result.refetch);
+    useTargetExpiry(result.data?.dayContext.flipsAt, result.refetch);
+    return result;
 }
 
 /**
@@ -407,7 +448,7 @@ const isSavedLocation = (value: unknown): value is SavedLocationDTO =>
  * card pre-fills.
  */
 export function useSavedLocation(): AsyncResult<SavedLocationDTO | null> {
-    return useCachedQuery(
+    const result = useCachedQuery(
         'weather-location',
         async () => {
             const response = await api.get<{ success: boolean; data: SavedLocationDTO }>(
@@ -417,4 +458,8 @@ export function useSavedLocation(): AsyncResult<SavedLocationDTO | null> {
         },
         true,
     );
+    // The city is family-wide: another member saving one must repaint this
+    // client's Settings card and its widgets, which read the same row.
+    useWebSocketUpdates('family', result.refetch);
+    return result;
 }

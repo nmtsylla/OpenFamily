@@ -39,7 +39,7 @@ explained below.
 
 | Feature | Files | Flag |
 |---------|-------|------|
-| Weather, clothing suggestions, screen-free activities | `server/src/custom/weather/*.custom.ts`, `server/src/custom/routes/weather.custom.ts`, `server/src/custom/lib/dayContext.custom.ts`, `server/src/custom/ai/{activityBank,widgets}.custom.ts`, `server/src/custom/routes/aiDashboard.custom.ts`, `client/src/custom/components/{WeatherClothingCard,WeatherDetailsDialog,WeatherLocation,KidsActivitiesCard}.custom.tsx`, `client/src/custom/hooks/useWeather.custom.ts`, `client/src/custom/lib/{weatherCode,dayContextLabel}.custom.ts` | `CUSTOM_FEATURE_WEATHER_ENABLED`, `CUSTOM_FEATURE_AI_WIDGETS_ENABLED` |
+| Weather, clothing suggestions, screen-free activities. The saved city is the **family's**, not the account's: stored on the owner's row, saved from Settings and read by every member's dashboard, with a `family` WebSocket event fanned out to the whole family on save. The widgets target **today before 18:00 and tomorrow from 18:00 on** (the hour alone picks the day; the school/home rule only labels it), and the payload carries the offset and the next 18:00 so the client schedules against the server's boundary | `server/src/custom/weather/*.custom.ts`, `server/src/custom/routes/weather.custom.ts`, `server/src/custom/lib/{dayContext,familyNotify}.custom.ts`, `server/src/custom/ai/{activityBank,widgets}.custom.ts`, `server/src/custom/routes/aiDashboard.custom.ts`, `client/src/custom/components/{WeatherClothingCard,WeatherDetailsDialog,WeatherLocation,KidsActivitiesCard}.custom.tsx`, `client/src/custom/hooks/useWeather.custom.ts`, `client/src/custom/lib/{weatherCode,dayContextLabel}.custom.ts` | `CUSTOM_FEATURE_WEATHER_ENABLED`, `CUSTOM_FEATURE_AI_WIDGETS_ENABLED` |
 | Object storage for images (S3-compatible) | `server/src/custom/lib/{storage,media,storage-errors}.custom.ts`, `server/src/custom/middleware/media.custom.ts`, `server/src/custom/routes/media.custom.ts` | `CUSTOM_FEATURE_MEDIA_ENABLED` |
 | Receipt / bill import with line detail | `server/src/custom/routes/budgetReceipts.custom.ts`, `server/src/custom/ai/receipt.custom.ts`, `client/src/custom/components/{ReceiptImport,BudgetReceipts}.custom.tsx` | `CUSTOM_FEATURE_BUDGET_RECEIPTS_ENABLED` |
 | Budget analytics page | `server/src/custom/lib/budgetAnalytics.custom.ts`, `server/src/custom/routes/budgetAnalytics.custom.ts`, `client/src/custom/pages/BudgetAnalytics.custom.tsx` | `CUSTOM_FEATURE_BUDGET_ANALYTICS_ENABLED` |
@@ -340,6 +340,10 @@ hand carries neither. `outings`
 covers the Overpass answer (categories, unnamed and duplicated places, a `ref`
 pointing at a place that was never offered) and the outing window (the model's
 suggestion when it fits inside a day, the requested length otherwise).
+`weather` covers the target-day rule: the 18:00 cutoff picks the day (offset 0
+before it, 1 from it), an evening on a home day targets tomorrow with mode
+`home`, and the picked `date` always equals `toDateKey(now + dayOffset)` for hours
+0, 8, 17, 18 and 23.
 `homeAssistantDevices` covers the rules that decide what the family dashboard may
 read and drive (domain whitelist, attribute trimming, entity/domain match,
 service-name shape) and how a non-2xx from Home Assistant is classified: a 4xx is

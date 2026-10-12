@@ -45,22 +45,40 @@ test('dayContext: July and August fall back to summer without any declaration', 
     assert.equal(resolveDayContext('2026-09-01').reason, 'school_day');
 });
 
-test('resolveTargetDay: looks at tomorrow during term, today on a home day', () => {
-    // Wednesday during term → tomorrow (Thursday).
-    const term = resolveTargetDay(new Date('2026-03-11T20:00:00'));
-    assert.equal(term.dayOffset, 1);
-    assert.equal(term.context.date, '2026-03-12');
+test('resolveTargetDay: the hour picks the day, the mode only labels it', () => {
+    // 2026-03-11 is a Wednesday during term.
+    const morning = resolveTargetDay(new Date(2026, 2, 11, 9, 0));
+    assert.equal(morning.dayOffset, 0);
+    assert.equal(morning.date, '2026-03-11');
+    assert.equal(morning.mode, 'school');
 
-    // Saturday → today, both days being home days.
-    const weekend = resolveTargetDay(new Date('2026-03-14T09:00:00'));
-    assert.equal(weekend.dayOffset, 0);
-    assert.equal(weekend.context.date, '2026-03-14');
+    // 17:59 is still today; 18:00 flips to tomorrow.
+    const late = resolveTargetDay(new Date(2026, 2, 11, 17, 59));
+    assert.equal(late.dayOffset, 0);
+    assert.equal(late.date, '2026-03-11');
 
-    // Friday evening during term → Saturday, so the ideas land the night before.
-    const friday = resolveTargetDay(new Date('2026-03-13T21:00:00'));
-    assert.equal(friday.dayOffset, 1);
-    assert.equal(friday.context.mode, 'home');
-    assert.equal(friday.context.reason, 'weekend');
+    const evening = resolveTargetDay(new Date(2026, 2, 11, 18, 0));
+    assert.equal(evening.dayOffset, 1);
+    assert.equal(evening.date, '2026-03-12');
+});
+
+test('resolveTargetDay: an evening on a home day targets tomorrow, still home', () => {
+    // Saturday 2026-03-14, so both today and tomorrow are weekend days.
+    const saturday = resolveTargetDay(new Date(2026, 2, 14, 20, 0));
+    assert.equal(saturday.dayOffset, 1);
+    assert.equal(saturday.date, '2026-03-15');
+    assert.equal(saturday.mode, 'home');
+    assert.equal(saturday.reason, 'weekend');
+});
+
+test('resolveTargetDay: the picked date always matches the offset', () => {
+    for (const hour of [0, 8, 17, 18, 23]) {
+        const now = new Date(2026, 2, 11, hour, 30);
+        const picked = resolveTargetDay(now);
+        const expected = new Date(now);
+        expected.setDate(expected.getDate() + picked.dayOffset);
+        assert.equal(picked.date, toDateKey(expected));
+    }
 });
 
 test('toDateKey uses the local calendar, not UTC', () => {

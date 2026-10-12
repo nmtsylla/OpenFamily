@@ -53,24 +53,40 @@ export const resolveDayContext = (dateKey: string): DayContext => {
     return { date: dateKey, mode: 'school', reason: 'school_day' };
 };
 
+/** Hour of the local day after which the dashboard talks about tomorrow. */
+export const EVENING_CUTOFF_HOUR = 18;
+
+/**
+ * The day the dashboard talks about, plus how it was picked: the offset from
+ * today and the instant it flips. The client schedules against `flipsAt` rather
+ * than re-deriving the cutoff from its own clock.
+ */
+export interface TargetDay extends DayContext {
+    dayOffset: 0 | 1;
+    /** ISO instant of the next local 18:00. */
+    flipsAt: string;
+}
+
 /**
  * Which day should the dashboard talk about?
  *
- *   - School term: tomorrow. The question that matters is asked in the evening
- *     — pack the bag, lay out the outfit for the morning.
- *   - Holidays and weekends: today. The question is asked at breakfast — what
- *     do we DO today?
- *
- * Nice side effect: on a Friday (a school day) the target is Saturday, so the
- * activity suggestions land the evening before the weekend, when they help.
+ * The hour alone decides: before 18:00 it is today, from 18:00 on tomorrow (lay
+ * out the outfit the night before). The school/home rule no longer selects the
+ * day — it only labels it, through `resolveDayContext`.
  */
-export const resolveTargetDay = (now: Date = new Date()): { context: DayContext; dayOffset: 0 | 1 } => {
-    const today = resolveDayContext(toDateKey(now));
-    if (today.mode === 'home') {
-        return { context: today, dayOffset: 0 };
+export const resolveTargetDay = (now: Date = new Date()): TargetDay => {
+    const dayOffset: 0 | 1 = now.getHours() >= EVENING_CUTOFF_HOUR ? 1 : 0;
+
+    const target = new Date(now);
+    target.setDate(target.getDate() + dayOffset);
+    const context = resolveDayContext(toDateKey(target));
+
+    // The next local 18:00: today's when it is still ahead, tomorrow's otherwise.
+    const flip = new Date(now);
+    flip.setHours(EVENING_CUTOFF_HOUR, 0, 0, 0);
+    if (dayOffset === 1) {
+        flip.setDate(flip.getDate() + 1);
     }
 
-    const tomorrow = new Date(now);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    return { context: resolveDayContext(toDateKey(tomorrow)), dayOffset: 1 };
+    return { ...context, dayOffset, flipsAt: flip.toISOString() };
 };

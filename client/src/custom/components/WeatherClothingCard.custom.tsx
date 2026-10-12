@@ -6,7 +6,7 @@ import { AlertCircle, Droplets, LocateFixed, MapPin, RefreshCw, Sparkles, Wind }
 import { Card, CardContent, Button, useToast } from '../../components/ui';
 import { useAuth } from '../../contexts/AuthContext';
 import { CONDITION_ICON, conditionKey, weatherCondition } from '../lib/weatherCode.custom';
-import { dayContextHeading, isTodayContext } from '../lib/dayContextLabel.custom';
+import { dayContextHeading } from '../lib/dayContextLabel.custom';
 import {
     useDashboardWeather,
     useSavedLocation,
@@ -231,7 +231,7 @@ const WeatherClothingCard: React.FC<Props> = ({ override, onOverrideChange }) =>
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <WeatherTile
                         forecast={data.weather}
-                        isToday={isTodayContext(data.dayContext)}
+                        isToday={data.dayContext.dayOffset === 0}
                         onClick={() => setDetailsOpen(true)}
                     />
 

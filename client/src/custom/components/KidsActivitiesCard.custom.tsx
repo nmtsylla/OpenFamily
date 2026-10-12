@@ -25,7 +25,7 @@ import {
 import { Card, CardContent, Button, useToast } from '../../components/ui';
 import { useAuth } from '../../contexts/AuthContext';
 import { api } from '../../lib/api';
-import { dayContextHeading, isTodayContext } from '../lib/dayContextLabel.custom';
+import { dayContextHeading } from '../lib/dayContextLabel.custom';
 import {
     useKidsActivities,
     useSavedLocation,
@@ -187,11 +187,9 @@ const KidsActivitiesCard: React.FC<Props> = ({ override }) => {
                     <div>
                         <h2 className="text-h2 font-semibold flex items-center gap-2">
                             <MonitorOff className="h-5 w-5 text-primary" />
-                            {isTodayContext(data.dayContext) ? t('titleToday') : t('titleTomorrow')}
+                            {dayContextHeading(data.dayContext, t)}
                         </h2>
                         <p className="text-micro text-muted-foreground flex flex-wrap items-center gap-1">
-                            <span>{dayContextHeading(data.dayContext, t)}</span>
-                            <span>·</span>
                             <span>{t('subtitle', { count: data.activities.length })}</span>
                             {/* The bank answers in ~200 ms while the model can take
                                 a minute; the ideas are real either way, and this

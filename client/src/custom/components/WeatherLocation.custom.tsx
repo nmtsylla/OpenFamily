@@ -8,9 +8,10 @@ import { useSavedLocation } from '../hooks/useWeather.custom';
 // =============================================================================
 // Settings card: the city whose weather the dashboard widgets show.
 //
-// The city is geocoded server-side (Open-Meteo) and stored as coordinates on the
-// account, so the browser never talks to the weather provider and the kiosk and
-// the dashboard agree on the location.
+// The city belongs to the family, not the account: it is geocoded server-side
+// (Open-Meteo) and stored as coordinates on the family owner's row, so every
+// member's dashboard, the kiosk and this card agree on the location. Saving one
+// here fans a `family` WebSocket update out to the other members.
 //
 // The endpoint is the custom weather surface (PUT /api/weather/location), not an
 // auth route: the fork hung it off /api/auth, which forced the location into the
@@ -62,6 +63,7 @@ const WeatherLocation: React.FC = () => {
                     <div className="flex-1">
                         <h3 className="text-caption font-semibold text-foreground">{t('settings.title')}</h3>
                         <p className="mt-1 text-micro text-muted-foreground">{t('settings.subtitle')}</p>
+                        <p className="mt-1 text-micro text-muted-foreground">{t('settings.sharedHint')}</p>
                         <div className="mt-4 flex flex-wrap items-end gap-2 max-w-md">
                             <div className="flex-1 min-w-[12rem]">
                                 <Input

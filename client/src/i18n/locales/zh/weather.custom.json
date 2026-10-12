@@ -74,6 +74,7 @@
   "settings": {
     "title": "天气地点",
     "subtitle": "用于首页的天气预报和穿搭建议。",
+    "sharedHint": "全家共用：所有人看到同一座城市。",
     "label": "城市",
     "placeholder": "例如：苏州",
     "save": "保存",

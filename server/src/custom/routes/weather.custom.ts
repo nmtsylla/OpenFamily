@@ -3,6 +3,7 @@ import { authMiddleware, AuthRequest } from '../../middleware/auth';
 import { query } from '../../db';
 import { geocodeCity, getWeeklyForecast } from '../weather/WeatherService.custom';
 import { WeatherError } from '../weather/errors.custom';
+import { notifyFamily } from '../lib/familyNotify.custom';
 import logger from '../../lib/logger';
 
 // =============================================================================
@@ -86,7 +87,7 @@ router.post('/forecast', async (req: AuthRequest, res) => {
         if (latitude === null || longitude === null) {
             const userRow = await query(
                 'SELECT city, latitude, longitude FROM users WHERE id = $1',
-                [req.actualUserId],
+                [req.userId],
             );
             const u = userRow.rows[0] as
                 | {
@@ -133,13 +134,17 @@ router.post('/forecast', async (req: AuthRequest, res) => {
 });
 
 // =============================================================================
-// /api/weather/location — the member's saved city.
+// /api/weather/location — the family's shared city.
 //
 // The fork hung this off /api/auth (PUT /api/auth/location) and kept the result
 // in the client's auth context. In the port it lives on the weather surface:
 // same behaviour (geocode through Open-Meteo, store the resolved coordinates on
 // the user row), but no upstream route is edited and the widgets read the saved
 // location back from here.
+//
+// Read and write both use `req.userId` (the family owner's row), so every
+// member shares one city; a save fans a `family` WebSocket update out to the
+// whole family (`notifyFamily`) so the other dashboards refresh.
 // =============================================================================
 
 interface SavedLocation {
@@ -157,7 +162,7 @@ router.get('/location', async (req: AuthRequest, res) => {
     try {
         const result = await query(
             'SELECT city, country_code, latitude, longitude FROM users WHERE id = $1',
-            [req.actualUserId],
+            [req.userId],
         );
         const row = result.rows[0] as
             | {
@@ -218,7 +223,8 @@ router.put('/location', async (req: AuthRequest, res) => {
             throw error;
         }
 
-        // actualUserId: the location belongs to the member, not the family.
+        // userId: the city is the family's shared location, so it is stored on
+        // the owner's row every member reads.
         const result = await query(
             `UPDATE users
              SET city = $1, country_code = $2, latitude = $3, longitude = $4
@@ -229,7 +235,7 @@ router.put('/location', async (req: AuthRequest, res) => {
                 geocoded.country_code,
                 geocoded.latitude,
                 geocoded.longitude,
-                req.actualUserId,
+                req.userId,
             ],
         );
         const row = result.rows[0] as
@@ -251,6 +257,16 @@ router.put('/location', async (req: AuthRequest, res) => {
             longitude: asNumber(row.longitude),
         };
         res.json({ success: true, data });
+
+        // Every member's dashboard reads this city: push the family event so
+        // their open clients drop their cached location and widgets.
+        notifyFamily(req.userId!, { type: 'update', entity: 'family', action: 'updated' }).catch(
+            (error: unknown) => {
+                logger.warn('weather.family_notify_failed', {
+                    error: error instanceof Error ? error.message : String(error),
+                });
+            },
+        );
     } catch (error) {
         logger.error('weather.update_location_unexpected', {
             error: error instanceof Error ? error.message : String(error),
