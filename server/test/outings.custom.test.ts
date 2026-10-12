@@ -324,6 +324,23 @@ test('participant projection uses the family default for a missing role', () => 
     ]);
 });
 
+test('participant projection derives the age from a real birth date', () => {
+    // A January 1st birthday has always already happened this year, so the age
+    // is the plain year difference whatever the run date.
+    const birthYear = new Date().getFullYear() - 9;
+    const rows = [{
+        name: 'Member',
+        role: 'Enfant',
+        birth_date: `${birthYear}-01-01`,
+        allergies: null,
+        medications: null,
+        vaccines: null,
+        notes: null,
+        medical_notes: null,
+    }];
+    assert.equal(projectOutingParticipants(rows, 'family')[0].ageYears, 9);
+});
+
 test('buildOutingsUserPrompt carries the places, the party, the kids and the weather', () => {
     const prompt = buildOutingsUserPrompt(baseInput, 'fr');
 
