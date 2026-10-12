@@ -24,6 +24,13 @@
         "current": "正在使用我的位置",
         "saved": "已保存的城市"
     },
+    "area": {
+        "label": "城市或区域",
+        "placeholder": "例如：比利时安特卫普",
+        "use": "使用此区域",
+        "notFound": "找不到该城市或区域。",
+        "lookupError": "无法查询该区域，请重试。"
+    },
     "generate": "推荐出行",
     "regenerate": "其他推荐",
     "generating": "正在寻找……",
@@ -54,6 +61,7 @@
         "attraction": "景点",
         "swimming": "游泳馆",
         "library": "图书馆",
+        "halal_restaurant": "仅提供清真食品的餐厅",
         "viewpoint": "观景台"
     },
     "ai": {
@@ -63,12 +71,11 @@
     },
     "source": {
         "osm": "地点来自 OpenStreetMap",
-        "unavailable": "无法连接地点数据库：仅显示下方建议。"
+        "unavailable": "无法连接地点数据库：仅显示下方建议。",
+        "halalNote": "仅清真状态来自 OpenStreetMap 标签，并非独立认证。"
     },
     "noLocation": {
-        "title": "尚未设置位置",
-        "subtitle": "在天气设置中保存你的城市，或允许浏览器使用你的位置。",
-        "cta": "打开设置"
+        "subtitle": "在上方选择城市或区域，或使用当前位置查看出行地点。"
     },
     "empty": "这一天没有可推荐的内容。换个日期或安排更长的出行试试。",
     "error": "无法获取出行建议。"

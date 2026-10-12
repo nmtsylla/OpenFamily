@@ -24,6 +24,13 @@
         "current": "A usar minha posição",
         "saved": "Cidade salva"
     },
+    "area": {
+        "label": "Cidade ou zona",
+        "placeholder": "ex.: Antuérpia, Bélgica",
+        "use": "Usar esta zona",
+        "notFound": "Não encontrámos essa cidade ou zona.",
+        "lookupError": "Não foi possível pesquisar esta zona. Tente novamente."
+    },
     "generate": "Sugerir passeios",
     "regenerate": "Outras sugestões",
     "generating": "A procurar perto…",
@@ -54,6 +61,7 @@
         "attraction": "Atração",
         "swimming": "Piscina",
         "library": "Biblioteca",
+        "halal_restaurant": "Restaurante exclusivamente halal",
         "viewpoint": "Miradouro"
     },
     "ai": {
@@ -63,12 +71,11 @@
     },
     "source": {
         "osm": "Lugares do OpenStreetMap",
-        "unavailable": "Não foi possível aceder à base de dados de lugares: só as ideias abaixo são mostradas."
+        "unavailable": "Não foi possível aceder à base de dados de lugares: só as ideias abaixo são mostradas.",
+        "halalNote": "O estado exclusivamente halal baseia-se nas etiquetas do OpenStreetMap, não numa certificação independente."
     },
     "noLocation": {
-        "title": "Ainda sem localização",
-        "subtitle": "Salve sua cidade nas configurações do clima, ou deixe o navegador usar sua posição.",
-        "cta": "Abrir as configurações"
+        "subtitle": "Escolha uma cidade ou zona acima, ou use sua posição para ver locais para passear."
     },
     "empty": "Nada a propor para este dia. Tente outro dia ou um passeio mais longo.",
     "error": "Não foi possível obter ideias de passeios."

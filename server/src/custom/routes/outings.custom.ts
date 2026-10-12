@@ -1,24 +1,3 @@
-// =============================================================================
-// /api/outings/suggest — the AI-assisted family outing planner behind the
-// Planning page.
-//
-// Division of labour, and why:
-//   - lib/places.custom.ts asks OpenStreetMap what actually exists around the
-//     family (a model asked for local parks invents them);
-//   - ai/outings.custom.ts asks the model which of those places fits THIS day —
-//     weather, who is coming, the ages and the constraints on the children's
-//     cards — plus a few ideas that need no place at all.
-//
-// Nothing is persisted here: the family reads the proposals and adds the one it
-// likes to the planning through upstream's own POST /api/planning, so this route
-// owns no table and no migration.
-//
-// Degradation is deliberate and total: with no model configured (or a model
-// outage) the answer is still the real places, ranked by distance — indoor first
-// on a wet day. With OpenStreetMap unreachable, the model's place-less ideas are
-// still useful. Only both failing together produces an empty answer.
-// =============================================================================
-
 import { Router } from 'express';
 import { authMiddleware, type AuthRequest } from '../../middleware/auth';
 import logger from '../../lib/logger';
@@ -26,8 +5,9 @@ import { loadEnabledAiSettings, handleAiError } from '../lib/aiSettings.custom';
 import { resolvePromptLanguage, type PromptLanguage } from '../lib/promptLanguage.custom';
 import { resolveCoordinates } from '../lib/location.custom';
 import { isCalendarDate } from '../lib/validation.custom';
-import { loadFamilyKids } from '../lib/kids.custom';
-import { findNearbyPlaces, rankPlaces, type NearbyPlace } from '../lib/places.custom';
+import { loadOutingParticipants } from '../lib/kids.custom';
+import { findNearbyPlaces, rankPlaces, preserveNearestHalalRestaurant, type NearbyPlace } from '../lib/places.custom';
+
 import {
     generateOutingPlan,
     outingWindow,
@@ -36,7 +16,10 @@ import {
     type OutingDuration,
     type OutingParty,
 } from '../ai/outings.custom';
-import { getWeeklyForecast, type DailyForecast } from '../weather/WeatherService.custom';
+import { getWeeklyForecast, geocodeCity, type DailyForecast } from '../weather/WeatherService.custom';
+import { WeatherError } from '../weather/errors.custom';
+
+
 
 const router = Router();
 router.use(authMiddleware);
@@ -103,9 +86,30 @@ const forecastFor = async (
     }
 };
 
+router.post('/area', async (req: AuthRequest, res) => {
+    const city = typeof req.body?.city === 'string' ? req.body.city.trim().slice(0, 100) : '';
+    if (!city) return res.status(400).json({ success: false, error: 'INVALID_CITY' });
+    try {
+        const result = await geocodeCity(city);
+        if (
+            !result.city.trim() ||
+            !Number.isFinite(result.latitude) || result.latitude < -90 || result.latitude > 90 ||
+            !Number.isFinite(result.longitude) || result.longitude < -180 || result.longitude > 180
+        ) {
+            return res.status(502).json({ success: false, error: 'AREA_LOOKUP_FAILED' });
+        }
+        return res.json({ success: true, data: result });
+    } catch (error) {
+        if (error instanceof WeatherError && error.code === 'CITY_NOT_FOUND') {
+            return res.status(404).json({ success: false, error: 'CITY_NOT_FOUND' });
+        }
+        logger.warn('outings.area_lookup_failed', { error: error instanceof Error ? error.message : String(error) });
+        return res.status(502).json({ success: false, error: 'AREA_LOOKUP_FAILED' });
+    }
+});
 /**
  * POST /api/outings/suggest
- * Body: { date?, party?, duration?, lang?, latitude?, longitude? }
+ * Body: { date?, party?, duration?, lang?, location, latitude?, longitude?, city?, instant? }
  *
  * `party` is who is coming (`family` | `kids` | `parents`) — the difference
  * between "the playground two streets away" and "the museum the two of us never
@@ -118,18 +122,36 @@ router.post('/suggest', async (req: AuthRequest, res) => {
         if (!body) {
             return res.status(400).json({ success: false, error: 'INVALID_DATE' });
         }
-        // The dashboard widgets' two-phase pattern, for the same reason: the
-        // model takes the best part of a minute on a self-hosted gateway, and the
-        // places need no model at all. `instant: true` answers with those alone;
-        // the client then asks again for the ranked answer.
         const instant = (req.body ?? {}).instant === true;
 
-        const coords = await resolveCoordinates(req);
-        if (!coords) {
-            return res.status(400).json({ success: false, error: 'NO_LOCATION' });
+        const requestedLocation = req.body?.location;
+        if (requestedLocation !== 'saved' && requestedLocation !== 'current' && requestedLocation !== 'area') {
+            return res.status(400).json({ success: false, error: 'INVALID_LOCATION' });
+        }
+        const hasLatitude = Object.prototype.hasOwnProperty.call(req.body ?? {}, 'latitude');
+        const hasLongitude = Object.prototype.hasOwnProperty.call(req.body ?? {}, 'longitude');
+        const areaLabel = requestedLocation === 'area' && typeof req.body?.city === 'string' ? req.body.city.trim().slice(0, 100) : null;
+        if (requestedLocation === 'saved' && (hasLatitude || hasLongitude)) {
+            return res.status(400).json({ success: false, error: 'INVALID_LOCATION' });
+        }
+        if (requestedLocation === 'area' && !areaLabel) {
+            return res.status(400).json({ success: false, error: 'INVALID_CITY' });
         }
 
-        const kids = body.party === 'parents' ? [] : await loadFamilyKids(req.userId!);
+        const latitude = req.body?.latitude;
+        const longitude = req.body?.longitude;
+        if (
+            requestedLocation !== 'saved' &&
+            (typeof latitude !== 'number' || !Number.isFinite(latitude) || latitude < -90 || latitude > 90 ||
+                typeof longitude !== 'number' || !Number.isFinite(longitude) || longitude < -180 || longitude > 180)
+        ) {
+            return res.status(400).json({ success: false, error: 'INVALID_LOCATION' });
+        }
+        const coords = requestedLocation === 'saved'
+            ? await resolveCoordinates(req)
+            : { latitude, longitude, city: requestedLocation === 'area' ? areaLabel : null };
+        if (!coords) return res.status(400).json({ success: false, error: 'NO_LOCATION' });
+
         const forecast = await forecastFor(coords.latitude, coords.longitude, body.date, today);
 
         let places: NearbyPlace[] | null = null;
@@ -162,29 +184,27 @@ router.post('/suggest', async (req: AuthRequest, res) => {
 
         if (settings && !instant) {
             try {
-                const candidates = (places ?? []).slice(0, MAX_PLACES_TO_MODEL);
+                const participants = await loadOutingParticipants(req.userId!, body.party);
+                const candidates = preserveNearestHalalRestaurant(places ?? [], MAX_PLACES_TO_MODEL);
                 const { plan } = await generateOutingPlan(
                     settings,
                     {
                         party: body.party,
                         duration: body.duration,
                         date: body.date,
-                        city: coords.city,
+                        city: areaLabel ?? coords.city,
                         weather,
-                        kids,
+                        participants,
                         places: candidates,
                     },
                     body.lang,
                 );
-
                 picks = plan.picks.flatMap((pick) => {
                     const place = candidates[pick.ref - 1];
-                    if (!place) return [];
-                    return [{ place, why: pick.why, ...outingWindow(pick, body.duration) }];
+                    return place ? [{ place, why: pick.why, ...outingWindow(pick, body.duration) }] : [];
                 });
                 ideas = plan.ideas;
             } catch (error) {
-                // Timeout, bad JSON, provider outage: the places are still real.
                 logger.warn('outings.plan_failed', {
                     error: error instanceof Error ? error.message : String(error),
                 });
@@ -199,8 +219,7 @@ router.post('/suggest', async (req: AuthRequest, res) => {
 
         if (picks.length === 0 && places && places.length > 0) {
             const rainLikely = (forecast?.precipitationProbability ?? 0) >= RAIN_LIKELY_PCT;
-            picks = rankPlaces(places, rainLikely)
-                .slice(0, MAX_PLACES_NO_AI)
+            picks = preserveNearestHalalRestaurant(rankPlaces(places, rainLikely), MAX_PLACES_NO_AI)
                 .map((place) => ({
                     place,
                     why: '',
@@ -208,13 +227,14 @@ router.post('/suggest', async (req: AuthRequest, res) => {
                 }));
         }
 
+
         res.json({
             success: true,
             data: {
                 date: body.date,
                 party: body.party,
                 duration: body.duration,
-                city: coords.city,
+                city: areaLabel ?? coords.city,
                 weather,
                 ai,
                 placesSource: places === null ? 'unavailable' : 'osm',

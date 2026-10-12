@@ -24,6 +24,13 @@
         "current": "Usando mi ubicación",
         "saved": "Ciudad guardada"
     },
+    "area": {
+        "label": "Ciudad o zona",
+        "placeholder": "p. ej., Amberes, Bélgica",
+        "use": "Usar esta zona",
+        "notFound": "No encontramos esa ciudad o zona.",
+        "lookupError": "No se pudo buscar esta zona. Inténtalo de nuevo."
+    },
     "generate": "Sugerir salidas",
     "regenerate": "Otras sugerencias",
     "generating": "Buscando cerca…",
@@ -54,6 +61,7 @@
         "attraction": "Atracción",
         "swimming": "Piscina",
         "library": "Biblioteca",
+        "halal_restaurant": "Restaurante exclusivamente halal",
         "viewpoint": "Mirador"
     },
     "ai": {
@@ -63,12 +71,11 @@
     },
     "source": {
         "osm": "Lugares de OpenStreetMap",
-        "unavailable": "No se pudo acceder a la base de datos de lugares: solo se muestran las ideas de abajo."
+        "unavailable": "No se pudo acceder a la base de datos de lugares: solo se muestran las ideas de abajo.",
+        "halalNote": "El estado halal exclusivo se basa en etiquetas de OpenStreetMap, no en una certificación independiente."
     },
     "noLocation": {
-        "title": "Aún no hay ubicación",
-        "subtitle": "Guarda tu ciudad en los ajustes del tiempo, o deja que el navegador use tu ubicación.",
-        "cta": "Abrir los ajustes"
+        "subtitle": "Elige una ciudad o zona arriba, o usa tu ubicación para ver lugares de salida."
     },
     "empty": "No hay nada que proponer para este día. Prueba otro día o una salida más larga.",
     "error": "No se pudieron obtener ideas de salidas."
