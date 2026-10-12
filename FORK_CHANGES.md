@@ -43,9 +43,9 @@ explained below.
 | Object storage for images (S3-compatible) | `server/src/custom/lib/{storage,media,storage-errors}.custom.ts`, `server/src/custom/middleware/media.custom.ts`, `server/src/custom/routes/media.custom.ts` | `CUSTOM_FEATURE_MEDIA_ENABLED` |
 | Receipt / bill import with line detail | `server/src/custom/routes/budgetReceipts.custom.ts`, `server/src/custom/ai/receipt.custom.ts`, `client/src/custom/components/{ReceiptImport,BudgetReceipts}.custom.tsx` | `CUSTOM_FEATURE_BUDGET_RECEIPTS_ENABLED` |
 | Budget analytics page | `server/src/custom/lib/budgetAnalytics.custom.ts`, `server/src/custom/routes/budgetAnalytics.custom.ts`, `client/src/custom/pages/BudgetAnalytics.custom.tsx` | `CUSTOM_FEATURE_BUDGET_ANALYTICS_ENABLED` |
-| Lunchboxes + weekly nutritional read (ported from KeurTonux) | `server/src/custom/lib/lunchbox.custom.ts`, `server/src/custom/lib/aiSettings.custom.ts`, `server/src/custom/lib/promptLanguage.custom.ts`, `server/src/custom/ai/{lunchbox,nutrition}.custom.ts`, `server/src/custom/routes/lunchbox.custom.ts`, `client/src/custom/pages/Lunchboxes.custom.tsx`, `client/src/custom/components/{LunchboxAiDialog,NutritionAnalysisDialog}.custom.tsx` | `CUSTOM_FEATURE_LUNCHBOX_ENABLED` |
+| Lunchboxes + weekly nutritional read (ported from KeurTonux), with manual and AI drink fields optional and validation/save errors kept inside the form dialog | `server/src/custom/lib/lunchbox.custom.ts`, `server/src/custom/lib/aiSettings.custom.ts`, `server/src/custom/lib/promptLanguage.custom.ts`, `server/src/custom/ai/{lunchbox,nutrition}.custom.ts`, `server/src/custom/routes/lunchbox.custom.ts`, `server/test/lunchbox.custom.test.ts`, `client/src/custom/pages/Lunchboxes.custom.tsx`, `client/src/custom/components/{LunchboxAiDialog,NutritionAnalysisDialog}.custom.tsx` | `CUSTOM_FEATURE_LUNCHBOX_ENABLED` |
 | Smart pantry — what the household has at home (locations, expiry, low stock), bridging the shopping list both ways, Grocy stock in, and the receipt import feeding it: the obviously stockable lines merge in under the brand-free name the AI read off the ticket, the rest wait in a review queue on the page; lunchbox AI and a "cook from what you have" tab out | `server/src/custom/lib/pantry.custom.ts`, `server/src/custom/lib/pantryMerge.custom.ts`, `server/src/custom/lib/validation.custom.ts`, `server/src/custom/routes/pantry.custom.ts`, `client/src/custom/pages/Pantry.custom.tsx`, `client/src/custom/components/PantryExpiryCard.custom.tsx`, `client/src/custom/lib/pantryMatch.custom.ts` | `CUSTOM_FEATURE_PANTRY_ENABLED` |
-| AI outing planner on the Planning page — real places around the family (OpenStreetMap/Overpass) ranked by the family's own model for the day, the weather, the people coming (whole family / with the kids / parents only) and what the children's cards say, plus place-less activity ideas; the chosen outing is added to the planning through upstream's own `/api/planning` | `server/src/custom/lib/places.custom.ts`, `server/src/custom/lib/{location,kids}.custom.ts` (extracted from the dashboard route when this needed the same answers), `server/src/custom/ai/outings.custom.ts`, `server/src/custom/routes/outings.custom.ts`, `client/src/custom/components/OutingPlanner.custom.tsx`, `client/src/custom/hooks/useOutings.custom.ts` | `CUSTOM_FEATURE_OUTINGS_ENABLED` |
+| AI outing planner on the Planning page — real nearby places from OpenStreetMap/Overpass ranked for the selected day, weather, party and relevant family profiles; choose saved home, browser position or a temporary city/area without changing home settings; restaurants require the exact `diet:halal=only` tag; location-free activity ideas never invent venues; the chosen outing is added through upstream's `/api/planning` | `server/src/custom/lib/places.custom.ts`, `server/src/custom/lib/{location,kids}.custom.ts`, `server/src/custom/ai/outings.custom.ts`, `server/src/custom/routes/outings.custom.ts`, `server/test/outings.custom.test.ts`, `client/src/custom/components/OutingPlanner.custom.tsx`, `client/src/custom/hooks/useOutings.custom.ts` | `CUSTOM_FEATURE_OUTINGS_ENABLED` |
 | Barcode scanning, product lookup and promo watchlist | `server/src/custom/lib/{openFoodFacts,product}.custom.ts`, `server/src/custom/routes/productScan.custom.ts`, `server/test/productScan.custom.test.ts`, `client/src/custom/pages/{ProductScanner,PromoWatchlist}.custom.tsx`, `client/src/custom/components/{BarcodeScanner,ProductCard}.custom.tsx`, `client/src/custom/hooks/{useProductScan,usePromoWatchlist}.custom.ts`, `client/src/custom/lib/product.custom.ts` | `CUSTOM_FEATURE_SCANNER_ENABLED` |
 | Live supermarket promotions (PrijsProfeet, free plan): the promo screen's daily list with product pictures, filtered by store / category / discount / text and paginated, the family's own "never show me this" terms, and the watch list's deals pane | `server/src/custom/lib/{prijsprofeet,promoExclusions}.custom.ts`, `client/src/custom/components/{DailyPromos,PromoOfferRow,PrijsProfeetCredit,PromoWatchlistPanel}.custom.tsx`, `client/src/custom/hooks/useDailyPromos.custom.ts` (routes, page, hooks and translations shared with the row above) | `CUSTOM_FEATURE_SCANNER_ENABLED` |
 | Family dashboard — a chrome-less full-screen page for a wall tablet whose layout follows the time of day (morning / day / evening / night, cycleable by swipe or badge tap), reading the family's own appointments, tasks, meal plans and shopping list, and driving Home Assistant devices both ways through `/api/custom/ha` | `server/src/custom/lib/homeAssistantDevices.custom.ts`, `server/src/custom/routes/homeAssistantDevices.custom.ts`, `server/test/homeAssistantDevices.custom.test.ts`, `client/src/custom/pages/FamilyDashboard.custom.tsx`, `client/src/custom/hooks/useHomeAssistant.custom.ts`, `client/src/custom/lib/familyPhase.custom.ts` (keys in `dashboard.custom`) | `CUSTOM_FEATURE_FAMILY_DASHBOARD_ENABLED` |
@@ -121,9 +121,9 @@ existed; the exact count of rewritten upstream lines is the next section's table
 | `server/src/lib/safeFetch.ts` | `safeFetch-credentials` | Drops `Authorization` / `X-API-Key` / `x-goog-api-key` / `Cookie` on a redirect hop that leaves the original hostname (the guard only blocks internal/metadata targets, not third parties); a same-host hop — including an `http` → `https` upgrade — keeps them |
 | `client/src/contexts/AuthContext.tsx` | `weather, pantry` | The `DASHBOARD_WIDGETS` line carries the fork's widget keys (weather, activities, pantry); one marker pair wraps that modified line itself, so an upstream change to it is re-applied from here |
 | `client/src/components/app/MagicInput.tsx` | `budget-custom`, `pantry-ai` | Adds the `AI_UNSUPPORTED_MEDIA` error code; `pantry-ai` renders the pantry proposal (own icon and label, quantity and shelf) and confirms it through `POST /api/pantry/upsert` |
-| `client/src/demo/mockApi.ts` | `budget-custom`, `demo-prefs`, `lunchbox`, `pantry`, `outings` | Demo handlers for receipts, receipt extraction, analytics, lunchboxes and the pantry (seeded rows, the shopping-list bridge, the receipt import — which splits its lines exactly like the server: obvious products merged, the rest queued — the review queue with its `confirm`/`ignore` calls, and the two answers the page reacts to: `DUPLICATE_NAME`, `NO_GROCY_INTEGRATION`); plus the two object-shaped endpoints upstream's demo never answers (`dashboard-prefs`, `posts/latest`), whose `ok([])` catch-all crashed the demo's default route. The `demo-prefs` block's default widget order also carries `pantry`; the `outings` block answers the planner with a fixed set (a demo has no OpenStreetMap and no model) |
+| `client/src/demo/mockApi.ts` | `budget-custom`, `demo-prefs`, `lunchbox`, `pantry`, `outings` | Demo handlers for receipts, receipt extraction, analytics, lunchboxes and the pantry (seeded rows, the shopping-list bridge, the receipt import — which splits its lines exactly like the server: obvious products merged, the rest queued — the review queue with its `confirm`/`ignore` calls, and the two answers the page reacts to: `DUPLICATE_NAME`, `NO_GROCY_INTEGRATION`); plus the two object-shaped endpoints upstream's demo never answers (`dashboard-prefs`, `posts/latest`), whose `ok([])` catch-all crashed the demo's default route. The `demo-prefs` block's default widget order also carries `pantry`; the `outings` block resolves area lookups only for Sint-Niklaas, answers current-position requests with its fixed location-free ideas and no places (the demo has no places database), and never relabels its fixed fixtures for another area |
 | `client/nginx.conf` | `media` | Dedicated `location ^~ /api/media/` block (upstream's `location /api/` line untouched) |
-| `scripts/smoke-api.sh` | `budget-custom`, `lunchbox` | Smoke calls for the custom endpoints |
+| `scripts/smoke-api.sh` | `budget-custom`, `lunchbox`, `outings` | Smoke calls for saved, area-resolved, and current-position outing requests, including the temporary-area geocoder endpoint and a comparison that the saved home is unchanged by it |
 | `.env.example` | (section) | `# --- Custom ---` section at the end of the file |
 | `DOCUMENTATION.md`, `ROADMAP.md`, `README.md`, `README.fr.md`, `README.zh-CN.md` | `docs` | Feature documentation |
 | `docker-compose.yml` | `deploy` | Custom env vars for the server service, `CUSTOM_FEATURE_*_ENABLED` included (without a line there, a variable set in `.env` never reaches the container — the documented kill switch could not be used on a Docker install) |
@@ -336,14 +336,15 @@ boundaries, the two import mappers (Grocy stock, receipt lines) and the split th
 decides which lines are stocked without asking. `receipt` covers the pantry half of
 the extraction: the brand-free name, the unit and the "is this stock?" verdict
 survive validation, a non-boolean verdict never reads as yes, and a line typed by
-hand carries neither. `outings`
-covers the Overpass answer (categories, unnamed and duplicated places, a `ref`
-pointing at a place that was never offered) and the outing window (the model's
-suggestion when it fits inside a day, the requested length otherwise).
-`weather` covers the target-day rule: the 18:00 cutoff picks the day (offset 0
-before it, 1 from it), an evening on a home day targets tomorrow with mode
-`home`, and the picked `date` always equals `toDateKey(now + dayOffset)` for hours
-0, 8, 17, 18 and 23.
+hand carries neither. `lunchbox` covers item sanitization and AI idea validation
+when the drink is omitted. `outings` covers exact-tag halal parsing and prompt
+labeling, candidate-cap retention, participant profile projection and prompt
+details (age, allergies, medications, and notes), model-reference validation, and
+outing windows. `weather` covers the target-day rule: the 18:00 cutoff picks the
+day (offset 0 before it, 1 from it), an evening on a home day targets tomorrow
+with mode `home`, and the picked `date` always equals `toDateKey(now + dayOffset)`
+for hours 0, 8, 17, 18 and 23; `flipsAt` is the nearer of the next 18:00 and
+midnight.
 `homeAssistantDevices` covers the rules that decide what the family dashboard may
 read and drive (domain whitelist, attribute trimming, entity/domain match,
 service-name shape) and how a non-2xx from Home Assistant is classified: a 4xx is
@@ -394,9 +395,9 @@ was verified in a browser instead (see "Verification" below).
   was measured on (`6ce1c4e`) built a 2,096.76 kB main chunk against workbox's 2 MiB
   `maximumFileSizeToCacheInBytes` (2,097,152 B), i.e. a few hundred bytes of
   headroom, so the rework deleted as many `dashboard.custom` keys as it added
-  instead of shaving the margin. On the merged tree the main chunk measures
-  2,009.33 kB. The rule that fixed it still applies to anything new: a page or a
-  heavy import is what counts, so keep it behind `React.lazy`, and measure
+  instead of shaving the margin. The 2026-10-11 merged-tree build measured
+  2,009.33 kB. The 2026-10-12 build measured 2,016.64 kB, still below the 2 MiB
+  per-file limit. Keep pages and heavy imports behind `React.lazy`, and measure
   `dist/assets/index-*.js` after adding i18n keys — the locale JSON is eager.
 - **`custom/0005-pantry-name-unique` used to abort startup on a database that
   already held duplicate pantry rows — closed on 2026-10-11.** `CREATE UNIQUE
@@ -1300,8 +1301,8 @@ demo deliberately serves none of them, see the promo section above):
   stays a lazy chunk (35.2 kB) and the eager bundle came out 480 bytes *smaller* than
   the branch base it was measured against (`6ce1c4e`: 2,096.28 kB vs 2,096.76 kB —
   that base was itself within 500 bytes of workbox's 2 MiB precache limit, which is
-  why keys were traded rather than added; on the merged tree the main chunk is
-  2,009.33 kB, see "Known gaps").
+  why keys were traded rather than added; the 2026-10-11 merged-tree build measured
+  2,009.33 kB (see "Known gaps").
 
 ### The two AI surfaces read the pantry (2026-10-11)
 

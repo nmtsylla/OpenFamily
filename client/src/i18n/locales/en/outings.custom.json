@@ -22,7 +22,15 @@
     "position": {
         "use": "Use my position",
         "current": "Using my position",
-        "saved": "Saved city"
+        "saved": "Saved city",
+        "unavailable": "Your position is unavailable. Enter a city or area above instead."
+    },
+    "area": {
+        "label": "City or area",
+        "placeholder": "e.g. Antwerp, Belgium",
+        "use": "Use this area",
+        "notFound": "We could not find that city or area.",
+        "lookupError": "Could not look up this area. Try again."
     },
     "generate": "Suggest outings",
     "regenerate": "Other suggestions",
@@ -54,7 +62,8 @@
         "attraction": "Attraction",
         "swimming": "Swimming",
         "library": "Library",
-        "viewpoint": "Viewpoint"
+        "viewpoint": "Viewpoint",
+        "halal_restaurant": "Halal-only restaurant"
     },
     "ai": {
         "disabled": "No AI model is configured: the nearest places are shown, unranked.",
@@ -63,12 +72,11 @@
     },
     "source": {
         "osm": "Places from OpenStreetMap",
-        "unavailable": "Could not reach the places database: only the ideas below are shown."
+        "unavailable": "Could not reach the places database: only the ideas below are shown.",
+        "halalNote": "Halal-only status is based on OpenStreetMap tags, not independent certification."
     },
     "noLocation": {
-        "title": "No location yet",
-        "subtitle": "Save your city in the weather settings, or let the browser use your position.",
-        "cta": "Open the settings"
+        "subtitle": "Choose a city or area above, or use your position, to see outing places."
     },
     "empty": "Nothing to propose for this day. Try another day or a longer outing.",
     "error": "Could not fetch outing ideas."

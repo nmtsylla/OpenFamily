@@ -1,15 +1,12 @@
 // =============================================================================
 // Outing planner (AI)
 //
-// The hard half (which places exist around the family) is done by OpenStreetMap
-// in lib/places.custom.ts. This file asks the model only for what it is actually
-// good at: which of those places fits THIS day — the weather, who is coming, the
-// ages and the constraints written on the children's cards — and what to do that
-// needs no place at all.
+// OpenStreetMap supplies real places near the selected location. The model
+// ranks those places for the date, weather and participant profiles, then adds
+// location-free activity ideas.
 //
-// Two rules matter more than the rest, and they are stated in every language:
-// the model may only reference places from the list it was given (no invented
-// venues), and a child's allergy or limitation is a hard constraint.
+// The prompt enforces two limits in every language: use only supplied places,
+// and treat allergies and written limitations as hard constraints.
 //
 // Language: French keeps the hand-tuned French prompt, the other five get the
 // English prompt plus an explicit "write in X" directive — same pattern as the
@@ -26,13 +23,15 @@ export type OutingParty = (typeof OUTING_PARTIES)[number];
 export const OUTING_DURATIONS = ['short', 'half_day', 'full_day'] as const;
 export type OutingDuration = (typeof OUTING_DURATIONS)[number];
 
-export interface OutingKidInput {
+export interface OutingParticipantInput {
     name: string;
-    ageYears: number;
-    /** What the family wrote on the child's card, server-side only. */
-    notes: string | null;
+    role: string;
+    ageYears: number | null;
     allergies: string[];
+    medications: string[];
+    notes: string | null;
 }
+
 
 export interface OutingWeatherInput {
     label: string;
@@ -44,13 +43,13 @@ export interface OutingWeatherInput {
 export interface OutingPlanningInput {
     party: OutingParty;
     duration: OutingDuration;
-    /** YYYY-MM-DD */
     date: string;
     city: string | null;
     weather: OutingWeatherInput | null;
-    kids: OutingKidInput[];
+    participants: OutingParticipantInput[];
     places: NearbyPlace[];
 }
+
 
 export interface OutingPick {
     /** 1-based index into `input.places`, validated. */
@@ -134,83 +133,41 @@ const DURATION_EN: Record<OutingDuration, string> = {
     full_day: 'the whole day',
 };
 
-const buildOutingsSystemPrompt = (lang: PromptLanguage): string => {
-    if (lang === 'fr') {
-        return `Tu es un parent qui organise des sorties en famille. On te donne la liste des lieux réellement présents autour du domicile (source OpenStreetMap), la météo, qui participe et ce que la famille a noté sur chaque enfant.
-Réponds UNIQUEMENT par un objet JSON valide, sans texte avant ni après, sans markdown.
+const buildOutingsSystemPrompt = (lang: PromptLanguage): string =>
+    lang === 'fr'
+        ? `Tu organises des sorties en famille à partir des lieux réels listés par OpenStreetMap, de la météo et des profils utiles des participants.
+Réponds uniquement avec un objet JSON valide, sans texte avant ni après et sans markdown.
 
-Schéma attendu :
-{
-  "picks": [
-    {
-      "ref": number,           // le numéro du lieu dans la liste fournie
-      "why": string,           // une phrase, max 140 caractères — pourquoi ce lieu, aujourd'hui, pour ces personnes
-      "startTime": string,     // "HH:MM", heure de départ conseillée
-      "durationMinutes": number // durée sur place, en minutes
-    }
-  ],
-  "ideas": [
-    {
-      "title": string,         // une activité qui ne dépend d'aucun lieu précis
-      "description": string,   // une ou deux phrases concrètes
-      "indoor": boolean        // true si c'est à l'intérieur
-    }
-  ]
-}
+Règles :
+- Les références pointent uniquement vers les lieux fournis. N'invente aucun lieu, adresse ou nom.
+- Classe les lieux du meilleur au moins bon. Le premier choix est la recommandation principale.
+- Adapte les activités à la météo, à la durée souhaitée et à l'âge des participants, s'il est disponible.
+- Respecte les horaires fournis. Ne choisis pas un lieu indiqué comme fermé à l'heure proposée.
+- Tiens compte des allergies, médicaments et notes utiles. Les allergies et limites écrites sont des contraintes de sécurité. Ne donne aucun conseil médical ni recommandation de traitement.
+- La liste contient uniquement des restaurants avec le tag OpenStreetMap exact diet:halal=only. Ne suggère aucun restaurant non listé, y compris dans les idées sans lieu.
+- Ajoute 1 à 3 idées d'activités sans lieu précis, utiles si la météo est mauvaise ou le budget serré.
+- Tout en français, formulé court et concret.`
+        : `You organise family outings using real places listed in OpenStreetMap, weather, and relevant participant profiles.
+Return a valid JSON object only, with no text before or after it and no markdown.
 
-Règles ABSOLUES :
-- "ref" DOIT être un numéro de la liste fournie. N'invente JAMAIS un lieu, une adresse ou un nom.
-- Classe les lieux du meilleur au moins bon : le premier "picks" est ta recommandation principale.
-- Adapte à la météo : pluie, vent fort ou froid → lieux couverts ; grand soleil et chaud → eau, ombre, parcs.
-- Adapte à l'âge des enfants : un enfant de 3 ans et un adolescent ne font pas la même sortie. Des lieux de jeu conviennent aux jeunes enfants, pas à des parents seuls.
-- Les allergies et les limitations notées sur la fiche d'un enfant sont des contraintes de sécurité, non négociables.
-- Regarde les horaires d'ouverture fournis : ne propose pas un lieu fermé à l'heure conseillée.
-- Ajoute 1 à 3 "ideas" d'activités sans lieu précis (à la maison, dans le quartier), utiles quand la météo est mauvaise ou le budget serré.
-- Tout en français, formulé court et concret.`;
-    }
-
-    return `You are a parent organising family outings. You are given the list of places that really exist around the family's home (OpenStreetMap), the weather, who is coming, and what the family wrote on each child's card.
-Answer with a valid JSON object ONLY, no text before or after, no markdown.
-
-Expected schema:
-{
-  "picks": [
-    {
-      "ref": number,            // the number of the place in the provided list
-      "why": string,            // one sentence, max 140 characters — why this place, today, for these people
-      "startTime": string,      // "HH:MM", recommended departure time
-      "durationMinutes": number // time spent there, in minutes
-    }
-  ],
-  "ideas": [
-    {
-      "title": string,          // an activity that needs no specific place
-      "description": string,    // one or two concrete sentences
-      "indoor": boolean         // true when it happens indoors
-    }
-  ]
-}
-
-ABSOLUTE RULES:
-- "ref" MUST be a number from the provided list. NEVER invent a place, an address or a name.
-- Rank the places best first: the first "picks" entry is your main recommendation.
-- Match the weather: rain, strong wind or cold → covered places; hot and sunny → water, shade, parks.
-- Match the children's ages: a 3-year-old and a teenager do not do the same outing. Playgrounds suit young children, not parents on their own.
-- The allergies and limitations written on a child's card are safety constraints, non-negotiable.
-- Respect the opening hours given: never suggest a place that is closed at the time you propose.
-- Add 1 to 3 "ideas" that need no specific place (at home, around the neighbourhood), useful when the weather is bad or money is tight.
+Rules:
+- References must point only to the supplied places. Never invent a place, address, or name.
+- Rank places best first. The first pick is the main recommendation.
+- Match activities to the weather, requested duration, and participants' ages when available.
+- Respect supplied opening hours. Never choose a place listed as closed at the recommended time.
+- Use relevant allergies, medications, and personal notes. Allergies and written limitations are hard safety constraints. Do not give medical advice or recommend starting, stopping, or changing treatment.
+- The list includes only restaurants with the exact OpenStreetMap tag diet:halal=only. Do not suggest an unlisted restaurant, including in location-free ideas.
+- Add 1 to 3 location-free activity ideas for bad weather or a tight budget.
 - Write every field in ${LANGUAGE_NAME[lang]}.`;
-};
 
-const kidClause = (kid: OutingKidInput, fr: boolean): string => {
-    const parts: string[] = [`${kid.name} (${kid.ageYears}${fr ? ' ans' : 'y'})`];
-    const notes = kid.notes ? kid.notes.trim().slice(0, 160) : '';
-    const allergies = kid.allergies.slice(0, 6).join(', ');
-    const constraints = [notes, allergies ? `${fr ? 'allergies' : 'allergies'}: ${allergies}` : '']
-        .filter(Boolean)
-        .join(' — ');
-    if (constraints) parts.push(`(${constraints})`);
-    return `- ${parts.join(' ')}`;
+const participantClause = (participant: OutingParticipantInput, fr: boolean): string => {
+    const details = [
+        participant.ageYears === null ? '' : `${participant.ageYears}${fr ? ' ans' : ' years old'}`,
+        participant.allergies.length ? `allergies: ${participant.allergies.slice(0, 6).join(', ')}` : '',
+        participant.medications.length ? `${fr ? 'traitements' : 'medications'}: ${participant.medications.slice(0, 6).join(', ')}` : '',
+        participant.notes?.trim().slice(0, 160) ?? '',
+    ].filter(Boolean);
+    return `- ${participant.name} (${participant.role})${details.length ? ` — ${details.join('; ')}` : ''}`;
 };
 
 const placeLine = (place: NearbyPlace, index: number, fr: boolean): string => {
@@ -220,63 +177,42 @@ const placeLine = (place: NearbyPlace, index: number, fr: boolean): string => {
     ];
     if (place.fee) bits.push(`${fr ? 'tarif' : 'fee'}: ${place.fee}`);
     if (place.website) bits.push(place.website);
-    return `${index + 1}. ${place.name} — ${place.category} (${bits.join(', ')})`;
+    const category = place.category === 'halal_restaurant'
+        ? fr ? 'restaurant exclusivement halal' : 'halal-only restaurant'
+        : place.category;
+    return `${index + 1}. ${place.name} — ${category} (${bits.join(', ')})`;
 };
 
-/** Exported for its test: the prompt is the whole contract with the model. */
 export const buildOutingsUserPrompt = (input: OutingPlanningInput, lang: PromptLanguage): string => {
     const fr = lang === 'fr';
-    const PARTY = fr ? PARTY_FR : PARTY_EN;
-    const DURATION = fr ? DURATION_FR : DURATION_EN;
-    const L = {
-        day: fr ? 'Jour' : 'Day',
-        where: fr ? 'Secteur' : 'Area',
-        who: fr ? 'Qui participe' : 'Who is coming',
-        howLong: fr ? 'Durée souhaitée' : 'Wanted duration',
-        weather: fr ? 'Météo prévue' : 'Expected weather',
-        noWeather: fr ? 'prévisions indisponibles' : 'forecast unavailable',
-        children: fr ? 'Enfants' : 'Children',
-        noChildren: fr ? '- aucun' : '- none',
-        ask: (n: number) =>
-            fr
-                ? `Propose au maximum ${n} lieu${n > 1 ? 'x' : ''} de la liste, du meilleur au moins bon, et de 1 à 3 idées sans lieu précis.`
-                : `Propose at most ${n} place${n > 1 ? 's' : ''} from the list, best first, and 1 to 3 ideas that need no specific place.`,
-        places: fr ? 'Lieux disponibles (OpenStreetMap) :' : 'Available places (OpenStreetMap):',
-        nothing: fr
-            ? "Aucun lieu trouvé : ne renvoie aucun 'picks'. Donne seulement des idées."
-            : "No place found: return no 'picks'. Give ideas only.",
-    };
-
-    const lines: string[] = [
-        `${L.day} : ${input.date}`,
-        `${L.where} : ${input.city ?? (fr ? 'position du navigateur' : 'browser position')}`,
-        `${L.who} : ${PARTY[input.party]}`,
-        `${L.howLong} : ${DURATION[input.duration]}`,
+    const partyLabels = fr ? PARTY_FR : PARTY_EN;
+    const durationLabels = fr ? DURATION_FR : DURATION_EN;
+    const dayLabel = fr ? 'Jour' : 'Day';
+    const whereLabel = fr ? 'Secteur' : 'Area';
+    const weatherLabel = fr ? 'Météo prévue' : 'Expected weather';
+    const noWeather = fr ? 'prévisions indisponibles' : 'forecast unavailable';
+    const ask = fr
+        ? `Propose au maximum ${Math.min(MAX_OUTING_PICKS, input.places.length)} lieux de la liste et des idées sans lieu précis.`
+        : `Propose at most ${Math.min(MAX_OUTING_PICKS, input.places.length)} places from the list and location-free ideas.`;
+    const lines = [
+        `${dayLabel} : ${input.date}`,
+        `${whereLabel} : ${input.city ?? (fr ? 'position du navigateur' : 'browser position')}`,
+        `${fr ? 'Qui participe' : 'Who is coming'} : ${partyLabels[input.party]}`,
+        `${fr ? 'Durée souhaitée' : 'Wanted duration'} : ${durationLabels[input.duration]}`,
     ];
-
     if (input.weather) {
         const w = input.weather;
-        lines.push(
-            `${L.weather} : ${w.label}, ${Math.round(w.tempMin)}–${Math.round(w.tempMax)}°C, ${
-                fr ? 'pluie' : 'rain'
-            } ${Math.round(w.precipitationProbability)}%`,
-        );
+        lines.push(`${weatherLabel} : ${w.label}, ${Math.round(w.tempMin)}–${Math.round(w.tempMax)}°C, ${fr ? 'pluie' : 'rain'} ${Math.round(w.precipitationProbability)}%`);
     } else {
-        lines.push(`${L.weather} : ${L.noWeather}`);
+        lines.push(`${weatherLabel} : ${noWeather}`);
     }
-
-    lines.push('', L.children, ...(input.kids.length > 0 ? input.kids.map((k) => kidClause(k, fr)) : [L.noChildren]));
-
-    lines.push('', L.ask(Math.min(MAX_OUTING_PICKS, input.places.length)));
-    lines.push(input.places.length > 0 ? L.places : L.nothing);
+    lines.push('', fr ? 'Participants et profils utiles' : 'Participants and relevant profiles', ...(input.participants.length ? input.participants.map((p) => participantClause(p, fr)) : [fr ? '- aucun' : '- none']));
+    lines.push('', ask, fr ? 'Lieux disponibles (OpenStreetMap) :' : 'Available places (OpenStreetMap):');
+    if (!input.places.length) lines.push(fr ? 'Aucun lieu trouvé : ne propose aucun lieu ni restaurant dans les idées.' : 'No places found: do not name any venue or restaurant in the ideas.');
     input.places.forEach((place, index) => lines.push(placeLine(place, index, fr)));
-
     return lines.join('\n');
 };
 
-// ---------------------------------------------------------------------------
-// Validation — the model's JSON is data, not truth
-// ---------------------------------------------------------------------------
 
 const cleanString = (value: unknown, max: number): string =>
     typeof value === 'string' ? value.trim().slice(0, max) : '';
@@ -286,12 +222,6 @@ const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 const toInt = (value: unknown): number | null =>
     typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : null;
 
-/**
- * Keep only picks that reference a place that was actually offered (a `ref` of
- * 7 when 3 places were listed is an invention, dropped), at most one per place,
- * and cap the ideas. A `startTime` outside a clock day, or a duration outside 30
- * minutes–12 hours, becomes "not proposed" rather than a wrong plan.
- */
 export const validateOutingPlan = (raw: unknown, placeCount: number): OutingPlan => {
     const empty: OutingPlan = { picks: [], ideas: [] };
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return empty;

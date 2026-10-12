@@ -21,16 +21,6 @@ import { Button, Card, CardContent, Dialog, Input, Select, Tabs, Textarea, useTo
 import { LunchboxAiDialog, type LunchboxIdea } from '../components/LunchboxAiDialog.custom';
 import { NutritionAnalysisDialog } from '../components/NutritionAnalysisDialog.custom';
 
-// Lunchboxes — the KeurTonux feature this fork borrowed: one child, one day,
-// four components (main / fruit / snack / drink) plus notes.
-//
-// It is a custom page rather than a tab inside the upstream meal planner on
-// purpose: the planner is an upstream file, and this fork's rule is one marked
-// hook per upstream file at most. The two features share the calendar idea and
-// nothing else — meals belong to the household, a lunchbox belongs to a child.
-//
-// Monitoring and the shopping list read the same table; the nutrition analysis
-// sends the week's meals *and* these lunchboxes to the model.
 
 interface FamilyMember {
     id: string;
@@ -63,7 +53,6 @@ const FIELDS = ['main', 'fruit', 'snack', 'drink'] as const;
 
 const emptyForm = { family_member_id: '', main: '', fruit: '', snack: '', drink: '', notes: '' };
 
-/** The API type is a promise, not a guarantee: a demo fallback or a proxy error must not crash the page. */
 const isLunchboxList = (value: unknown): value is Lunchbox[] => Array.isArray(value);
 
 const Lunchboxes: React.FC = () => {
@@ -84,7 +73,9 @@ const Lunchboxes: React.FC = () => {
     const [editing, setEditing] = useState<Lunchbox | null>(null);
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
     const [form, setForm] = useState(emptyForm);
+    const [formError, setFormError] = useState('');
     const [saving, setSaving] = useState(false);
+
     const [aiOpen, setAiOpen] = useState(false);
     const [nutritionOpen, setNutritionOpen] = useState(false);
 
@@ -141,7 +132,7 @@ const Lunchboxes: React.FC = () => {
         setEditing(null);
         setSelectedDate(date);
         setForm({ ...emptyForm, family_member_id: presetMemberId ?? members[0]?.id ?? '' });
-        setError('');
+        setFormError('');
         setFormOpen(true);
     };
 
@@ -156,25 +147,32 @@ const Lunchboxes: React.FC = () => {
             drink: lunchbox.items.drink ?? '',
             notes: lunchbox.notes ?? '',
         });
-        setError('');
+        setFormError('');
         setFormOpen(true);
     };
+
 
     const submit = async (event: React.FormEvent) => {
         event.preventDefault();
         if (!selectedDate) return;
         if (!form.family_member_id) {
-            setError(t('lunchbox.custom:errors.selectChild'));
+            setFormError(t('lunchbox.custom:errors.selectChild'));
             return;
         }
-        const items = { main: form.main, fruit: form.fruit, snack: form.snack, drink: form.drink };
-        if (!Object.values(items).some((value) => value.trim())) {
-            setError(t('lunchbox.custom:errors.emptyBox'));
+        const items: LunchboxItems = {
+            main: form.main,
+            fruit: form.fruit,
+            snack: form.snack,
+            ...(form.drink.trim() ? { drink: form.drink } : {}),
+        };
+
+        if (![items.main, items.fruit, items.snack, items.drink].some((value) => value?.trim())) {
+            setFormError(t('lunchbox.custom:errors.emptyBox'));
             return;
         }
 
         setSaving(true);
-        setError('');
+        setFormError('');
         try {
             const payload = {
                 date: format(selectedDate, 'yyyy-MM-dd'),
@@ -187,7 +185,7 @@ const Lunchboxes: React.FC = () => {
             setFormOpen(false);
             await loadLunchboxes();
         } catch (err) {
-            setError(err instanceof Error ? err.message : t('lunchbox.custom:errors.save'));
+            setFormError(err instanceof Error ? err.message : t('lunchbox.custom:errors.save'));
         } finally {
             setSaving(false);
         }
@@ -203,8 +201,6 @@ const Lunchboxes: React.FC = () => {
         }
     };
 
-    // Pre-fills the form with an AI idea; the reasoning stays with the box as a
-    // note so the parent still has it in the morning.
     const applyIdea = (idea: LunchboxIdea) => {
         const notes = [form.notes.trim(), idea.reasoning].filter(Boolean).join('\n');
         setForm((previous) => ({
@@ -472,6 +468,7 @@ const Lunchboxes: React.FC = () => {
                         <Input
                             key={field}
                             label={t(`lunchbox.custom:form.${field}`)}
+
                             value={form[field]}
                             onChange={(e) => setForm({ ...form, [field]: e.target.value })}
                             placeholder={t(`lunchbox.custom:form.${field}Placeholder`)}
@@ -485,6 +482,8 @@ const Lunchboxes: React.FC = () => {
                         placeholder={t('lunchbox.custom:form.notesPlaceholder')}
                         rows={2}
                     />
+
+                    {formError ? <p className="text-caption text-danger" role="alert">{formError}</p> : null}
 
                     <div className="flex justify-end gap-3 pt-4">
                         <Button type="button" variant="secondary" onClick={() => setFormOpen(false)}>
@@ -516,7 +515,6 @@ const Lunchboxes: React.FC = () => {
     );
 };
 
-// -------- Tracking: what one child actually eats --------
 
 const LunchboxTracking: React.FC<{ members: FamilyMember[] }> = ({ members }) => {
     const { t } = useTranslation(['lunchbox.custom', 'common']);
@@ -536,7 +534,6 @@ const LunchboxTracking: React.FC<{ members: FamilyMember[] }> = ({ members }) =>
         const load = async () => {
             setLoading(true);
             setError('');
-            // Both bounds pinned so "last 60 days" cannot drift around midnight.
             const end = new Date();
             try {
                 const [historyResponse, statsResponse] = await Promise.all([

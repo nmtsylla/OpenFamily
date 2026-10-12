@@ -44,10 +44,11 @@ export interface LunchboxIdea {
     main: string;
     fruit: string;
     snack: string;
-    drink: string;
+    drink?: string;
     reasoning: string;
     warnings: string[];
 }
+
 
 export const MAX_LUNCHBOX_IDEAS = 3;
 
@@ -61,7 +62,8 @@ const LUNCHBOX_SCHEMA: Record<string, unknown> = {
             items: {
                 type: 'object',
                 additionalProperties: false,
-                required: ['main', 'fruit', 'snack', 'drink', 'reasoning', 'warnings'],
+                required: ['main', 'fruit', 'snack', 'reasoning', 'warnings'],
+
                 properties: {
                     main: { type: 'string' },
                     fruit: { type: 'string' },
@@ -109,7 +111,9 @@ Schéma attendu :
       "main": string,        // plat principal court — sandwich, wrap, restes…
       "fruit": string,       // un fruit ou légume (pomme, carottes bâtonnets…)
       "snack": string,       // une collation (compote, biscuit, fromage…)
-      "drink": string,       // une boisson (eau, jus, lait…)
+      "drink"?: string,      // facultatif : boisson (eau, jus, lait…)
+
+
       "reasoning": string,   // une phrase, max 140 caractères — pourquoi cette combinaison
       "warnings": string[]   // 0 à 2 alertes pratiques ("réchauffer le matin", "garder au frais")
     }
@@ -119,7 +123,9 @@ Schéma attendu :
 Règles ABSOLUES :
 - N'inclus JAMAIS un aliment listé dans les allergies (contrainte de sécurité, non négociable).
 - Privilégie STRICTEMENT les aliments listés comme disponibles. Tu peux utiliser du pain, du beurre, de l'eau, du sel et des condiments de base sans les déclarer manquants, mais pas de plat, fruit, collation ou boisson hors liste.
-- Si une catégorie est vide (aucun fruit disponible par exemple), propose tout de même un aliment de saison et signale-le dans "reasoning".
+- Si une catégorie de plat, fruit ou collation est vide, propose un choix de saison et signale-le dans "reasoning".
+- La boisson est facultative : omets "drink" si aucune boisson adaptée n'est disponible.
+
 - Adapte la portion et le format à l'âge de l'enfant (petits morceaux avant 4 ans, portions plus copieuses pour les ados).
 - L'école et la crèche supposent du transportable, mangé froid, sans micro-ondes. Une sortie ou un trajet suppose du robuste, plusieurs heures hors frigo (à signaler dans "warnings" si une glacière est nécessaire). Le travail autorise le réchauffage.
 - Évite la monotonie : des idées demandées doivent être des combinaisons distinctes.
@@ -136,7 +142,8 @@ Expected schema:
       "main": string,        // short main dish — sandwich, wrap, leftovers…
       "fruit": string,       // a fruit or vegetable (apple, carrot sticks…)
       "snack": string,       // a snack (fruit puree, biscuit, cheese…)
-      "drink": string,       // a drink (water, juice, milk…)
+      "drink"?: string,      // optional drink (water, juice, milk…)
+
       "reasoning": string,   // one sentence, max 140 characters — why this combination
       "warnings": string[]   // 0 to 2 practical warnings ("reheat in the morning", "keep chilled")
     }
@@ -146,7 +153,9 @@ Expected schema:
 ABSOLUTE RULES:
 - NEVER include a food listed in the allergies (safety constraint, non-negotiable).
 - Use the listed available foods STRICTLY. Bread, butter, water, salt and basic condiments need not be listed, but no main, fruit, snack or drink outside the list.
-- If a category is empty (no fruit at home, say), still suggest a seasonal item and say so in "reasoning".
+- A drink is optional: omit "drink" when no suitable drink is available.
+
+- If the main, fruit, or snack list is empty, suggest a seasonal option and say so in "reasoning".
 - Match portion and format to the child's age (small pieces under 4, larger portions for teenagers).
 - School and daycare mean transportable, eaten cold, no microwave. An outing or a trip means sturdy, hours out of the fridge (flag a cool bag in "warnings" when needed). Work allows reheating.
 - Avoid monotony: the requested ideas must be distinct combinations.
@@ -207,22 +216,18 @@ const buildLunchboxUserPrompt = (input: LunchboxGenerationInput, lang: PromptLan
 const cleanString = (value: unknown, max = MAX_LUNCHBOX_ITEM_LENGTH): string =>
     typeof value === 'string' ? value.trim().slice(0, max) : '';
 
-/**
- * Keep at most `count` ideas that actually carry a main dish, cap every string,
- * keep at most two warnings per idea. A model that answers prose instead of JSON
- * fails earlier, in aiComplete.
- */
 export const validateLunchboxIdeas = (raw: unknown, count: number): LunchboxIdea[] => {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw) || !('ideas' in raw)) return [];
     if (!Array.isArray(raw.ideas)) return [];
 
     const toIdea = (entry: unknown): LunchboxIdea | null => {
         if (!entry || typeof entry !== 'object') return null;
+        const drink = 'drink' in entry ? cleanString(entry.drink) : '';
         return {
             main: 'main' in entry ? cleanString(entry.main) : '',
             fruit: 'fruit' in entry ? cleanString(entry.fruit) : '',
             snack: 'snack' in entry ? cleanString(entry.snack) : '',
-            drink: 'drink' in entry ? cleanString(entry.drink) : '',
+            ...(drink ? { drink } : {}),
             reasoning: 'reasoning' in entry ? cleanString(entry.reasoning, 300) : '',
             warnings:
                 'warnings' in entry && Array.isArray(entry.warnings)

@@ -22,7 +22,15 @@
     "position": {
         "use": "Utiliser ma position",
         "current": "Position actuelle",
-        "saved": "Ville enregistrée"
+        "saved": "Ville enregistrée",
+        "unavailable": "Votre position n'est pas disponible. Saisissez une ville ou un secteur ci-dessus."
+    },
+    "area": {
+        "label": "Ville ou secteur",
+        "placeholder": "ex. Anvers, Belgique",
+        "use": "Utiliser ce secteur",
+        "notFound": "Ville ou secteur introuvable.",
+        "lookupError": "Impossible de rechercher ce secteur. Réessayez."
     },
     "generate": "Proposer des sorties",
     "regenerate": "D'autres propositions",
@@ -54,6 +62,7 @@
         "attraction": "Site à visiter",
         "swimming": "Piscine",
         "library": "Bibliothèque",
+        "halal_restaurant": "Restaurant exclusivement halal",
         "viewpoint": "Point de vue"
     },
     "ai": {
@@ -63,12 +72,11 @@
     },
     "source": {
         "osm": "Lieux issus d'OpenStreetMap",
-        "unavailable": "Base de lieux injoignable : seules les idées ci-dessous sont affichées."
+        "unavailable": "Base de lieux injoignable : seules les idées ci-dessous sont affichées.",
+        "halalNote": "Le statut exclusivement halal repose sur les balises OpenStreetMap, pas sur une certification indépendante."
     },
     "noLocation": {
-        "title": "Aucun lieu enregistré",
-        "subtitle": "Enregistrez votre ville dans les réglages météo, ou autorisez le navigateur à utiliser votre position.",
-        "cta": "Ouvrir les réglages"
+        "subtitle": "Choisissez une ville ou un secteur ci-dessus, ou utilisez votre position pour voir des lieux de sortie."
     },
     "empty": "Rien à proposer pour cette journée. Essayez un autre jour ou une sortie plus longue.",
     "error": "Impossible de récupérer les idées de sortie."
