@@ -345,7 +345,7 @@ const OutingPlanner: React.FC = () => {
 
                         {visible ? (
                             <div className="space-y-4">
-                                {visible.ai !== 'ok' ? (
+                                {visible.ai !== 'ok' && (visible.ai === 'pending' || visible.places.length > 0) ? (
                                     <p className="flex items-center gap-2 rounded-input border border-border bg-surface-2 px-3 py-2 text-micro text-muted-foreground">
                                         {visible.ai === 'pending' ? (
                                             <Loader2 className="h-3 w-3 flex-shrink-0 animate-spin" />
@@ -357,7 +357,7 @@ const OutingPlanner: React.FC = () => {
                                               : t('ai.failed')}
                                     </p>
                                 ) : null}
-                                {visible.placesSource === 'unavailable' ? (
+                                {visible.placesSource === 'unavailable' && visible.ideas.length > 0 ? (
                                     <p className="text-micro text-muted-foreground">{t('source.unavailable')}</p>
                                 ) : null}
                                 {visible.places.some((place) => place.category === 'halal_restaurant') ? (

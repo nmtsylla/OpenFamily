@@ -986,7 +986,7 @@ async function route(method: string, path: string, q: Record<string, string>, bo
                 duration,
                 city: null,
                 weather: null,
-                ai: 'ok',
+                ai: 'failed',
                 placesSource: 'unavailable',
                 places: [],
                 ideas: demoOutingIdeas,

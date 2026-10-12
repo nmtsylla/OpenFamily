@@ -392,7 +392,7 @@ was verified in a browser instead (see "Verification" below).
   `maximumFileSizeToCacheInBytes` (2,097,152 B), i.e. a few hundred bytes of
   headroom, so the rework deleted as many `dashboard.custom` keys as it added
   instead of shaving the margin. The 2026-10-11 merged-tree build measured
-  2,009.33 kB. The 2026-10-12 build measured 2,016.50 kB, still below the 2 MiB
+  2,009.33 kB. The 2026-10-12 build measured 2,016.64 kB, still below the 2 MiB
   per-file limit. Keep pages and heavy imports behind `React.lazy`, and measure
   `dist/assets/index-*.js` after adding i18n keys — the locale JSON is eager.
 - **`custom/0005-pantry-name-unique` used to abort startup on a database that
