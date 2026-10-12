@@ -53,27 +53,14 @@ export const resolveDayContext = (dateKey: string): DayContext => {
     return { date: dateKey, mode: 'school', reason: 'school_day' };
 };
 
-/** Hour of the local day after which the dashboard talks about tomorrow. */
 export const EVENING_CUTOFF_HOUR = 18;
 
-/**
- * The day the dashboard talks about, plus how it was picked: the offset from
- * today and the instant it flips. The client schedules against `flipsAt` rather
- * than re-deriving the cutoff from its own clock.
- */
 export interface TargetDay extends DayContext {
     dayOffset: 0 | 1;
     /** ISO instant the snapshot stops being true: the earlier of the next local 18:00 and midnight. */
     flipsAt: string;
 }
 
-/**
- * Which day should the dashboard talk about?
- *
- * The hour alone decides: before 18:00 it is today, from 18:00 on tomorrow (lay
- * out the outfit the night before). The school/home rule no longer selects the
- * day — it only labels it, through `resolveDayContext`.
- */
 export const resolveTargetDay = (now: Date = new Date()): TargetDay => {
     const dayOffset: 0 | 1 = now.getHours() >= EVENING_CUTOFF_HOUR ? 1 : 0;
 
@@ -81,10 +68,6 @@ export const resolveTargetDay = (now: Date = new Date()): TargetDay => {
     target.setDate(target.getDate() + dayOffset);
     const context = resolveDayContext(toDateKey(target));
 
-    // Two instants can invalidate the snapshot, and the nearer one wins: the
-    // cutoff that moves the day, and midnight, which turns the same day from
-    // "tomorrow" into "today". Without the midnight anchor an evening page keeps
-    // labelling the current day as tomorrow until the following 18:00.
     const nextCutoff = new Date(now);
     nextCutoff.setHours(EVENING_CUTOFF_HOUR, 0, 0, 0);
     if (dayOffset === 1) {

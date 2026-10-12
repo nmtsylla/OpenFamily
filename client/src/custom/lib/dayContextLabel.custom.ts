@@ -5,9 +5,7 @@ import type { DayContextDTO } from '../hooks/useWeather.custom';
 // Turn a day context into the heading the dashboard shows.
 //
 // One place decides what that heading says, so the two cards can never drift
-// apart. The day is the server's call: `dayOffset` (0 = today, 1 = tomorrow) is
-// what its 18:00 cutoff picked, so the heading reads it rather than judging the
-// date against the device clock.
+// apart.
 // =============================================================================
 
 /** e.g. "Tomorrow — school", "Today — weekend", "Today — summer holidays". */

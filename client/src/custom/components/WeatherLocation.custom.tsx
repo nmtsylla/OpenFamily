@@ -8,10 +8,8 @@ import { useSavedLocation } from '../hooks/useWeather.custom';
 // =============================================================================
 // Settings card: the city whose weather the dashboard widgets show.
 //
-// The city belongs to the family, not the account: it is geocoded server-side
-// (Open-Meteo) and stored as coordinates on the family owner's row, so every
-// member's dashboard, the kiosk and this card agree on the location. Saving one
-// here fans a `family` WebSocket update out to the other members.
+// The city belongs to the family: it is geocoded server-side (Open-Meteo) and
+// stored as coordinates on the family owner's row.
 //
 // The endpoint is the custom weather surface (PUT /api/weather/location), not an
 // auth route: the fork hung it off /api/auth, which forced the location into the

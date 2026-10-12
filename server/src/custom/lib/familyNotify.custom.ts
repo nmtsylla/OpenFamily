@@ -1,13 +1,3 @@
-// =============================================================================
-// Fan a WebSocket update out to a whole family.
-//
-// `broadcast` is keyed by user id, but the family's shared data (the saved
-// weather city, for one) lives on the owner's row: every member's open client
-// has to hear about a change there, or their dashboard keeps the old answer
-// until the next reload. The member list is the owner plus the rows that point
-// at it through `family_owner_id`.
-// =============================================================================
-
 import { broadcast, type WsUpdatePayload } from '../../lib/broadcaster';
 import { query } from '../../db';
 

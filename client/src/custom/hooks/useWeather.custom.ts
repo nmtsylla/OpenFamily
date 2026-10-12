@@ -58,20 +58,12 @@ export type DegradedCode = 'DISABLED' | 'BAD_JSON' | (string & {});
 export type DayMode = 'school' | 'home';
 export type DayReason = 'school_day' | 'weekend' | 'default_summer';
 
-/**
- * Which day the dashboard is talking about, and why. The server picks it from
- * the hour (before 18:00 today, from 18:00 tomorrow) and sends the offset that
- * picked it, so the widget reads `dayOffset` instead of judging the date itself;
- * `flipsAt` is the instant the answer goes stale.
- */
 export interface DayContextDTO {
     /** YYYY-MM-DD */
     date: string;
     mode: DayMode;
     reason: DayReason;
-    /** 0 = today, 1 = tomorrow. */
     dayOffset: 0 | 1;
-    /** ISO instant of the next local 18:00. */
     flipsAt: string;
 }
 
@@ -243,13 +235,6 @@ function useCachedQuery<T>(cacheKey: string, fetcher: () => Promise<T>, enabled:
 const geoKey = (override: GeoOverride | null): string =>
     override ? `${override.latitude.toFixed(2)},${override.longitude.toFixed(2)}` : 'saved';
 
-/**
- * Keep the widget on the server's target day. `flipsAt` is the 18:00 the server
- * says it picked the day against: once it passes, the answer on screen is stale,
- * so refetch. A 60 s poll covers a page left open forever; the visibility handler
- * covers a tablet that slept through the boundary (background tabs throttle
- * timers, so the interval alone can miss it by much more than a minute).
- */
 function useTargetExpiry(flipsAt: string | undefined, refetch: () => void): void {
     const refetchRef = useRef(refetch);
     refetchRef.current = refetch;
@@ -351,8 +336,6 @@ export function useDashboardWeather(override: GeoOverride | null, enabled: boole
         () => postWidget('/api/ai/dashboard/clothing-suggestions', body, isDashboardWeather),
         enabled,
     );
-    // Another member saving a city changes the answer, and so does the 18:00
-    // flip — the cache key carries no day, so both must drop it.
     useWebSocketUpdates('family', result.refetch);
     useTargetExpiry(result.data?.dayContext.flipsAt, result.refetch);
     return result;
@@ -375,8 +358,6 @@ export function useWeeklyForecast(
         },
         enabled,
     );
-    // The dialog is coordinate-dependent like the cards: another member's save
-    // must not leave an already-open week for the previous city on screen.
     useWebSocketUpdates('family', result.refetch);
     return result;
 }
@@ -406,8 +387,6 @@ export function useKidsActivities(
         () => postWidget('/api/ai/dashboard/kids-activities', body, isKidsActivities),
         enabled,
     );
-    // Same two invalidation sources as the clothing card: a family-wide city
-    // change, and the 18:00 cutoff that moves the target day.
     useWebSocketUpdates('family', result.refetch);
     useTargetExpiry(result.data?.dayContext.flipsAt, result.refetch);
     return result;
@@ -462,8 +441,6 @@ export function useSavedLocation(): AsyncResult<SavedLocationDTO | null> {
         },
         true,
     );
-    // The city is family-wide: another member saving one must repaint this
-    // client's Settings card and its widgets, which read the same row.
     useWebSocketUpdates('family', result.refetch);
     return result;
 }

@@ -244,9 +244,6 @@ export const getForecastForDate = async (
     } | null;
 
     const daily = data?.daily;
-    // The rows carry their own dates, so the offset from today never has to be
-    // computed: find the one we asked for. A date outside the 2-day window is a
-    // provider error, same as a malformed response.
     const times = daily && Array.isArray(daily.time) ? (daily.time as unknown[]) : null;
     const idx = times ? times.findIndex((t) => String(t) === dateKey) : -1;
     if (

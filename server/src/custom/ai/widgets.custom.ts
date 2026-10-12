@@ -551,11 +551,7 @@ export interface ClothingResult {
 }
 
 /**
- * One outfit per kid for the target day. `mode` says whether that day is a
- * school day or a day at home and `dateKey` which day it is; both are part of
- * the cache key. The date is required because `mode` alone repeats across
- * adjacent days — without it a cached outfit from yesterday would be served for
- * today after the 18:00 flip.
+ * One outfit per kid for the target day; `mode` and `dateKey` key the cache.
  *
  * On a cache hit the stored template is remapped onto the current kid ids, so
  * the response always lines up with what the caller passed in.

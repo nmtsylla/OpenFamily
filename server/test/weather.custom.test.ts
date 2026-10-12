@@ -46,13 +46,11 @@ test('dayContext: July and August fall back to summer without any declaration', 
 });
 
 test('resolveTargetDay: the hour picks the day, the mode only labels it', () => {
-    // 2026-03-11 is a Wednesday during term.
     const morning = resolveTargetDay(new Date(2026, 2, 11, 9, 0));
     assert.equal(morning.dayOffset, 0);
     assert.equal(morning.date, '2026-03-11');
     assert.equal(morning.mode, 'school');
 
-    // 17:59 is still today; 18:00 flips to tomorrow.
     const late = resolveTargetDay(new Date(2026, 2, 11, 17, 59));
     assert.equal(late.dayOffset, 0);
     assert.equal(late.date, '2026-03-11');
@@ -63,7 +61,6 @@ test('resolveTargetDay: the hour picks the day, the mode only labels it', () => 
 });
 
 test('resolveTargetDay: an evening on a home day targets tomorrow, still home', () => {
-    // Saturday 2026-03-14, so both today and tomorrow are weekend days.
     const saturday = resolveTargetDay(new Date(2026, 2, 14, 20, 0));
     assert.equal(saturday.dayOffset, 1);
     assert.equal(saturday.date, '2026-03-15');
@@ -82,13 +79,11 @@ test('resolveTargetDay: the picked date always matches the offset', () => {
 });
 
 test('resolveTargetDay: flipsAt is the nearer of the cutoff and midnight', () => {
-    // Before the cutoff the label is stable until 18:00.
     const morning = resolveTargetDay(new Date(2026, 2, 11, 9, 0));
     assert.equal(morning.date, '2026-03-11');
     assert.equal(morning.dayOffset, 0);
     assert.equal(new Date(morning.flipsAt).getTime(), new Date(2026, 2, 11, 18, 0, 0).getTime());
 
-    // From the cutoff the day is tomorrow, but the label flips back at midnight.
     const evening = resolveTargetDay(new Date(2026, 2, 11, 18, 0));
     assert.equal(evening.dayOffset, 1);
     assert.equal(new Date(evening.flipsAt).getTime(), new Date(2026, 2, 12, 0, 0, 0).getTime());
@@ -97,7 +92,6 @@ test('resolveTargetDay: flipsAt is the nearer of the cutoff and midnight', () =>
     assert.equal(lateEvening.dayOffset, 1);
     assert.equal(new Date(lateEvening.flipsAt).getTime(), new Date(2026, 2, 12, 0, 0, 0).getTime());
 
-    // After midnight the same day is "today" again, and the next cutoff is 18:00.
     const afterMidnight = resolveTargetDay(new Date(2026, 2, 12, 0, 30));
     assert.equal(afterMidnight.date, '2026-03-12');
     assert.equal(afterMidnight.dayOffset, 0);

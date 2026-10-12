@@ -6,7 +6,7 @@
 // same answer. Two sources, in this order: the session-only geolocation override
 // the client sends in the body (`latitude`/`longitude`, used when a member
 // shares the browser's position), then the city saved on the family owner's row
-// by `PUT /api/weather/location` (the family shares one location).
+// by `PUT /api/weather/location`.
 // =============================================================================
 
 import type { AuthRequest } from '../../middleware/auth';

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authMiddleware, AuthRequest } from '../../middleware/auth';
+import { authMiddleware, requireParent, AuthRequest } from '../../middleware/auth';
 import { query } from '../../db';
 import { geocodeCity, getWeeklyForecast } from '../weather/WeatherService.custom';
 import { WeatherError } from '../weather/errors.custom';
@@ -141,10 +141,6 @@ router.post('/forecast', async (req: AuthRequest, res) => {
 // same behaviour (geocode through Open-Meteo, store the resolved coordinates on
 // the user row), but no upstream route is edited and the widgets read the saved
 // location back from here.
-//
-// Read and write both use `req.userId` (the family owner's row), so every
-// member shares one city; a save fans a `family` WebSocket update out to the
-// whole family (`notifyFamily`) so the other dashboards refresh.
 // =============================================================================
 
 interface SavedLocation {
@@ -197,7 +193,7 @@ router.get('/location', async (req: AuthRequest, res) => {
  * Geocodes the free-text city and stores the coordinates the dashboard widgets
  * read. A city that cannot be resolved is a 422 rather than a silent no-op.
  */
-router.put('/location', async (req: AuthRequest, res) => {
+router.put('/location', requireParent, async (req: AuthRequest, res) => {
     try {
         const raw = (req.body ?? {}).city;
         const city = typeof raw === 'string' ? raw.trim().slice(0, 120) : '';
@@ -223,8 +219,6 @@ router.put('/location', async (req: AuthRequest, res) => {
             throw error;
         }
 
-        // userId: the city is the family's shared location, so it is stored on
-        // the owner's row every member reads.
         const result = await query(
             `UPDATE users
              SET city = $1, country_code = $2, latitude = $3, longitude = $4
@@ -258,8 +252,6 @@ router.put('/location', async (req: AuthRequest, res) => {
         };
         res.json({ success: true, data });
 
-        // Every member's dashboard reads this city: push the family event so
-        // their open clients drop their cached location and widgets.
         notifyFamily(req.userId!, { type: 'update', entity: 'family', action: 'updated' }).catch(
             (error: unknown) => {
                 logger.warn('weather.family_notify_failed', {
