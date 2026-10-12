@@ -212,6 +212,8 @@ if [[ "$outings_location" != "400" ]] || ! grep -q 'NO_LOCATION' /tmp/openfamily
 fi
 rm -f /tmp/openfamily-outings-loc.json
 
+request PUT "/api/weather/location" '{"city":"Gent"}' >/dev/null
+
 home_before=$(request GET "/api/weather/location")
 assert_success "$home_before"
 
