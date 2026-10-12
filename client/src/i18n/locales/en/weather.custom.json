@@ -75,6 +75,7 @@
   "settings": {
     "title": "Weather location",
     "subtitle": "Used by the dashboard forecast and the outfit suggestions.",
+    "sharedHint": "Shared with the whole family — everyone sees the same city.",
     "label": "City",
     "placeholder": "e.g. Sint-Niklaas",
     "save": "Save",

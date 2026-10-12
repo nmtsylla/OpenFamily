@@ -75,6 +75,7 @@
   "settings": {
     "title": "Ubicación meteorológica",
     "subtitle": "La usan el pronóstico de la página de inicio y las sugerencias de ropa.",
+    "sharedHint": "Compartida con toda la familia: todos ven la misma ciudad.",
     "label": "Ciudad",
     "placeholder": "p. ej. Santiago",
     "save": "Guardar",

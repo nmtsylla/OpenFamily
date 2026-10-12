@@ -5,8 +5,8 @@
 // Extracted from the dashboard widget route when the outing planner needed the
 // same answer. Two sources, in this order: the session-only geolocation override
 // the client sends in the body (`latitude`/`longitude`, used when a member
-// shares the browser's position), then the city saved on the account by
-// `PUT /api/weather/location`.
+// shares the browser's position), then the city saved on the family owner's row
+// by `PUT /api/weather/location`.
 // =============================================================================
 
 import type { AuthRequest } from '../../middleware/auth';
@@ -27,7 +27,7 @@ export const resolveCoordinates = async (req: AuthRequest): Promise<ResolvedCoor
     }
 
     const userRow = await query('SELECT city, latitude, longitude FROM users WHERE id = $1', [
-        req.actualUserId,
+        req.userId,
     ]);
     const u = userRow.rows[0] as
         | {

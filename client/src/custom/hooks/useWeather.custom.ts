@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../../lib/api';
+import { useWebSocketUpdates } from '../../hooks/useWebSocketUpdates';
 import i18n from '../../i18n';
 
 // =============================================================================
@@ -57,16 +58,13 @@ export type DegradedCode = 'DISABLED' | 'BAD_JSON' | (string & {});
 export type DayMode = 'school' | 'home';
 export type DayReason = 'school_day' | 'weekend' | 'default_summer';
 
-/**
- * Which day the dashboard is talking about, and why. The server picks tomorrow
- * during term (lay out the outfit tonight) and today on a home day (what do we
- * DO this morning?) — so the widget reads this rather than assuming.
- */
 export interface DayContextDTO {
     /** YYYY-MM-DD */
     date: string;
     mode: DayMode;
     reason: DayReason;
+    dayOffset: 0 | 1;
+    flipsAt: string;
 }
 
 export interface DashboardWeatherDTO {
@@ -237,6 +235,24 @@ function useCachedQuery<T>(cacheKey: string, fetcher: () => Promise<T>, enabled:
 const geoKey = (override: GeoOverride | null): string =>
     override ? `${override.latitude.toFixed(2)},${override.longitude.toFixed(2)}` : 'saved';
 
+function useTargetExpiry(flipsAt: string | undefined, refetch: () => void): void {
+    const refetchRef = useRef(refetch);
+    refetchRef.current = refetch;
+
+    useEffect(() => {
+        if (!flipsAt) return;
+        const check = () => {
+            if (Date.now() >= new Date(flipsAt).getTime()) refetchRef.current();
+        };
+        const id = window.setInterval(check, 60_000);
+        document.addEventListener('visibilitychange', check);
+        return () => {
+            window.clearInterval(id);
+            document.removeEventListener('visibilitychange', check);
+        };
+    }, [flipsAt]);
+}
+
 /**
  * One widget, two phases. The fast phase carries what needs no model at all
  * (weather, kids, the offline activity bank) and lands in a couple of hundred
@@ -309,7 +325,7 @@ export function useDashboardWeather(override: GeoOverride | null, enabled: boole
     // switching the interface must not serve the previous language.
     const key = `weather-clothing:${widgetLanguage()}:${geoKey(override)}`;
     const body = { ...(override ?? {}), lang: widgetLanguage() };
-    return useWidgetPhases(
+    const result = useWidgetPhases(
         key,
         () =>
             postWidget(
@@ -320,6 +336,9 @@ export function useDashboardWeather(override: GeoOverride | null, enabled: boole
         () => postWidget('/api/ai/dashboard/clothing-suggestions', body, isDashboardWeather),
         enabled,
     );
+    useWebSocketUpdates('family', result.refetch);
+    useTargetExpiry(result.data?.dayContext.flipsAt, result.refetch);
+    return result;
 }
 
 /** The multi-day forecast behind the "weather details" dialog. */
@@ -328,7 +347,7 @@ export function useWeeklyForecast(
     enabled: boolean,
     days = 7,
 ): AsyncResult<WeeklyForecastDTO | null> {
-    return useCachedQuery(
+    const result = useCachedQuery(
         `weather-weekly:${geoKey(override)}:${days}`,
         async () => {
             const response = await api.post<{ success: boolean; data: WeeklyForecastDTO }>(
@@ -339,6 +358,8 @@ export function useWeeklyForecast(
         },
         enabled,
     );
+    useWebSocketUpdates('family', result.refetch);
+    return result;
 }
 
 /**
@@ -360,12 +381,15 @@ export function useKidsActivities(
         lang: widgetLanguage(),
         ...(exclude.length > 0 ? { exclude } : {}),
     };
-    return useWidgetPhases(
+    const result = useWidgetPhases(
         key,
         () => postWidget('/api/ai/dashboard/kids-activities', { ...body, instant: true }, isKidsActivities),
         () => postWidget('/api/ai/dashboard/kids-activities', body, isKidsActivities),
         enabled,
     );
+    useWebSocketUpdates('family', result.refetch);
+    useTargetExpiry(result.data?.dayContext.flipsAt, result.refetch);
+    return result;
 }
 
 /**
@@ -407,7 +431,7 @@ const isSavedLocation = (value: unknown): value is SavedLocationDTO =>
  * card pre-fills.
  */
 export function useSavedLocation(): AsyncResult<SavedLocationDTO | null> {
-    return useCachedQuery(
+    const result = useCachedQuery(
         'weather-location',
         async () => {
             const response = await api.get<{ success: boolean; data: SavedLocationDTO }>(
@@ -417,4 +441,6 @@ export function useSavedLocation(): AsyncResult<SavedLocationDTO | null> {
         },
         true,
     );
+    useWebSocketUpdates('family', result.refetch);
+    return result;
 }

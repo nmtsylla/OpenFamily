@@ -53,24 +53,30 @@ export const resolveDayContext = (dateKey: string): DayContext => {
     return { date: dateKey, mode: 'school', reason: 'school_day' };
 };
 
-/**
- * Which day should the dashboard talk about?
- *
- *   - School term: tomorrow. The question that matters is asked in the evening
- *     — pack the bag, lay out the outfit for the morning.
- *   - Holidays and weekends: today. The question is asked at breakfast — what
- *     do we DO today?
- *
- * Nice side effect: on a Friday (a school day) the target is Saturday, so the
- * activity suggestions land the evening before the weekend, when they help.
- */
-export const resolveTargetDay = (now: Date = new Date()): { context: DayContext; dayOffset: 0 | 1 } => {
-    const today = resolveDayContext(toDateKey(now));
-    if (today.mode === 'home') {
-        return { context: today, dayOffset: 0 };
-    }
+export const EVENING_CUTOFF_HOUR = 18;
 
-    const tomorrow = new Date(now);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    return { context: resolveDayContext(toDateKey(tomorrow)), dayOffset: 1 };
+export interface TargetDay extends DayContext {
+    dayOffset: 0 | 1;
+    /** ISO instant the snapshot stops being true: the earlier of the next local 18:00 and midnight. */
+    flipsAt: string;
+}
+
+export const resolveTargetDay = (now: Date = new Date()): TargetDay => {
+    const dayOffset: 0 | 1 = now.getHours() >= EVENING_CUTOFF_HOUR ? 1 : 0;
+
+    const target = new Date(now);
+    target.setDate(target.getDate() + dayOffset);
+    const context = resolveDayContext(toDateKey(target));
+
+    const nextCutoff = new Date(now);
+    nextCutoff.setHours(EVENING_CUTOFF_HOUR, 0, 0, 0);
+    if (dayOffset === 1) {
+        nextCutoff.setDate(nextCutoff.getDate() + 1);
+    }
+    const nextMidnight = new Date(now);
+    nextMidnight.setHours(24, 0, 0, 0);
+
+    const flip = nextMidnight < nextCutoff ? nextMidnight : nextCutoff;
+
+    return { ...context, dayOffset, flipsAt: flip.toISOString() };
 };

@@ -75,6 +75,7 @@
   "settings": {
     "title": "Ville de la météo",
     "subtitle": "Utilisée par les prévisions du tableau de bord et les tenues.",
+    "sharedHint": "Partagée avec toute la famille : tout le monde voit la même ville.",
     "label": "Ville",
     "placeholder": "ex. Sint-Niklaas",
     "save": "Enregistrer",

@@ -2,13 +2,13 @@ import { Router, Response } from 'express';
 import { query } from '../../db';
 import { authMiddleware, AuthRequest } from '../../middleware/auth';
 import {
-    getForecastForOffset,
+    getForecastForDate,
     summarize,
     type TomorrowForecast,
     type WeatherSummary,
 } from '../weather/WeatherService.custom';
 import { WeatherError } from '../weather/errors.custom';
-import { resolveTargetDay, type DayContext } from '../lib/dayContext.custom';
+import { resolveTargetDay, type TargetDay } from '../lib/dayContext.custom';
 import { resolveCoordinates, type ResolvedCoords } from '../lib/location.custom';
 import { loadFamilyKids, type FamilyKid } from '../lib/kids.custom';
 import { handleAiError, loadEnabledAiSettings } from '../lib/aiSettings.custom';
@@ -127,8 +127,7 @@ type PublicKid = Pick<DashboardKid, 'id' | 'name' | 'color' | 'birth_date' | 'ag
 
 interface WidgetContext {
     coords: ResolvedCoords;
-    dayContext: DayContext;
-    dayOffset: 0 | 1;
+    dayContext: TargetDay;
     summary: WeatherSummary;
     weather: TomorrowForecast;
     kids: PublicKid[];
@@ -151,11 +150,11 @@ const loadWidgetContext = async (req: AuthRequest, res: Response): Promise<Widge
         return null;
     }
 
-    const { context: dayContext, dayOffset } = resolveTargetDay();
+    const dayContext = resolveTargetDay();
 
     let weather;
     try {
-        weather = await getForecastForOffset(coords.latitude, coords.longitude, dayOffset);
+        weather = await getForecastForDate(coords.latitude, coords.longitude, dayContext.date);
     } catch (err) {
         if (err instanceof WeatherError) {
             logger.warn('ai.dashboard.weather_failed', { code: err.code, message: err.message });
@@ -174,7 +173,6 @@ const loadWidgetContext = async (req: AuthRequest, res: Response): Promise<Widge
     return {
         coords,
         dayContext,
-        dayOffset,
         weather,
         summary: summarize(weather),
         // Two shapes on purpose: the response carries the display fields, the
@@ -255,6 +253,7 @@ router.post('/clothing-suggestions', async (req: AuthRequest, res) => {
             const result = await suggestClothingForKids(ctx.summary, ctx.kidInputs, {
                 settings,
                 mode: ctx.dayContext.mode as ClothingDayMode,
+                dateKey: ctx.dayContext.date,
                 lang,
             });
             return res.json({

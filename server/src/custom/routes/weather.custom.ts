@@ -1,8 +1,9 @@
 import { Router } from 'express';
-import { authMiddleware, AuthRequest } from '../../middleware/auth';
+import { authMiddleware, requireParent, AuthRequest } from '../../middleware/auth';
 import { query } from '../../db';
 import { geocodeCity, getWeeklyForecast } from '../weather/WeatherService.custom';
 import { WeatherError } from '../weather/errors.custom';
+import { notifyFamily } from '../lib/familyNotify.custom';
 import logger from '../../lib/logger';
 
 // =============================================================================
@@ -86,7 +87,7 @@ router.post('/forecast', async (req: AuthRequest, res) => {
         if (latitude === null || longitude === null) {
             const userRow = await query(
                 'SELECT city, latitude, longitude FROM users WHERE id = $1',
-                [req.actualUserId],
+                [req.userId],
             );
             const u = userRow.rows[0] as
                 | {
@@ -133,7 +134,7 @@ router.post('/forecast', async (req: AuthRequest, res) => {
 });
 
 // =============================================================================
-// /api/weather/location — the member's saved city.
+// /api/weather/location — the family's shared city.
 //
 // The fork hung this off /api/auth (PUT /api/auth/location) and kept the result
 // in the client's auth context. In the port it lives on the weather surface:
@@ -157,7 +158,7 @@ router.get('/location', async (req: AuthRequest, res) => {
     try {
         const result = await query(
             'SELECT city, country_code, latitude, longitude FROM users WHERE id = $1',
-            [req.actualUserId],
+            [req.userId],
         );
         const row = result.rows[0] as
             | {
@@ -192,7 +193,7 @@ router.get('/location', async (req: AuthRequest, res) => {
  * Geocodes the free-text city and stores the coordinates the dashboard widgets
  * read. A city that cannot be resolved is a 422 rather than a silent no-op.
  */
-router.put('/location', async (req: AuthRequest, res) => {
+router.put('/location', requireParent, async (req: AuthRequest, res) => {
     try {
         const raw = (req.body ?? {}).city;
         const city = typeof raw === 'string' ? raw.trim().slice(0, 120) : '';
@@ -218,7 +219,6 @@ router.put('/location', async (req: AuthRequest, res) => {
             throw error;
         }
 
-        // actualUserId: the location belongs to the member, not the family.
         const result = await query(
             `UPDATE users
              SET city = $1, country_code = $2, latitude = $3, longitude = $4
@@ -229,7 +229,7 @@ router.put('/location', async (req: AuthRequest, res) => {
                 geocoded.country_code,
                 geocoded.latitude,
                 geocoded.longitude,
-                req.actualUserId,
+                req.userId,
             ],
         );
         const row = result.rows[0] as
@@ -251,6 +251,14 @@ router.put('/location', async (req: AuthRequest, res) => {
             longitude: asNumber(row.longitude),
         };
         res.json({ success: true, data });
+
+        notifyFamily(req.userId!, { type: 'update', entity: 'family', action: 'updated' }).catch(
+            (error: unknown) => {
+                logger.warn('weather.family_notify_failed', {
+                    error: error instanceof Error ? error.message : String(error),
+                });
+            },
+        );
     } catch (error) {
         logger.error('weather.update_location_unexpected', {
             error: error instanceof Error ? error.message : String(error),

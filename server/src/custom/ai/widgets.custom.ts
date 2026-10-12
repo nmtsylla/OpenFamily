@@ -551,8 +551,7 @@ export interface ClothingResult {
 }
 
 /**
- * One outfit per kid for the target day. `mode` says whether that day is a
- * school day or a day at home; it is part of the cache key so the two never mix.
+ * One outfit per kid for the target day; `mode` and `dateKey` key the cache.
  *
  * On a cache hit the stored template is remapped onto the current kid ids, so
  * the response always lines up with what the caller passed in.
@@ -560,7 +559,7 @@ export interface ClothingResult {
 export const suggestClothingForKids = async (
     weather: WeatherSummary,
     kids: ClothingKidInput[],
-    opts: { settings: AiSettings; mode: ClothingDayMode; lang: PromptLanguage },
+    opts: { settings: AiSettings; mode: ClothingDayMode; dateKey: string; lang: PromptLanguage },
 ): Promise<ClothingResult> => {
     if (kids.length === 0) {
         return { suggestions: [], cached: false };
@@ -572,6 +571,7 @@ export const suggestClothingForKids = async (
     const key = [
         opts.mode,
         opts.lang,
+        opts.dateKey,
         weather.tempMinBucket,
         weather.precipBucket,
         weather.windyBucket,

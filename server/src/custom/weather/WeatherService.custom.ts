@@ -184,20 +184,20 @@ export const geocodeCity = async (rawName: string): Promise<GeocodedCity> => {
 };
 
 /**
- * Fetch the daily forecast for today (`dayOffset = 0`) or tomorrow
- * (`dayOffset = 1`) at the given coordinates. Cached briefly in-process to
- * spare Open-Meteo from a thundering herd at dashboard load.
+ * Fetch the daily forecast for one absolute day (`dateKey`, YYYY-MM-DD) at the
+ * given coordinates. Cached briefly in-process to spare Open-Meteo from a
+ * thundering herd at dashboard load.
  *
- * Both days come back in a single Open-Meteo response (`forecast_days=2`), so
- * the offset only selects which row we read — it costs no extra round-trip.
- * The dashboard needs both: during term it looks at tomorrow (lay out the
- * outfit tonight), during the holidays at today (what do we do this morning?).
- * See `resolveTargetDay` in ../lib/dayContext.
+ * Both the requested day and the next come back in a single Open-Meteo response
+ * (`forecast_days=2`), so the date only selects which row we read — no extra
+ * round-trip. The cache is keyed by the day it describes, not by an offset from
+ * today, so an entry cannot outlive the midnight that made the offset stale.
+ * See `resolveTargetDay` in ../lib/dayContext for which day the dashboard wants.
  */
-export const getForecastForOffset = async (
+export const getForecastForDate = async (
     latitude: number,
     longitude: number,
-    dayOffset: 0 | 1,
+    dateKey: string,
 ): Promise<TomorrowForecast> => {
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
         throw new WeatherError('BAD_REQUEST', 'latitude and longitude must be finite numbers');
@@ -205,7 +205,7 @@ export const getForecastForOffset = async (
 
     const cfg = getWeatherConfig();
     // Rounded so two users in the same area share the entry.
-    const key = `${latitude.toFixed(2)},${longitude.toFixed(2)}:+${dayOffset}`;
+    const key = `${latitude.toFixed(2)},${longitude.toFixed(2)}:${dateKey}`;
     const now = Date.now();
     const hit = forecastCache.get(key);
     if (hit && hit.expiresAt > now) {
@@ -244,11 +244,12 @@ export const getForecastForOffset = async (
     } | null;
 
     const daily = data?.daily;
-    const idx = dayOffset; // response rows are [today, tomorrow]
+    const times = daily && Array.isArray(daily.time) ? (daily.time as unknown[]) : null;
+    const idx = times ? times.findIndex((t) => String(t) === dateKey) : -1;
     if (
         !daily ||
-        !Array.isArray(daily.time) ||
-        daily.time.length <= idx ||
+        !times ||
+        idx < 0 ||
         !Array.isArray(daily.temperature_2m_min) ||
         !Array.isArray(daily.temperature_2m_max)
     ) {
@@ -265,7 +266,7 @@ export const getForecastForOffset = async (
 
     const weatherCode = pick<number>(daily.weathercode, 0);
     const forecast: TomorrowForecast = {
-        date: String(daily.time[idx]),
+        date: String(times[idx]),
         tempMin: pick<number>(daily.temperature_2m_min, 0),
         tempMax: pick<number>(daily.temperature_2m_max, 0),
         precipitationMm: pick<number>(daily.precipitation_sum, 0),

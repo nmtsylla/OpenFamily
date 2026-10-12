@@ -75,6 +75,7 @@
   "settings": {
     "title": "Localização do clima",
     "subtitle": "Usada pela previsão da página inicial e pelas sugestões de roupa.",
+    "sharedHint": "Compartilhada com toda a família: todos veem a mesma cidade.",
     "label": "Cidade",
     "placeholder": "ex.: Sint-Niklaas",
     "save": "Salvar",
