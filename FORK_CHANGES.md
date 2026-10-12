@@ -121,9 +121,9 @@ existed; the exact count of rewritten upstream lines is the next section's table
 | `server/src/lib/safeFetch.ts` | `safeFetch-credentials` | Drops `Authorization` / `X-API-Key` / `x-goog-api-key` / `Cookie` on a redirect hop that leaves the original hostname (the guard only blocks internal/metadata targets, not third parties); a same-host hop — including an `http` → `https` upgrade — keeps them |
 | `client/src/contexts/AuthContext.tsx` | `weather, pantry` | The `DASHBOARD_WIDGETS` line carries the fork's widget keys (weather, activities, pantry); one marker pair wraps that modified line itself, so an upstream change to it is re-applied from here |
 | `client/src/components/app/MagicInput.tsx` | `budget-custom`, `pantry-ai` | Adds the `AI_UNSUPPORTED_MEDIA` error code; `pantry-ai` renders the pantry proposal (own icon and label, quantity and shelf) and confirms it through `POST /api/pantry/upsert` |
-| `client/src/demo/mockApi.ts` | `budget-custom`, `demo-prefs`, `lunchbox`, `pantry`, `outings` | Demo handlers for receipts, receipt extraction, analytics, lunchboxes and the pantry (seeded rows, the shopping-list bridge, the receipt import — which splits its lines exactly like the server: obvious products merged, the rest queued — the review queue with its `confirm`/`ignore` calls, and the two answers the page reacts to: `DUPLICATE_NAME`, `NO_GROCY_INTEGRATION`); plus the two object-shaped endpoints upstream's demo never answers (`dashboard-prefs`, `posts/latest`), whose `ok([])` catch-all crashed the demo's default route. The `demo-prefs` block's default widget order also carries `pantry`; the `outings` block resolves area lookups only for Sint-Niklaas, returns unavailable places for current-position requests, and never relabels its fixed fixtures for another area |
+| `client/src/demo/mockApi.ts` | `budget-custom`, `demo-prefs`, `lunchbox`, `pantry`, `outings` | Demo handlers for receipts, receipt extraction, analytics, lunchboxes and the pantry (seeded rows, the shopping-list bridge, the receipt import — which splits its lines exactly like the server: obvious products merged, the rest queued — the review queue with its `confirm`/`ignore` calls, and the two answers the page reacts to: `DUPLICATE_NAME`, `NO_GROCY_INTEGRATION`); plus the two object-shaped endpoints upstream's demo never answers (`dashboard-prefs`, `posts/latest`), whose `ok([])` catch-all crashed the demo's default route. The `demo-prefs` block's default widget order also carries `pantry`; the `outings` block resolves area lookups only for Sint-Niklaas, rejects current-position requests outright (the demo has no places database), and never relabels its fixed fixtures for another area |
 | `client/nginx.conf` | `media` | Dedicated `location ^~ /api/media/` block (upstream's `location /api/` line untouched) |
-| `scripts/smoke-api.sh` | `budget-custom`, `lunchbox`, `outings` | Smoke calls for saved, area-resolved, and current-position outing requests, including the temporary-area geocoder endpoint |
+| `scripts/smoke-api.sh` | `budget-custom`, `lunchbox`, `outings` | Smoke calls for saved, area-resolved, and current-position outing requests, including the temporary-area geocoder endpoint and a comparison that the saved home is unchanged by it |
 | `.env.example` | (section) | `# --- Custom ---` section at the end of the file |
 | `DOCUMENTATION.md`, `ROADMAP.md`, `README.md`, `README.fr.md`, `README.zh-CN.md` | `docs` | Feature documentation |
 | `docker-compose.yml` | `deploy` | Custom env vars for the server service, `CUSTOM_FEATURE_*_ENABLED` included (without a line there, a variable set in `.env` never reaches the container — the documented kill switch could not be used on a Docker install) |
@@ -391,9 +391,9 @@ was verified in a browser instead (see "Verification" below).
   was measured on (`6ce1c4e`) built a 2,096.76 kB main chunk against workbox's 2 MiB
   `maximumFileSizeToCacheInBytes` (2,097,152 B), i.e. a few hundred bytes of
   headroom, so the rework deleted as many `dashboard.custom` keys as it added
-  instead of shaving the margin. On the merged tree the main chunk measures
-  2,009.33 kB. The rule that fixed it still applies to anything new: a page or a
-  heavy import is what counts, so keep it behind `React.lazy`, and measure
+  instead of shaving the margin. The 2026-10-11 merged-tree build measured
+  2,009.33 kB. The 2026-10-12 build measured 2,016.50 kB, still below the 2 MiB
+  per-file limit. Keep pages and heavy imports behind `React.lazy`, and measure
   `dist/assets/index-*.js` after adding i18n keys — the locale JSON is eager.
 - **`custom/0005-pantry-name-unique` used to abort startup on a database that
   already held duplicate pantry rows — closed on 2026-10-11.** `CREATE UNIQUE
@@ -1297,8 +1297,8 @@ demo deliberately serves none of them, see the promo section above):
   stays a lazy chunk (35.2 kB) and the eager bundle came out 480 bytes *smaller* than
   the branch base it was measured against (`6ce1c4e`: 2,096.28 kB vs 2,096.76 kB —
   that base was itself within 500 bytes of workbox's 2 MiB precache limit, which is
-  why keys were traded rather than added; on the merged tree the main chunk is
-  2,009.33 kB, see "Known gaps").
+  why keys were traded rather than added; the 2026-10-11 merged-tree build measured
+  2,009.33 kB (see "Known gaps").
 
 ### The two AI surfaces read the pantry (2026-10-11)
 

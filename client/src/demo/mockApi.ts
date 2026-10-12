@@ -974,19 +974,7 @@ async function route(method: string, path: string, q: Record<string, string>, bo
         const date = typeof body.date === 'string' ? body.date : new Date().toISOString().slice(0, 10);
         const party = typeof body.party === 'string' ? body.party : 'family';
         const duration = typeof body.duration === 'string' ? body.duration : 'half_day';
-        if (body.location === 'current') {
-            return ok({
-                date,
-                party,
-                duration,
-                city: null,
-                weather: null,
-                ai: 'disabled',
-                placesSource: 'unavailable',
-                places: [],
-                ideas: [],
-            });
-        }
+        if (body.location === 'current') throw new Error('DEMO_PLACES_UNAVAILABLE');
         if (body.location === 'area' && !isDemoOutingArea(body.city)) throw new Error('CITY_NOT_FOUND');
         const city = 'Sint-Niklaas';
         // Two-phase like the server: the instant call carries the places and says

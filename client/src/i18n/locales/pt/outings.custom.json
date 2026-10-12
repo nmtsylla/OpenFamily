@@ -22,7 +22,8 @@
     "position": {
         "use": "Usar minha posição",
         "current": "A usar minha posição",
-        "saved": "Cidade salva"
+        "saved": "Cidade salva",
+        "unavailable": "A sua posição não está disponível. Introduza uma cidade ou zona acima."
     },
     "area": {
         "label": "Cidade ou zona",

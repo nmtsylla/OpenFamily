@@ -22,7 +22,8 @@
     "position": {
         "use": "Usar mi ubicación",
         "current": "Usando mi ubicación",
-        "saved": "Ciudad guardada"
+        "saved": "Ciudad guardada",
+        "unavailable": "Tu ubicación no está disponible. Introduce una ciudad o zona arriba."
     },
     "area": {
         "label": "Ciudad o zona",

@@ -22,7 +22,8 @@
     "position": {
         "use": "Use my position",
         "current": "Using my position",
-        "saved": "Saved city"
+        "saved": "Saved city",
+        "unavailable": "Your position is unavailable. Enter a city or area above instead."
     },
     "area": {
         "label": "City or area",

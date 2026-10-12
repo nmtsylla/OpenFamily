@@ -2,9 +2,9 @@
 // Family-profile projections for AI prompts.
 //
 // `loadFamilyKids` supplies activity prompts. Outing prompts use
-// `loadOutingParticipants`, which excludes contacts and removes children for
-// Routes return display fields to clients; allergies, medications and notes go
-// only to model prompts.
+// `loadOutingParticipants` excludes contact details and filters children from
+// parent-only prompts. Routes return display fields to clients; allergies,
+// medications and notes go only to model prompts.
 // =============================================================================
 
 import { query } from '../../db';

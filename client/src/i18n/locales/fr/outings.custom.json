@@ -22,7 +22,8 @@
     "position": {
         "use": "Utiliser ma position",
         "current": "Position actuelle",
-        "saved": "Ville enregistrée"
+        "saved": "Ville enregistrée",
+        "unavailable": "Votre position n'est pas disponible. Saisissez une ville ou un secteur ci-dessus."
     },
     "area": {
         "label": "Ville ou secteur",

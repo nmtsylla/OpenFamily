@@ -147,7 +147,12 @@ const OutingPlanner: React.FC = () => {
     };
 
     const useMyPosition = () => {
-        if (!navigator.geolocation) return;
+        setAreaError(null);
+        const showPositionError = () => showToast({ title: t('position.unavailable') });
+        if (!navigator.geolocation) {
+            showPositionError();
+            return;
+        }
         navigator.geolocation.getCurrentPosition(
             (position) => {
                 setArea('');
@@ -160,7 +165,7 @@ const OutingPlanner: React.FC = () => {
                     },
                 });
             },
-            () => undefined,
+            showPositionError,
             { timeout: 10_000 },
         );
     };

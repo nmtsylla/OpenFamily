@@ -31,6 +31,8 @@ export interface NearbyPlace {
     fee: string | null;
 }
 
+// Query tags are fixed. The route validates coordinates and the radius is server configuration.
+// Public Overpass use expects cached requests and a per-request timeout.
 const CLAUSES: { key: string; value: string; category: PlaceCategory; requiredTags?: Record<string, string> }[] = [
     { key: 'leisure', value: 'playground', category: 'playground' },
     { key: 'leisure', value: 'park', category: 'park' },

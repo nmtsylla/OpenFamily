@@ -212,11 +212,21 @@ if [[ "$outings_location" != "400" ]] || ! grep -q 'NO_LOCATION' /tmp/openfamily
 fi
 rm -f /tmp/openfamily-outings-loc.json
 
+home_before=$(request GET "/api/weather/location")
+assert_success "$home_before"
+
 area=$(request POST "/api/outings/area" '{"city":"Sint-Niklaas"}')
 assert_success "$area"
 area_city=$(echo "$area" | jq -r '.data.city')
 area_lat=$(echo "$area" | jq -r '.data.latitude')
 area_lon=$(echo "$area" | jq -r '.data.longitude')
+
+home_after=$(request GET "/api/weather/location")
+assert_success "$home_after"
+if [[ "$(echo "$home_before" | jq -cS '.data')" != "$(echo "$home_after" | jq -cS '.data')" ]]; then
+  echo "[FAIL] Temporary area lookup changed the saved home location" >&2
+  exit 1
+fi
 
 outings=$(request POST "/api/outings/suggest" \
   "{\"party\":\"kids\",\"duration\":\"short\",\"location\":\"area\",\"city\":\"$area_city\",\"latitude\":$area_lat,\"longitude\":$area_lon,\"date\":\"$(date -u +%Y-%m-%d)\"}")
