@@ -10,14 +10,6 @@ import { validateLunchboxIdeas } from '../src/custom/ai/lunchbox.custom';
 import { validateNutritionAnalysis } from '../src/custom/ai/nutrition.custom';
 import { resolvePromptLanguage } from '../src/custom/lib/promptLanguage.custom';
 
-// =============================================================================
-// Lunchboxes: the rules that keep the table and the AI answers sane.
-//
-// Nothing here touches the database or a model — these are the pure functions
-// the route leans on. The interesting cases are the ones a model produces in the
-// wild: components that are not strings, an answer that is prose instead of
-// JSON, a score out of range, and counts written "pomme" and "Pomme".
-// =============================================================================
 
 test('sanitizeLunchboxItems keeps the four known fields and drops everything else', () => {
     assert.deepEqual(
@@ -31,11 +23,15 @@ test('sanitizeLunchboxItems keeps the four known fields and drops everything els
         { main: 'Sandwich', fruit: 'Pomme' },
     );
 
-    // No component left → null, so the table never holds an empty object.
     assert.equal(sanitizeLunchboxItems({ main: '   ', drink: null }), null);
     assert.equal(sanitizeLunchboxItems(null), null);
     assert.equal(sanitizeLunchboxItems(['Sandwich']), null);
 });
+
+test('a nonblank main item remains valid without a drink', () => {
+    assert.deepEqual(sanitizeLunchboxItems({ main: 'Sandwich' }), { main: 'Sandwich' });
+});
+
 
 test('sanitizeLunchboxItems caps a component at 200 characters', () => {
     const long = 'a'.repeat(500);
@@ -89,7 +85,6 @@ test('validateLunchboxIdeas clamps the model answer', () => {
                     reasoning: 'Rapide',
                     warnings: ['Garder au frais', 'Couper en deux', 'Une troisième alerte'],
                 },
-                // No main dish → dropped.
                 { main: '   ', fruit: 'Poire' },
                 { main: 'Riz', fruit: '', snack: null, drink: 'x'.repeat(400) },
                 { main: 'Quatrième idée' },
@@ -101,9 +96,16 @@ test('validateLunchboxIdeas clamps the model answer', () => {
     assert.equal(ideas.length, 2);
     assert.deepEqual(ideas[0].warnings, ['Garder au frais', 'Couper en deux']);
     assert.equal(ideas[0].main, 'Wrap au thon');
-    assert.equal(ideas[1].drink.length, 200);
+    assert.equal(ideas[1].drink?.length, 200);
     assert.deepEqual(ideas[1].warnings, []);
 });
+
+test('validateLunchboxIdeas accepts and omits a missing drink', () => {
+    assert.deepEqual(validateLunchboxIdeas({ ideas: [{ main: 'Sandwich' }] }, 1), [
+        { main: 'Sandwich', fruit: '', snack: '', reasoning: '', warnings: [] },
+    ]);
+});
+
 
 test('validateLunchboxIdeas refuses anything that is not the expected JSON', () => {
     assert.deepEqual(validateLunchboxIdeas('voici trois idées…', 3), []);
@@ -114,8 +116,6 @@ test('validateLunchboxIdeas refuses anything that is not the expected JSON', () 
 test('validateNutritionAnalysis derives the verdict from the score, whatever the model says', () => {
     const analysis = validateNutritionAnalysis({
         score: 91,
-        // A verdict the model made up, and a valid-looking one, are both ignored:
-        // the score band is the single source of truth.
         verdict: 'délicieux',
         summary: 'Bonne semaine.',
         strengths: ['Beaucoup de légumes'],
@@ -159,8 +159,6 @@ test('validateNutritionAnalysis rejects an answer without a usable score or summ
 });
 
 test('resolvePromptLanguage maps the UI language to the six the prompts know', () => {
-    // The model writes the copy, so an unsupported language must not silently
-    // produce English while the interface is, say, Dutch.
     assert.equal(resolvePromptLanguage('fr'), 'fr');
     assert.equal(resolvePromptLanguage('en'), 'en');
     assert.equal(resolvePromptLanguage('ES'), 'es');
