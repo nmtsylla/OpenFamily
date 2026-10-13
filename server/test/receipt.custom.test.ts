@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+    buildReceiptPrompt,
     receiptFingerprint,
     validateReceipt,
     validateReceiptImport,
@@ -156,4 +157,19 @@ test('receiptFingerprint: non-Latin shop names stay distinct', () => {
     assert.equal(receiptFingerprint('Магазин', '2026-10-10', 30), receiptFingerprint('магазин', '2026-10-10', 30));
     assert.notEqual(receiptFingerprint('Магазин', '2026-10-10', 30), receiptFingerprint('Продукты', '2026-10-10', 30));
     assert.notEqual(receiptFingerprint('商店', '2026-10-10', 30), receiptFingerprint('超市', '2026-10-10', 30));
+});
+
+// =============================================================================
+// The fork's language rule: the receipt keeps its own words, both the `label` on
+// the budget line and the generic `pantry_item` name. Translating the pantry name
+// would stop the folded-name merge from meeting the family's existing rows, and
+// it would stop the promo screen's "my products" mode from matching the Dutch and
+// French product names the Belgian shops publish.
+// =============================================================================
+
+test("the receipt prompt keeps the ticket's language for the pantry name", () => {
+    const prompt = buildReceiptPrompt(CATEGORIES, '2026-10-10', 'EUR');
+
+    assert.match(prompt, /Garde la langue du ticket/);
+    assert.doesNotMatch(prompt, /Écris ce nom en anglais/);
 });

@@ -19,7 +19,11 @@
 // the brand, the format and the promo text dropped, plus the unit the document
 // shows. That is what the pantry import stores, so the next ticket with the same
 // product adds up to the same row instead of opening a second one under a brand
-// name. The `label` stays the printed text (it describes the budget entry).
+// name. The `label` stays the printed text (it describes the budget entry), and
+// `pantry_item` keeps the ticket's own language: translating it would stop the
+// folded-name merge from meeting the family's existing rows, and it would stop
+// the promo screen's "my products" mode from matching the Dutch and French
+// product names the shops publish.
 //
 // `pantry_stock` is the model's verdict on whether that line is plainly
 // household stock: only those lines are stocked automatically, the rest wait on
