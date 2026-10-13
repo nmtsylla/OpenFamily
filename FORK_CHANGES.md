@@ -1423,8 +1423,20 @@ read once (`catalogueFor`, 61 pages of 100, `q=*`) and cached in its own per-cou
 map until the next 07:30 boundary — not the shared 500-entry query cache, which one
 6 000-row value would empty — with one crawl at a time per country and one retry per
 failed page (a second failure rejects rather than returning a partial catalogue,
-which would silently hide a shop). `register.custom.ts` starts that crawl at boot
-under the existing `CUSTOM_FEATURE_SCANNER_ENABLED` flag, fire-and-forget.
+which would silently hide a shop). A failed crawl is then remembered for a minute,
+so one broken upstream page cannot turn every promo request on the page into a fresh
+61-request walk, and an empty first page is a glitch rather than a promotion-free
+day. `register.custom.ts` starts that crawl at boot under the existing
+`CUSTOM_FEATURE_SCANNER_ENABLED` flag, fire-and-forget. Receipt lines come from
+`document_type = 'receipt'` rows only — an energy bill's lines are not products.
+
+Matching started as every name against every offer, which measured 888 ms per
+request at 122 names and 6 019 offers. The catalogue's words are now folded once per
+day and kept in a `WeakMap` keyed by the catalogue array, indexed by each word's
+first three characters, and every product is tested only against the offers its own
+tokens point at. A token can never match a word that does not share those three
+characters, since the stem only strips a trailing `s` or `x`. Same 246 rows, cold
+`knownPage` 92 ms and warm 42 ms.
 
 The rules, and why each exists:
 

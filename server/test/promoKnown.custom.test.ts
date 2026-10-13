@@ -37,7 +37,10 @@ const offer = (name: string | null, over: Partial<PromoOffer> = {}): PromoOffer 
 
 /** A context with no frequency knowledge, i.e. the match rules on their own. */
 const contextOf = (names: string[]): KnownContext => ({
-    products: names.map((name) => ({ name, tokens: matchTokens(name) })),
+    products: names.map((name) => {
+        const tokens = matchTokens(name);
+        return { name, tokens, distinctive: tokens };
+    }),
     generic: new Set<string>(),
 });
 

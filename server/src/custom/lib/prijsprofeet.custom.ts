@@ -463,6 +463,11 @@ const catalogues = new Map<PromoCountry, { expiresAt: number; value: PromoOffer[
 // Two callers before the first crawl finishes (the boot warm and the first
 // visitor) share one crawl instead of starting a second 61-request walk.
 const catalogueLoads = new Map<PromoCountry, Promise<PromoOffer[]>>();
+// A crawl that just failed is remembered for this long. It must not be remembered
+// for the day (one flaky page would leave the family with no deals until
+// tomorrow), but re-walking 61 pages on every promo request would be worse.
+const FAILURE_TTL_MS = 60 * 1000;
+const catalogueFailures = new Map<PromoCountry, { expiresAt: number; error: unknown }>();
 
 /**
  * One page of the wildcard browse. A page that fails is pushed back once: a lost
@@ -502,10 +507,11 @@ const crawlCatalogue = async (country: PromoCountry): Promise<PromoOffer[]> => {
             offers.push(offer);
         }
 
-        // A page the API calls non-empty must not come back empty: caching that as
-        // the day's catalogue would hide every deal until tomorrow, so it throws
-        // and the next request tries again.
-        if (!rows.offers.length && rows.total > 0) {
+        // A page the API calls non-empty must not come back empty, and a wildcard
+        // search is never empty on page 1 either: caching either as the day's
+        // catalogue would hide every deal until tomorrow, so it throws and the next
+        // request tries again.
+        if (!rows.offers.length && (page === 1 || rows.total > 0)) {
             throw new Error(`PrijsProfeet returned an empty page ${page} of ${rows.total}`);
         }
 
@@ -526,15 +532,21 @@ export async function catalogueFor(country: PromoCountry): Promise<PromoOffer[]>
     const hit = catalogues.get(country);
     if (hit && hit.expiresAt > Date.now()) return hit.value;
 
+    const failed = catalogueFailures.get(country);
+    if (failed && failed.expiresAt > Date.now()) throw failed.error;
+
     const running = catalogueLoads.get(country);
     if (running) return running;
 
-    // A failure is not cached: the next request tries again rather than serving a
-    // family a permanently empty list for the rest of the day.
     const load = crawlCatalogue(country)
         .then((offers) => {
             catalogues.set(country, { expiresAt: Date.now() + msUntilRefresh(), value: offers });
+            catalogueFailures.delete(country);
             return offers;
+        })
+        .catch((error: unknown) => {
+            catalogueFailures.set(country, { expiresAt: Date.now() + FAILURE_TTL_MS, error });
+            throw error;
         })
         .finally(() => catalogueLoads.delete(country));
 

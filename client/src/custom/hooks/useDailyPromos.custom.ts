@@ -173,9 +173,10 @@ export function useDailyPromos() {
         setQuery((previous) => ({
             ...previous,
             ...patch,
-            // The facets are per country: a store of the country you just left
+            // The facets are per country and per mode: a store of the country you
+            // just left, or one with no matching deals in the mode you switched to,
             // is not a filter the new list can honour.
-            ...(patch.country !== undefined ? { retailer: '', category: '' } : {}),
+            ...(patch.country !== undefined || patch.onlyKnown !== undefined ? { retailer: '', category: '' } : {}),
         }));
         setPageNumber(1);
     }, []);

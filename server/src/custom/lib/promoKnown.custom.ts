@@ -28,6 +28,8 @@ import type { PromoFacet, PromoFilters, PromoOffer, PromoPage, PromoQuery, Promo
 export interface KnownProduct {
     name: string;
     tokens: string[];
+    /** `tokens` minus the generic set: the words that can decide a match. */
+    distinctive: string[];
 }
 
 /** The matching context: the known products plus the tokens too common to mean anything. */
@@ -59,7 +61,8 @@ export const matchTokens = (name: string): string[] =>
  * the two surfaces are read the same way and the pantry key is already the folded
  * form (`budget_receipt_items` stores printed text, folded here like everything
  * else). Receipt items, not budget entries: an entry's description carries the
- * merchant's name in front of it.
+ * merchant's name in front of it. Invoices are left out too — an energy bill's
+ * lines ("Luminus électricité") are not products this family buys.
  */
 export async function knownNames(userId: string): Promise<string[]> {
     const [pantry, receipts] = await Promise.all([
@@ -68,7 +71,7 @@ export async function knownNames(userId: string): Promise<string[]> {
             `SELECT DISTINCT item.label AS name
              FROM budget_receipt_items item
              JOIN budget_receipts receipt ON receipt.id = item.receipt_id
-             WHERE receipt.user_id = $1`,
+             WHERE receipt.user_id = $1 AND receipt.document_type = 'receipt'`,
             [userId]
         ),
     ]);
@@ -98,7 +101,7 @@ const stem = (word: string): string => (word.length > 3 ? word.replace(/[sx]$/, 
  * Does this token name one of the offer's words — as the word itself, or as the
  * stem of a longer one?
  */
-const tokenMatches = (token: string, words: Set<string>): boolean => {
+const tokenMatches = (token: string, words: Iterable<string>): boolean => {
     for (const word of words) {
         if (token.length < PREFIX_MIN_LENGTH) {
             if (word === token || stem(word) === token) return true;
@@ -109,10 +112,49 @@ const tokenMatches = (token: string, words: Set<string>): boolean => {
     return false;
 };
 
+interface CatalogueWords {
+    /** `offerWords(offer)` per offer, in catalogue order. */
+    words: string[][];
+    /** First three characters of a word → the offers that carry it. */
+    buckets: Map<string, number[]>;
+}
+
+// The day's catalogue is tokenized once per array instance and reused for both the
+// frequency counts and the matching, instead of twice per request. Keyed by the
+// offers array so two requests for the same day share the work.
+const wordsCache = new WeakMap<PromoOffer[], CatalogueWords>();
+
+const wordsFor = (offers: PromoOffer[]): CatalogueWords => {
+    const cached = wordsCache.get(offers);
+    if (cached) return cached;
+
+    const words: string[][] = [];
+    const buckets = new Map<string, number[]>();
+    offers.forEach((offer, index) => {
+        const list = [...offerWords(offer)];
+        words.push(list);
+        for (const word of list) {
+            const key = word.slice(0, 3);
+            const bucket = buckets.get(key);
+            if (!bucket) buckets.set(key, [index]);
+            else if (bucket[bucket.length - 1] !== index) bucket.push(index);
+        }
+    });
+
+    const entry: CatalogueWords = { words, buckets };
+    wordsCache.set(offers, entry);
+    return entry;
+};
+
+// Every offer word a token can match shares the token's first three characters:
+// the stem only strips a trailing 's'/'x', so those three characters never change.
+// Hence a bucket lookup on the token's first three characters can never lose a
+// match.
 export const knownContext = (names: string[], offers: PromoOffer[]): KnownContext => {
+    const { words } = wordsFor(offers);
     const counts = new Map<string, number>();
-    for (const offer of offers) {
-        for (const token of offerWords(offer)) counts.set(token, (counts.get(token) ?? 0) + 1);
+    for (const offer of words) {
+        for (const token of offer) counts.set(token, (counts.get(token) ?? 0) + 1);
     }
 
     const threshold = offers.length * GENERIC_SHARE;
@@ -122,38 +164,58 @@ export const knownContext = (names: string[], offers: PromoOffer[]): KnownContex
     }
 
     return {
-        products: names.map((name) => ({ name, tokens: matchTokens(name) })),
+        products: names.map((name) => {
+            const tokens = matchTokens(name);
+            return { name, tokens, distinctive: tokens.filter((token) => !generic.has(token)) };
+        }),
         generic,
     };
 };
 
+// ponytail: a product's candidates come from one 3-character bucket per token, so
+// a very common prefix still scans its bucket once per product. Measured at 92 ms
+// cold (build included) and 42 ms warm for 122 names and 6 019 offers; build a full
+// token index if a family's receipt history ever reaches thousands of products.
 /**
  * Does one offer carry this product? Every distinctive word, or a majority of
  * them: a two-word name lands both ('kookworst' is not 'Streeckgenoten
  * Kookworst'), a three-word one may lose one ('tikka masala' inside 'Knorr
  * Maaltijdmix tikka masala').
  */
-const isMatch = (product: KnownProduct, words: Set<string>, generic: ReadonlySet<string>): boolean => {
-    const distinctive = product.tokens.filter((token) => !generic.has(token));
+const isMatch = (distinctive: string[], words: string[]): boolean => {
     if (!distinctive.length) return false;
 
-    const hits = distinctive.filter((token) => tokenMatches(token, words)).length;
-    return hits === distinctive.length || (hits >= 2 && 2 * hits >= distinctive.length);
+    let hits = 0;
+    for (const token of distinctive) {
+        if (tokenMatches(token, words)) {
+            hits++;
+            if (hits === distinctive.length) return true; // every word landed
+        }
+    }
+    return hits >= 2 && 2 * hits >= distinctive.length;
 };
 
 /** The offers whose product the family knows, catalogue order kept. */
 export const matchedOffers = (offers: PromoOffer[], context: KnownContext): PromoOffer[] => {
     // A name whose every word is generic ('ah', 'de') can decide nothing: dropping
     // it here keeps it from matching the whole list.
-    const products = context.products.filter((product) =>
-        product.tokens.some((token) => !context.generic.has(token))
-    );
+    const products = context.products.filter((product) => product.distinctive.length);
     if (!products.length) return [];
 
-    return offers.filter((offer) => {
-        const words = offerWords(offer);
-        return products.some((product) => isMatch(product, words, context.generic));
-    });
+    const { words, buckets } = wordsFor(offers);
+    const matched = new Uint8Array(offers.length);
+    for (const product of products) {
+        const candidates = new Set<number>();
+        for (const token of product.distinctive) {
+            const bucket = buckets.get(token.slice(0, 3));
+            if (bucket) for (const index of bucket) candidates.add(index);
+        }
+        for (const index of candidates) {
+            if (!matched[index] && isMatch(product.distinctive, words[index])) matched[index] = 1;
+        }
+    }
+
+    return offers.filter((_, index) => matched[index] === 1);
 };
 
 const numeric = (value: number | null, fallback: number): number =>
