@@ -116,6 +116,8 @@ existed; the exact count of rewritten upstream lines is the next section's table
 | `client/src/pages/Dashboard.tsx` | `weather`, `pantry` | Renders the custom dashboard widgets; the pantry expiry card has its own three `pantry` blocks, the weather blocks are untouched |
 | `client/src/pages/Settings.tsx` | `weather`, `budget-custom` | Weather location card, vision-model hint |
 | `client/src/pages/Budget.tsx` | `budget-custom` | Mounts the receipt import button and the imported-receipts section |
+| `client/src/components/ui/Dialog.tsx` | `stable-dialogs` | One added attribute, `onPointerDownOutside={(event) => event.preventDefault()}`. An outside tap lands on the scrim with the page's own chrome showing through it, and on a phone or tablet that read as the dialog closing itself mid-use: the tap did nothing else. The X, Escape, and every explicit action still close it |
+| `client/src/pages/Budget.tsx`, `client/src/pages/Integrations.tsx` | `stable-dialogs` | Each had a hand-rolled backdrop that closed on tap: the budget limits `Sheet` and the Integrations connect modal. Both keep their own X button, so their backdrop no longer closes them either |
 | `client/src/pages/Planning.tsx` | `outings` | Renders the custom outing planner below the week grid (one import + one element, both marker-wrapped); the outcome is added through the page's own `/api/planning` endpoint |
 | `client/src/pages/ShoppingList.tsx` | `product-scan` | Adds the "scan a barcode" button (navigates to `/scanner`) and the per-row barcode badge that opens the promo watchlist; purely additive (2 imports, one hook block, 2 JSX blocks) and it reads `productScan` through a second `useAuth()` call so upstream reshaping its own destructure cannot collide |
 | `server/src/lib/safeFetch.ts` | `safeFetch-credentials` | Drops `Authorization` / `X-API-Key` / `x-goog-api-key` / `Cookie` on a redirect hop that leaves the original hostname (the guard only blocks internal/metadata targets, not third parties); a same-host hop — including an `http` → `https` upgrade — keeps them |
@@ -133,11 +135,13 @@ existed; the exact count of rewritten upstream lines is the next section's table
 
 ### Modified (non-additive) upstream lines — the complete list
 
-35 lines in 17 files (39 with `package-lock.json`), all wrapped in markers. The
+37 lines in 19 files (41 with `package-lock.json`), all wrapped in markers. The
 per-file counts were re-measured 2026-10-11 with `git diff --numstat
 upstream/main...develop -- <file>` (the deleted column — not `grep -c '^-[^-]'`,
 which misses a deleted line that itself starts with `-`, as `ROADMAP.md`'s does);
 two rows were wrong before (`routes/auth.ts` 2 → 6, `routes/userSettings.ts` 2 → 1).
+The last two rows are the 2026-10-12 dialog pass; `components/ui/Dialog.tsx`'s one
+line is an added attribute, so it appears in the additive table above instead.
 
 | File | Lines | What |
 |------|-------|------|
@@ -156,6 +160,8 @@ two rows were wrong before (`routes/auth.ts` 2 → 6, `routes/userSettings.ts` 2
 | `server/src/lib/safeFetch.ts` | 1 | the `fetch` call passes `requestInit` (the credentials-stripped headers) instead of `init` |
 | `server/src/routes/ai.ts` | 5 | the parse prompt's 4th argument and the proposal filter; the recipes `SELECT` (adds `ingredients`) and the row mapping that keeps only its string lines; the `buildMealsPrompt` call passes `pantryItems` |
 | `client/src/components/app/MagicInput.tsx` | 3 | the `AiProposal` union carries `PantryProposal`; the card's title chain and its type label know that type |
+| `client/src/pages/Budget.tsx` | 1 | the limits `Sheet`'s backdrop loses its `onClick={onClose}` |
+| `client/src/pages/Integrations.tsx` | 1 | the connect modal's backdrop loses its `onClick={closeModal}` |
 
 ## Measured latency of the AI dashboard widgets
 
@@ -1407,3 +1413,70 @@ The toggle is available only in landscape below 1024px. Its local `aria-expanded
 state drives CSS that hides the fixed bottom tab bar and reduces `main.pb-28` to
 1rem plus the safe-area inset when collapsed. Portrait, desktop, and sidebar
 behavior remain unchanged.
+
+### The weather card keeps its dialog through a refetch (2026-10-12)
+
+Client-only, inside `client/src/custom/`; no upstream file touched. The dashboard's
+weather card renders `WeatherDetailsDialog` inside its success branch, and the two
+places under it that could blank that branch were both wrong. `useCachedQuery`'s
+catch discarded the payload it already had, and `useSavedLocation` reported
+`loading: true` on every refetch while it still held the city. The saved city is
+refetched on every `family` WebSocket frame, so any saved-city change — including
+another member's — dropped the card to its skeleton and unmounted the reader's open
+dialog, which came back only when the response landed. A refetch answered with an
+error was worse: the dialog stayed closed and the card claimed no city while one
+was saved.
+
+Reproduced in Chromium at 390x844 against the dev client on the dev server, with
+the weather endpoints stubbed (the demo build hides the widget and has no weather
+backend) and a stand-in `WebSocket` so a `family` frame could be pushed on demand.
+Stub responses were delayed 400-700 ms so the transient render was observable:
+
+- before: 250 ms after the frame the card was its skeleton and `[role=dialog]`
+  counted 0; at +950 ms the dialog was back — the blink the report describes;
+- after: 50 samples at 50 ms across the refetch pinned the dialog count at 1, with
+  the clothing query still refetching on schedule (2 → 4 calls);
+- with the refetch answered 503: before, the dialog closed and the card fell to its
+  "no city" empty state; after, both the dialog and the city stayed on screen.
+
+`loading` now means "nothing to show yet", the contract `useWidgetPhases` keeps in
+the same file, and a failed refetch keeps the last payload. `npx tsc --noEmit` is
+clean. Three candidates were tested in the browser and ruled out: nothing behind a
+modal is reachable (no click-through holes over a full-viewport grid at 390x844 and
+834x1112, so a tap there can only dismiss), the toast viewport's `z-[100]` does not
+paint above a dialog's `z-50`, and a shared session-position change re-keys the card
+without closing the dialog. The other custom dialog hosts (lunchboxes, pantry,
+scanner, receipts, promo watchlist) keep their dialogs outside any refetch-driven
+branch; the scanner's and the receipts section's only ways to drop a dialog are
+user actions or a genuinely empty list.
+
+### Dialogs no longer close on a tap outside them (2026-10-12)
+
+Every dialog used to close on a completed tap anywhere outside its own box, and the
+page's chrome shows through the scrim, so on a phone or tablet the tap did nothing
+but dismiss the dialog: it read as closing itself whenever its reader reached for
+something else. Radix defers that dismissal to a `click`
+(`deferPointerDownOutside` in `@radix-ui/react-dismissable-layer@1.1.13`, with
+`react-dialog@1.1.17`), which is also why the same gesture differed by device: a
+wheel scroll over the scrim emits no `pointerdown` and never dismissed.
+
+Measured in Chromium with touch input against the demo client at 390x844 and
+834x1112, on `/tasks`, `/lunchboxes`, `/budget` and `/integrations`:
+
+- before: a tap on the scrim above the sheet closed the dialog (dialogs 1 → 0). On
+  the tablet the dialog is a centred 576x875 box in an 834x1112 viewport, so the
+  nav, the sidebar and the header all sit under the scrim, and every tap aimed at
+  them closed the dialog and did nothing else;
+- a 120 px and a 300 px touch drag starting on the scrim left it open (no `click`
+  follows a drag), and a wheel scroll over the same point left it open too, so the
+  trigger is the completed tap and not a gesture;
+- after the change the same scrim tap leaves the dialog open on every surface above,
+  its own X still closes it (1 → 0), Escape still closes it, and with the AI dialog
+  stacked over the lunchbox form a scrim tap leaves both open while the top X closes
+  only the top one;
+- the budget limits sheet and the Integrations connect modal — their own backdrops,
+  not the shared primitive — keep their X and no longer close on the backdrop either.
+
+`npx tsc --noEmit` is clean. Left alone: the family dashboard's house sheet
+(`custom/pages/FamilyDashboard.custom.tsx`), whose backdrop is its only way out, so
+removing that dismissal needs a close control of its own first.
