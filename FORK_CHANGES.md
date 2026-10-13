@@ -107,7 +107,7 @@ existed; the exact count of rewritten upstream lines is the next section's table
 | `server/src/lib/postFields.ts`, `server/src/lib/recipeImage.ts` | `media` | Keeps an `s3:` media reference intact instead of treating it as a data URL |
 | `server/src/routes/dataTransfer.ts` | `media` | Stores inline images on import and answers with JSON instead of rethrowing |
 | `server/src/routes/ai.ts` | `ai`, `pantry-ai` | Adds the `extract-receipt` endpoint and the attachment type; `pantry-ai` hands the household's stock to the two prompts (`loadPantryForAi`) and drops a pantry proposal the model returns while the pantry is switched off |
-| `server/src/services/ai/assistant.ts` | `pantry-ai` | Adds the `pantry_item` proposal (schema enum, parse-prompt section, validator case) and the pantry/ingredient halves of the meals prompt; imports `PANTRY_LOCATIONS` from `custom/lib/pantry.custom` so the validator and the table share one vocabulary |
+| `server/src/services/ai/assistant.ts` | `pantry-ai`, `ai-english` | Adds the `pantry_item` proposal (schema enum, parse-prompt section, validator case) and the pantry/ingredient halves of the meals prompt; imports `PANTRY_LOCATIONS` from `custom/lib/pantry.custom` so the validator and the table share one vocabulary. `ai-english` adds the parse prompt's English-output rule |
 | `server/src/services/ai/index.ts` | `ai`, `ai-no-deliberation` | Adds the `AiAttachment` type and the `AI_UNSUPPORTED_MEDIA` code; appends one no-deliberation line to every completion's system prompt (a JSON-only call, and a reasoning model left alone spent most of its completion tokens thinking, see "Measured latency" below) |
 | `server/src/services/ai/{openai,anthropic,gemini,ollama}.ts` | `ai` | Sends attachments to each provider; OpenAI-compatible gateways that need a session |
 | `server/src/db.ts` | `db-config` | Database TLS and connect timeout from `CUSTOM_POSTGRES_*` |
@@ -133,7 +133,7 @@ existed; the exact count of rewritten upstream lines is the next section's table
 
 ### Modified (non-additive) upstream lines — the complete list
 
-35 lines in 17 files (39 with `package-lock.json`), all wrapped in markers. The
+41 lines in 17 files (45 with `package-lock.json`), all wrapped in markers. The
 per-file counts were re-measured 2026-10-11 with `git diff --numstat
 upstream/main...develop -- <file>` (the deleted column — not `grep -c '^-[^-]'`,
 which misses a deleted line that itself starts with `-`, as `ROADMAP.md`'s does);
@@ -141,7 +141,7 @@ two rows were wrong before (`routes/auth.ts` 2 → 6, `routes/userSettings.ts` 2
 
 | File | Lines | What |
 |------|-------|------|
-| `server/src/services/ai/assistant.ts` | 2 | the parse schema's `type` enum carries `pantry_item`; the meals recipe line gains its ingredient suffix when the pantry is on |
+| `server/src/services/ai/assistant.ts` | 8 | the parse schema's `type` enum carries `pantry_item`; the meals recipe line gains its ingredient suffix when the pantry is on; the recipe-refinement prompt and its section comment ask for an English translation instead of keeping the recipe's own language |
 | `server/src/services/ai/index.ts` | 4 | the four provider calls in `aiCompleteWithUsage` pass the request with the no-deliberation line appended |
 | `server/src/routes/auth.ts` | 6 | The avatar data-URL format/size checks are skipped for an `s3:` reference (wrapped in `if (!isMediaRef(...))`); re-measured: the two checks and their comment, nested one level deeper |
 | `server/src/services/ai/openai.ts` | 2 | `chatCompletionUrl(baseUrl)`, `messageContent(request)` |
@@ -1407,3 +1407,37 @@ The toggle is available only in landscape below 1024px. Its local `aria-expanded
 state drives CSS that hides the fixed bottom tab bar and reduces `main.pb-28` to
 1rem plus the safe-area inset when collapsed. Portrait, desktop, and sidebar
 behavior remain unchanged.
+
+### AI content is English, product names excepted (2026-10-13)
+
+The family asked for English AI output, then drew one line: no product name is
+translated. Two surfaces changed, and two deliberately did not.
+
+- the note-parse assistant (`services/ai/assistant.ts`, marker `ai-english`) tells
+  the model to write the free text of every proposal in English even from a French
+  note, while copying member names and the category, priority and frequency values
+  verbatim, because those are database values;
+- recipe refinement (`buildRefineRecipePrompt`, same file) translates the recipe
+  into English instead of keeping its source language, quantities, units and
+  proper nouns aside. Recipe import runs on this prompt.
+
+Left alone, and why:
+
+- receipt extraction (`custom/ai/receipt.custom.ts`) keeps the ticket's own
+  language for both the `label` on the budget line and the generic `pantry_item`
+  name the import merges into the pantry. Translating the pantry name would stop
+  the folded-name merge from meeting the family's existing rows, and it would stop
+  the promo screen's "my products" mode from matching the Dutch and French product
+  names the Belgian shops publish;
+- the UI-embedded AI copy (lunchbox, nutrition, outings, weather widgets, meal
+  suggestions) follows the reader's interface language through
+  `lib/promptLanguage.custom.ts`, and its output sits inside a French interface.
+
+Verified 2026-10-13 against the family's own configured provider (`openai` gateway,
+`deepseek-v4.1-flash`), one call per surface. A French courgette-gratin recipe came
+back as "Creamy Zucchini Gratin" with English description and steps, while
+quantities and "crème fraîche" stayed. A French note ("J'ai acheté 2 kg de riz et
+il faut aussi du café, et sortir les poubelles demain soir") produced "Rice",
+"Coffee" and "Take out the trash", with the family's own `Courses` category copied
+through. A French ticket came back with `Lait demi-écrémé`, `Lessive` and `Poulet`
+as pantry names next to its untouched labels, which is the rule this change keeps.
