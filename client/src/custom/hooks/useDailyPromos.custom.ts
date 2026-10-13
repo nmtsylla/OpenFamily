@@ -3,9 +3,12 @@
 //
 // Every filter is applied by PrijsProfeet itself (see the server's
 // lib/prijsprofeet.custom.ts), so `total` counts the whole filtered set rather
-// than the page on screen. The server caches each query until the next morning,
-// which is when the API refreshes the chains; the client's own cost is one
-// request per filter change, with the search box debounced so typing is not one.
+// than the page on screen. In the "my products" mode the server matches and counts
+// locally instead (lib/promoKnown.custom.ts), and the same rule holds: `total` is
+// what the client pages over, not the API's count of the whole catalogue. The
+// server caches each query until the next morning, which is when the API refreshes
+// the chains; the client's own cost is one request per filter change, with the
+// search box debounced so typing is not one.
 
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../lib/api';
@@ -27,6 +30,8 @@ export interface PromoQueryState {
     /** "10", "25", "50" or "" for no floor. */
     minSavings: string;
     sort: PromoSort;
+    /** Keep only the deals on products the family knows (pantry goods or what a receipt shows they bought). On by default: the family asked for it. */
+    onlyKnown: boolean;
 }
 
 const INITIAL_QUERY: PromoQueryState = {
@@ -36,6 +41,7 @@ const INITIAL_QUERY: PromoQueryState = {
     category: '',
     minSavings: '',
     sort: 'savings',
+    onlyKnown: true,
 };
 
 export function useDailyPromos() {
@@ -52,7 +58,7 @@ export function useDailyPromos() {
     // since it is the server that leaves them out.
     const [refresh, setRefresh] = useState(0);
 
-    const { country, q, retailer, category, minSavings, sort } = query;
+    const { country, q, retailer, category, minSavings, sort, onlyKnown } = query;
 
     useEffect(() => {
         const timer = setTimeout(() => setDeferredQuery(q), SEARCH_DEBOUNCE_MS);
@@ -95,13 +101,16 @@ export function useDailyPromos() {
         [addTerm]
     );
 
-    // The filter panel: its own request, and only the country changes it.
+    // The filter panel: its own request, and only the country and the mode change it.
     useEffect(() => {
         let cancelled = false;
         const load = async () => {
             try {
+                const params = new URLSearchParams(country ? { country } : {});
+                if (onlyKnown) params.set('only_known', '1');
+                const suffix = params.toString();
                 const response = await api.get<{ success: boolean; data: PromoFilters }>(
-                    `${BASE}/filters${country ? `?country=${country}` : ''}`
+                    `${BASE}/filters${suffix ? `?${suffix}` : ''}`
                 );
                 if (!cancelled) {
                     setFilters(response.data ?? null);
@@ -116,7 +125,7 @@ export function useDailyPromos() {
         return () => {
             cancelled = true;
         };
-    }, [country]);
+    }, [country, onlyKnown]);
 
     useEffect(() => {
         let cancelled = false;
@@ -128,6 +137,7 @@ export function useDailyPromos() {
             if (retailer) params.set('retailer', retailer);
             if (category) params.set('category', category);
             if (minSavings) params.set('min_savings', minSavings);
+            if (onlyKnown) params.set('only_known', '1');
 
             try {
                 const response = await api.get<{ success: boolean; data: PromoPage }>(`${BASE}?${params}`);
@@ -159,16 +169,17 @@ export function useDailyPromos() {
         return () => {
             cancelled = true;
         };
-    }, [country, deferredQuery, retailer, category, minSavings, sort, pageNumber, refresh]);
+    }, [country, deferredQuery, retailer, category, minSavings, sort, pageNumber, refresh, onlyKnown]);
 
     /** A filter change always goes back to page 1: page 7 of another filter is meaningless. */
     const update = useCallback((patch: Partial<PromoQueryState>) => {
         setQuery((previous) => ({
             ...previous,
             ...patch,
-            // The facets are per country: a store of the country you just left
+            // The facets are per country and per mode: a store of the country you
+            // just left, or one with no matching deals in the mode you switched to,
             // is not a filter the new list can honour.
-            ...(patch.country !== undefined ? { retailer: '', category: '' } : {}),
+            ...(patch.country !== undefined || patch.onlyKnown !== undefined ? { retailer: '', category: '' } : {}),
         }));
         setPageNumber(1);
     }, []);

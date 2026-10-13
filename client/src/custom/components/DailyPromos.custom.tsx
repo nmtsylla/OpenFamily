@@ -61,6 +61,15 @@ const DailyPromos: React.FC = () => {
     return (
         <div className="space-y-4">
             <div className="space-y-3 rounded-card border border-border bg-card p-4">
+                <Button
+                    type="button"
+                    size="sm"
+                    variant={query.onlyKnown ? 'primary' : 'secondary'}
+                    aria-pressed={query.onlyKnown}
+                    onClick={() => update({ onlyKnown: !query.onlyKnown })}
+                >
+                    {t('dailyPromos.myProducts')}
+                </Button>
                 <Input
                     label={t('dailyPromos.search')}
                     value={query.q}
@@ -226,7 +235,9 @@ const DailyPromos: React.FC = () => {
             ) : !page || page.total === 0 ? (
                 <div className="rounded-card border border-dashed border-border bg-card py-12 text-center">
                     <Search className="mx-auto mb-3 h-10 w-10 text-muted-foreground/30" />
-                    <p className="text-body font-semibold text-foreground">{t('dailyPromos.empty')}</p>
+                    <p className="text-body font-semibold text-foreground">
+                        {t(query.onlyKnown ? 'dailyPromos.emptyMine' : 'dailyPromos.empty')}
+                    </p>
                 </div>
             ) : (
                 <>
