@@ -47,7 +47,7 @@ explained below.
 | Smart pantry — what the household has at home (locations, expiry, low stock), bridging the shopping list both ways, Grocy stock in, and the receipt import feeding it: the obviously stockable lines merge in under the brand-free name the AI read off the ticket, the rest wait in a review queue on the page; lunchbox AI and a "cook from what you have" tab out | `server/src/custom/lib/pantry.custom.ts`, `server/src/custom/lib/pantryMerge.custom.ts`, `server/src/custom/lib/validation.custom.ts`, `server/src/custom/routes/pantry.custom.ts`, `client/src/custom/pages/Pantry.custom.tsx`, `client/src/custom/components/PantryExpiryCard.custom.tsx`, `client/src/custom/lib/pantryMatch.custom.ts` | `CUSTOM_FEATURE_PANTRY_ENABLED` |
 | AI outing planner on the Planning page — real nearby places from OpenStreetMap/Overpass ranked for the selected day, weather, party and relevant family profiles; choose saved home, browser position or a temporary city/area without changing home settings; restaurants require the exact `diet:halal=only` tag; location-free activity ideas never invent venues; the chosen outing is added through upstream's `/api/planning` | `server/src/custom/lib/places.custom.ts`, `server/src/custom/lib/{location,kids}.custom.ts`, `server/src/custom/ai/outings.custom.ts`, `server/src/custom/routes/outings.custom.ts`, `server/test/outings.custom.test.ts`, `client/src/custom/components/OutingPlanner.custom.tsx`, `client/src/custom/hooks/useOutings.custom.ts` | `CUSTOM_FEATURE_OUTINGS_ENABLED` |
 | Barcode scanning, product lookup and promo watchlist | `server/src/custom/lib/{openFoodFacts,product}.custom.ts`, `server/src/custom/routes/productScan.custom.ts`, `server/test/productScan.custom.test.ts`, `client/src/custom/pages/{ProductScanner,PromoWatchlist}.custom.tsx`, `client/src/custom/components/{BarcodeScanner,ProductCard}.custom.tsx`, `client/src/custom/hooks/{useProductScan,usePromoWatchlist}.custom.ts`, `client/src/custom/lib/product.custom.ts` | `CUSTOM_FEATURE_SCANNER_ENABLED` |
-| Live supermarket promotions (PrijsProfeet, free plan): the promo screen's daily list with product pictures, filtered by store / category / discount / text and paginated, the family's own "never show me this" terms, and the watch list's deals pane | `server/src/custom/lib/{prijsprofeet,promoExclusions}.custom.ts`, `client/src/custom/components/{DailyPromos,PromoOfferRow,PrijsProfeetCredit,PromoWatchlistPanel}.custom.tsx`, `client/src/custom/hooks/useDailyPromos.custom.ts` (routes, page, hooks and translations shared with the row above) | `CUSTOM_FEATURE_SCANNER_ENABLED` |
+| Live supermarket promotions (PrijsProfeet, free plan): the promo screen's daily list with product pictures, filtered by store / category / discount / text and paginated, a "my products" mode that keeps only the deals whose product the family already knows (pantry items and past receipt lines, matched locally against the day's catalogue because upstream's `q` is fuzzy), the family's own "never show me this" terms, and the watch list's deals pane | `server/src/custom/lib/{prijsprofeet,promoExclusions,promoKnown}.custom.ts`, `server/test/{productScan,promoKnown}.custom.test.ts`, `client/src/custom/components/{DailyPromos,PromoOfferRow,PrijsProfeetCredit,PromoWatchlistPanel}.custom.tsx`, `client/src/custom/hooks/useDailyPromos.custom.ts` (routes and translations shared with the row above and the promo screen) | `CUSTOM_FEATURE_SCANNER_ENABLED` |
 | Family dashboard — a chrome-less full-screen page for a wall tablet whose layout follows the time of day (morning / day / evening / night, cycleable by swipe or badge tap), reading the family's own appointments, tasks, meal plans and shopping list, and driving Home Assistant devices both ways through `/api/custom/ha` | `server/src/custom/lib/homeAssistantDevices.custom.ts`, `server/src/custom/routes/homeAssistantDevices.custom.ts`, `server/test/homeAssistantDevices.custom.test.ts`, `client/src/custom/pages/FamilyDashboard.custom.tsx`, `client/src/custom/hooks/useHomeAssistant.custom.ts`, `client/src/custom/lib/familyPhase.custom.ts` (keys in `dashboard.custom`) | `CUSTOM_FEATURE_FAMILY_DASHBOARD_ENABLED` |
 | Feature flags / registration point | `server/src/custom/features.custom.ts`, `server/src/custom/register.custom.ts`, `server/src/custom/middleware/rateLimit.custom.ts` | — |
 | Client hooks for custom code | `client/src/custom/{nav.custom.ts,routes.custom.tsx}` | — |
@@ -1407,3 +1407,56 @@ The toggle is available only in landscape below 1024px. Its local `aria-expanded
 state drives CSS that hides the fixed bottom tab bar and reduces `main.pb-28` to
 1rem plus the safe-area inset when collapsed. Portrait, desktop, and sidebar
 behavior remain unchanged.
+### The promo list's "my products" mode (2026-10-13)
+
+The daily promo list gained a mode that keeps only the deals whose product this
+family already knows: something in the pantry (`custom_pantry_items.name_key`) or
+a line on a receipt it has imported (`budget_receipt_items.label`, joined through
+`budget_receipts` so it is the family's own tickets). Both reads are keyed by
+`user_id` like every other custom table. On the client the mode is on by default
+and the filter card carries a toggle, so seeing every deal is one tap away.
+
+The matching is local, and that is forced rather than chosen: upstream's `q` is
+fuzzy (`q=AH Basmati` answers 513 rows), so asking the shop which of the family's
+names are on promotion returns half the shop. Instead the whole day's catalogue is
+read once (`catalogueFor`, 61 pages of 100, `q=*`) and cached in its own per-country
+map until the next 07:30 boundary — not the shared 500-entry query cache, which one
+6 000-row value would empty — with one crawl at a time per country and one retry per
+failed page (a second failure rejects rather than returning a partial catalogue,
+which would silently hide a shop). `register.custom.ts` starts that crawl at boot
+under the existing `CUSTOM_FEATURE_SCANNER_ENABLED` flag, fire-and-forget.
+
+The rules, and why each exists:
+
+- a known name is folded with `pantryNameKey` and split into tokens of 3+ characters
+  that are not bare numbers ("de", "ah", "1l" identify nothing);
+- a token in more than 2 % of the day's offers is dropped as the trade's own
+  vocabulary. Measured live this is exactly six: `bio, chocolade, delhaize, knorr,
+  pack, spray` — without the rule the chain's own name matches a tenth of the list;
+- a token matches by stem-prefix (`s`/`x` falls off a longer word) only from 4
+  characters on; a 3-character token must be the word or its stem, because ungated
+  prefixing made `sla` match `Delhaize Slagroom`;
+- a product matches when every distinctive token hits, or when at least two hit and
+  `2 * hits >= distinctive.length` — so `kookworst` and `tikka masala` both land,
+  which is what the family's own spellings look like;
+- two ceilings, both accepted: there is no fuzzy matching (a typo, a synonym or a
+  language change misses), and a noisy receipt label ("Everyday lait choco
+  demi-écrémé brique 1L") carries more distinctive words than any offer repeats, so
+  it matches nothing. Both fail toward a missed deal, never an invented one.
+
+Measured against live data on 2026-10-13 (BE, 6 019 active offers): 122 known names
+(64 pantry rows + 58 distinct receipt labels, deduped), 6 generic tokens, **28
+products matched**, **246 offers**. The probe that produced the sketch counted 239:
+it deduplicated by `retailer + name`, so the 7-row difference is the same product at
+another pack size or promo price. `knownFilters` reports `total` 246 with counts over
+the matched set (albert_heijn_be 122, delhaize 77, colruyt 37, carrefour 4, jumbo_be 3,
+aldi_be 2, lidl_be 1) instead of the shop's 6 019, so the filter panel and the list
+agree; the facet labels stay upstream's, since `/api/v1/categories` is the only place
+the display names exist.
+
+`server/test/promoKnown.custom.test.ts` pins the literal cases from the probe (the
+true positives above, the `eau de javel` / `boisson a la fraise` false positives, the
+`sla` case, the generic rule, the three sorts, paging, the honest total and the facet
+counts) — offline, no network. `npm test` in `server/` passes 122 tests, `npm run
+build` (tsc) is clean. No new env var and no new flag: the mode rides
+`CUSTOM_FEATURE_SCANNER_ENABLED`, and the client's toggle is the opt-out.

@@ -13,6 +13,7 @@ import type { Express } from 'express';
 import { isCustomFeatureEnabled } from './features.custom';
 import { resolveOutgoingImages, storeIncomingImages } from './middleware/media.custom';
 import customRateLimiter from './middleware/rateLimit.custom';
+import { catalogueFor, configuredCountries } from './lib/prijsprofeet.custom';
 import aiDashboardRoutes from './routes/aiDashboard.custom';
 import budgetAnalyticsRoutes from './routes/budgetAnalytics.custom';
 import budgetReceiptsRoutes from './routes/budgetReceipts.custom';
@@ -77,6 +78,13 @@ export const registerCustomRoutes = (app: Express): void => {
     }
 
     if (isCustomFeatureEnabled('productScan')) {
+        // The "my products" promo mode matches the day's catalogue locally, so its
+        // first visitor would wait out a 61-request crawl (~12 s); starting it here
+        // moves that off the request path. Fire-and-forget, rejection swallowed: a
+        // failed warm is one slow request later (nothing is cached on failure, so
+        // the next request retries), never a failed start.
+        void Promise.all(configuredCountries().map((country) => catalogueFor(country))).catch(() => {});
+
         // Behind the same limiter as the weather surface: this router fans out
         // to a third-party API (Open Food Facts) on a cache miss.
         app.use('/api/products', customRateLimiter, productScanRoutes);

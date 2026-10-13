@@ -65,6 +65,8 @@ export interface PromoOffer {
     country: PromoCountry;
     retailer: string;
     retailer_name: string;
+    /** The shop's product category, in the same slug vocabulary as `PromoFilters.categories`. */
+    category: string | null;
     /** The shop's own name for the product, with its brand and picture: what makes
      * the browsable list readable. */
     name: string | null;

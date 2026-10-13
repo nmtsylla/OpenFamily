@@ -28,7 +28,9 @@
 // filter counts are cached until the next morning — one upstream fetch per query
 // per day, which is what "refreshed daily" means here. The barcode pane keeps its
 // short TTL instead, because a card can be reopened at any time and the cost of
-// one extra request is nothing.
+// one extra request is nothing. The whole day's catalogue (see `catalogueFor`) is
+// a fourth cache with the same boundary, because the "my products" mode cannot be
+// asked upstream at all: `q` is fuzzy there, so the matches are found here.
 
 import { safeFetch, readCappedText } from '../../lib/safeFetch';
 
@@ -76,6 +78,10 @@ export interface PromoOffer {
      * watchlist pane already has it in the card header. */
     name: string | null;
     brand: string | null;
+    /** The API's own category slug (`groente-fruit`), the same vocabulary
+     * `/api/v1/categories` names — so the "my products" filter can group a local
+     * list by the key the filter panel already speaks. */
+    category: string | null;
     image_url: string | null;
     /** The chain's pack size ("500 g"), the one thing that tells two offers for
      * one EAN apart. */
@@ -132,6 +138,9 @@ export interface PromoQuery {
     q: string;
     retailer: string | null;
     category: string | null;
+    /** The "my products" mode: keep only the deals this family's pantry or past
+     * receipts already know. Never sent upstream — the API cannot answer it. */
+    onlyKnown: boolean;
     minSavings: number | null;
     sort: PromoSort;
     page: number;
@@ -203,6 +212,7 @@ export const normalizeOffers = (country: PromoCountry, ean: string, payload: unk
                 retailer_name: labelOf(retailer),
                 name: textOf(row.name),
                 brand: textOf(row.brand),
+                category: textOf(row.unified_category),
                 image_url: linkOf(row.image_url),
                 quantity: textOf(row.quantity),
                 price: numberOf(row.price),
@@ -320,6 +330,7 @@ export const promoQueryOf = (raw: Record<string, unknown>): PromoQuery => {
         q: (textOf(raw.q) ?? '*').slice(0, MAX_QUERY_LENGTH),
         retailer: retailer && RETAILER_RE.test(retailer) ? retailer : null,
         category: category && CATEGORY_RE.test(category) ? category : null,
+        onlyKnown: raw.only_known === '1',
         minSavings: minSavings !== null && Number.isFinite(minSavings) && minSavings >= 0 && minSavings <= 100 ? Math.floor(minSavings) : null,
         // `Object.hasOwn`: `sort=constructor` would otherwise pass the guard and
         // stringify a function into `sort_by`.
@@ -439,4 +450,94 @@ export async function searchPromos(query: PromoQuery): Promise<PromoPage> {
 /** The filter choices and their counts for one country, cached for the day. */
 export async function promoFilters(country: PromoCountry): Promise<PromoFilters> {
     return cached(`filters:${country}`, msUntilRefresh(), () => fetchFilters(country));
+}
+
+// The catalogue is asked for in whole pages: 6 000 offers arrive as 61 requests.
+const CATALOGUE_PAGE_SIZE = 100;
+
+// ponytail: the catalogue is ~6 000 rows (~8 MB), so it must NOT go through the
+// shared 500-entry FIFO above — one country's value would evict every cached query
+// of the day, and a FIFO is the wrong eviction for a value that is read on every
+// "my products" request. One entry per configured country, in its own Map.
+const catalogues = new Map<PromoCountry, { expiresAt: number; value: PromoOffer[] }>();
+// Two callers before the first crawl finishes (the boot warm and the first
+// visitor) share one crawl instead of starting a second 61-request walk.
+const catalogueLoads = new Map<PromoCountry, Promise<PromoOffer[]>>();
+
+/**
+ * One page of the wildcard browse. A page that fails is pushed back once: a lost
+ * page is a shop that silently vanishes from the family's list, which is worse
+ * than a second request — and a second failure means this is not this morning's
+ * catalogue, so it throws rather than returns a partial one.
+ */
+const fetchCataloguePage = async (country: PromoCountry, page: number): Promise<unknown> => {
+    const searchParams = {
+        q: '*',
+        promotion_status: 'active',
+        page,
+        page_size: CATALOGUE_PAGE_SIZE,
+    };
+    try {
+        return await requestJson(`${HOSTS[country]}/api/v1/search`, searchParams);
+    } catch {
+        return requestJson(`${HOSTS[country]}/api/v1/search`, searchParams);
+    }
+};
+
+const crawlCatalogue = async (country: PromoCountry): Promise<PromoOffer[]> => {
+    const offers: PromoOffer[] = [];
+    const seen = new Set<string>();
+
+    for (let page = 1; page <= MAX_PAGE; page += 1) {
+        const rows = normalizePromoPage(country, await fetchCataloguePage(country, page));
+
+        for (const offer of rows.offers) {
+            // The chain lists some products once per store or per multi-buy, with
+            // the same row body; the key is what a card renders, so identical
+            // cards collapse and near-identical ones (another price, another
+            // pack size) stay.
+            const key = `${offer.retailer}|${offer.name}|${offer.quantity}|${offer.price}|${offer.product_url}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            offers.push(offer);
+        }
+
+        // A page the API calls non-empty must not come back empty: caching that as
+        // the day's catalogue would hide every deal until tomorrow, so it throws
+        // and the next request tries again.
+        if (!rows.offers.length && rows.total > 0) {
+            throw new Error(`PrijsProfeet returned an empty page ${page} of ${rows.total}`);
+        }
+
+        // A short page is the end of the list whatever the count says, and the
+        // count is upstream's own for the wildcard.
+        if (rows.offers.length < CATALOGUE_PAGE_SIZE || page * CATALOGUE_PAGE_SIZE >= rows.total) break;
+    }
+
+    return offers;
+};
+
+/**
+ * Every promotion running today in one country — the "my products" mode's search
+ * space, since upstream cannot filter by "the products this family knows". Cached
+ * until the next morning like the list itself, and one crawl at a time.
+ */
+export async function catalogueFor(country: PromoCountry): Promise<PromoOffer[]> {
+    const hit = catalogues.get(country);
+    if (hit && hit.expiresAt > Date.now()) return hit.value;
+
+    const running = catalogueLoads.get(country);
+    if (running) return running;
+
+    // A failure is not cached: the next request tries again rather than serving a
+    // family a permanently empty list for the rest of the day.
+    const load = crawlCatalogue(country)
+        .then((offers) => {
+            catalogues.set(country, { expiresAt: Date.now() + msUntilRefresh(), value: offers });
+            return offers;
+        })
+        .finally(() => catalogueLoads.delete(country));
+
+    catalogueLoads.set(country, load);
+    return load;
 }

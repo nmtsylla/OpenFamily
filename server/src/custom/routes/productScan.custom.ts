@@ -26,7 +26,8 @@ import { query } from '../../db';
 import { authMiddleware, AuthRequest } from '../../middleware/auth';
 import { lookupProduct, type OpenFoodFactsProduct } from '../lib/openFoodFacts.custom';
 import { addExclusion, applyExclusions, exclusionsOf, normalizeTerm, removeExclusion, termsOf } from '../lib/promoExclusions.custom';
-import { dealsForBarcode, promoCountryOf, promoFilters, promoQueryOf, searchPromos } from '../lib/prijsprofeet.custom';
+import { knownFilters, knownNames, knownPromos } from '../lib/promoKnown.custom';
+import { catalogueFor, dealsForBarcode, promoFilters, promoQueryOf, searchPromos } from '../lib/prijsprofeet.custom';
 import { barcodeOf, optionalPrice } from '../lib/product.custom';
 
 const router = Router();
@@ -278,10 +279,16 @@ router.get('/promo-watchlist/:barcode/offers', async (req: AuthRequest, res) => 
 // comes back first and the terms are applied to it: `hidden` says how many rows
 // of THIS page they removed, since the upstream `total` counts what the shop
 // publishes, not what this household wants to see.
+//
+// `only_known=1` switches to the "my products" mode: the page is then built from
+// the day's catalogue locally, because "the products this family already buys" is
+// not a filter upstream can answer (lib/promoKnown.custom.ts). The exclusions
+// still apply — one term, both modes.
 router.get('/promos', async (req: AuthRequest, res) => {
     try {
+        const query = promoQueryOf(req.query as Record<string, unknown>);
         const [page, terms] = await Promise.all([
-            searchPromos(promoQueryOf(req.query as Record<string, unknown>)),
+            query.onlyKnown ? knownPromos(query, req.userId!) : searchPromos(query),
             termsOf(req.userId!),
         ]);
         res.json({ success: true, data: { ...page, ...applyExclusions(page.offers, terms) } });
@@ -292,10 +299,19 @@ router.get('/promos', async (req: AuthRequest, res) => {
 });
 
 // The choices for the filter panel — the stores and categories this country
-// actually has deals in, with their counts.
+// actually has deals in, with their counts. In the "my products" mode the counts
+// are recomputed over the family's matches instead, so the panel and the list
+// agree.
 router.get('/promos/filters', async (req: AuthRequest, res) => {
     try {
-        res.json({ success: true, data: await promoFilters(promoCountryOf(req.query.country)) });
+        const parsed = promoQueryOf(req.query as Record<string, unknown>);
+        const upstream = await promoFilters(parsed.country);
+        res.json({
+            success: true,
+            data: parsed.onlyKnown
+                ? knownFilters(await catalogueFor(parsed.country), await knownNames(req.userId!), upstream)
+                : upstream,
+        });
     } catch (error) {
         console.error('PrijsProfeet filter error:', error);
         res.status(502).json({ success: false, error: 'Promotions unavailable' });
