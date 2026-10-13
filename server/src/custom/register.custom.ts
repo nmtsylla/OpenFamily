@@ -10,6 +10,7 @@
 // proxy polls a device on a 30 s timer. Each carries its own limiter below.
 
 import type { Express } from 'express';
+import cron from 'node-cron';
 import { isCustomFeatureEnabled } from './features.custom';
 import { resolveOutgoingImages, storeIncomingImages } from './middleware/media.custom';
 import customRateLimiter from './middleware/rateLimit.custom';
@@ -79,11 +80,17 @@ export const registerCustomRoutes = (app: Express): void => {
 
     if (isCustomFeatureEnabled('productScan')) {
         // The "my products" promo mode matches the day's catalogue locally, so its
-        // first visitor would wait out a 61-request crawl (~12 s); starting it here
-        // moves that off the request path. Fire-and-forget, rejection swallowed: a
-        // failed warm is one slow request later (nothing is cached on failure, so
-        // the next request retries), never a failed start.
-        void Promise.all(configuredCountries().map((country) => catalogueFor(country))).catch(() => {});
+        // first visitor would wait out the crawl (61 paced requests); starting it at
+        // boot and again just after the 07:30 cache boundary moves that off the
+        // request path. Fire-and-forget, rejection swallowed: a failed warm is one
+        // slow request later (nothing is cached on failure, so the next request
+        // retries), never a failed start.
+        const warmCatalogue = () => {
+            void Promise.all(configuredCountries().map((country) => catalogueFor(country))).catch(() => {});
+        };
+        warmCatalogue();
+        // The same local clock as the cache boundary (msUntilRefresh).
+        cron.schedule('35 7 * * *', warmCatalogue);
 
         // Behind the same limiter as the weather surface: this router fans out
         // to a third-party API (Open Food Facts) on a cache miss.

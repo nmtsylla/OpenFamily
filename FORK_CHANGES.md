@@ -1421,14 +1421,17 @@ fuzzy (`q=AH Basmati` answers 513 rows), so asking the shop which of the family'
 names are on promotion returns half the shop. Instead the whole day's catalogue is
 read once (`catalogueFor`, 61 pages of 100, `q=*`) and cached in its own per-country
 map until the next 07:30 boundary — not the shared 500-entry query cache, which one
-6 000-row value would empty — with one crawl at a time per country and one retry per
-failed page (a second failure rejects rather than returning a partial catalogue,
-which would silently hide a shop). A failed crawl is then remembered for a minute,
-so one broken upstream page cannot turn every promo request on the page into a fresh
-61-request walk, and an empty first page is a glitch rather than a promotion-free
-day. `register.custom.ts` starts that crawl at boot under the existing
-`CUSTOM_FEATURE_SCANNER_ENABLED` flag, fire-and-forget. Receipt lines come from
-`document_type = 'receipt'` rows only — an energy bill's lines are not products.
+6 000-row value would empty — with one crawl at a time per country, one retry per
+failed page, and about two and a half pages a second so a 61-page walk stays under
+the API's own 150-requests-a-minute budget (a second failure rejects rather than
+returning a partial catalogue, which would silently hide a shop). A failed crawl is
+then remembered for a minute, so one broken upstream page cannot turn every promo
+request on the page into a fresh 61-request walk, and an empty first page is a glitch
+rather than a promotion-free day. `register.custom.ts` starts that crawl at boot and
+again at 07:35 each day (`node-cron`, the same local clock as the cache boundary)
+under the existing `CUSTOM_FEATURE_SCANNER_ENABLED` flag, fire-and-forget. Receipt
+lines come from `document_type = 'receipt'` rows only — an energy bill's lines are
+not products.
 
 Matching started as every name against every offer, which measured 888 ms per
 request at 122 names and 6 019 offers. The catalogue's words are now folded once per

@@ -32,6 +32,7 @@
 // a fourth cache with the same boundary, because the "my products" mode cannot be
 // asked upstream at all: `q` is fuzzy there, so the matches are found here.
 
+import { setTimeout as delay } from 'node:timers/promises';
 import { safeFetch, readCappedText } from '../../lib/safeFetch';
 
 export type PromoCountry = 'nl' | 'be';
@@ -454,6 +455,9 @@ export async function promoFilters(country: PromoCountry): Promise<PromoFilters>
 
 // The catalogue is asked for in whole pages: 6 000 offers arrive as 61 requests.
 const CATALOGUE_PAGE_SIZE = 100;
+// One crawl is 61 pages and the API's own budget is 150 requests a minute, so the
+// walk keeps about two and a half pages a second rather than arriving as a burst.
+const CRAWL_PACE_MS = 400;
 
 // ponytail: the catalogue is ~6 000 rows (~8 MB), so it must NOT go through the
 // shared 500-entry FIFO above — one country's value would evict every cached query
@@ -515,9 +519,12 @@ const crawlCatalogue = async (country: PromoCountry): Promise<PromoOffer[]> => {
             throw new Error(`PrijsProfeet returned an empty page ${page} of ${rows.total}`);
         }
 
-        // A short page is the end of the list whatever the count says, and the
-        // count is upstream's own for the wildcard.
-        if (rows.offers.length < CATALOGUE_PAGE_SIZE || page * CATALOGUE_PAGE_SIZE >= rows.total) break;
+        // A short page is the end of the list. The API's own count ends it too, but
+        // only when it is there: `normalizePromoPage` answers 0 for a missing or
+        // renamed `total`, and 0 must not read as "the list ended on page 1".
+        if (rows.offers.length < CATALOGUE_PAGE_SIZE || (rows.total > 0 && page * CATALOGUE_PAGE_SIZE >= rows.total)) break;
+
+        await delay(CRAWL_PACE_MS);
     }
 
     return offers;

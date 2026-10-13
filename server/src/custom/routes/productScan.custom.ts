@@ -280,10 +280,11 @@ router.get('/promo-watchlist/:barcode/offers', async (req: AuthRequest, res) => 
 // of THIS page they removed, since the upstream `total` counts what the shop
 // publishes, not what this household wants to see.
 //
-// `only_known=1` switches to the "my products" mode: the page is then built from
-// the day's catalogue locally, because "the products this family already buys" is
-// not a filter upstream can answer (lib/promoKnown.custom.ts). The exclusions
-// still apply — one term, both modes.
+// `only_known=1` switches to the "my products" mode. Nothing goes upstream then:
+// the page is built from the day's catalogue and matched locally, because "the
+// products this family already buys" is not a filter the API can answer (see
+// lib/promoKnown.custom.ts). `total` is the honest count of the matched set after
+// the filters, and the exclusions still apply — one term, both modes.
 router.get('/promos', async (req: AuthRequest, res) => {
     try {
         const query = promoQueryOf(req.query as Record<string, unknown>);

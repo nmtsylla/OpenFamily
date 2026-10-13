@@ -3,9 +3,12 @@
 //
 // Every filter is applied by PrijsProfeet itself (see the server's
 // lib/prijsprofeet.custom.ts), so `total` counts the whole filtered set rather
-// than the page on screen. The server caches each query until the next morning,
-// which is when the API refreshes the chains; the client's own cost is one
-// request per filter change, with the search box debounced so typing is not one.
+// than the page on screen. In the "my products" mode the server matches and counts
+// locally instead (lib/promoKnown.custom.ts), and the same rule holds: `total` is
+// what the client pages over, not the API's count of the whole catalogue. The
+// server caches each query until the next morning, which is when the API refreshes
+// the chains; the client's own cost is one request per filter change, with the
+// search box debounced so typing is not one.
 
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../lib/api';
