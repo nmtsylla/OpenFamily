@@ -1,0 +1,66 @@
+{
+  "common": {
+    "loading": "加载中…"
+  },
+  "nav": {
+    "board": "面板"
+  },
+  "greet": {
+    "morning": "早上好，",
+    "afternoon": "下午好，",
+    "evening": "晚上好，",
+    "night": "晚安，",
+    "sub": "这是你家今天的安排。"
+  },
+  "agenda": {
+    "title": "今天",
+    "empty": "今天没有安排",
+    "more": "还有 {{count}} 项"
+  },
+  "weather": {
+    "noCity": "未设置城市",
+    "noCityHint": "在设置中配置家庭城市",
+    "unavailable": "天气不可用",
+    "rainNow": "正在下雨",
+    "rainFrom": "{{time}}起有阵雨"
+  },
+  "meals": {
+    "title": "用餐",
+    "empty": "暂无安排"
+  },
+  "shopping": {
+    "title": "购物",
+    "left": "还剩 {{count}} 项",
+    "empty": "清单为空",
+    "more": "+{{count}}",
+    "check": "勾选{{name}}"
+  },
+  "aqi": {
+    "title": "空气",
+    "unavailable": "空气质量不可用",
+    "bands": {
+      "good": "优",
+      "fair": "良",
+      "moderate": "中等",
+      "poor": "较差",
+      "veryPoor": "很差",
+      "extremelyPoor": "极差"
+    }
+  },
+  "chores": {
+    "title": "家务",
+    "leftToday": "今天还剩 {{count}} 项",
+    "allDone": "全部完成",
+    "today": "今天",
+    "dueOn": "{{day}}到期",
+    "overdue": "已逾期",
+    "undo": "撤销",
+    "complete": "完成{{title}}",
+    "more": "+{{count}}"
+  },
+  "actions": {
+    "exit": "退出",
+    "fullscreen": "全屏",
+    "exitFullscreen": "退出全屏"
+  }
+}

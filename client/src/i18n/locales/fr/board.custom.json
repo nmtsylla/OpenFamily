@@ -1,0 +1,66 @@
+{
+  "common": {
+    "loading": "Chargement…"
+  },
+  "nav": {
+    "board": "Tableau"
+  },
+  "greet": {
+    "morning": "Bonjour,",
+    "afternoon": "Bon après-midi,",
+    "evening": "Bonsoir,",
+    "night": "Bonne nuit,",
+    "sub": "Voici votre journée."
+  },
+  "agenda": {
+    "title": "Aujourd'hui",
+    "empty": "Rien de prévu aujourd'hui",
+    "more": "{{count}} de plus"
+  },
+  "weather": {
+    "noCity": "Ville non définie",
+    "noCityHint": "Définissez la ville de la famille dans les Paramètres",
+    "unavailable": "Météo indisponible",
+    "rainNow": "Averses en cours",
+    "rainFrom": "Averses à partir de {{time}}"
+  },
+  "meals": {
+    "title": "Repas",
+    "empty": "Rien de prévu"
+  },
+  "shopping": {
+    "title": "Courses",
+    "left": "{{count}} à prendre",
+    "empty": "Liste vide",
+    "more": "+{{count}}",
+    "check": "Cocher {{name}}"
+  },
+  "aqi": {
+    "title": "Air",
+    "unavailable": "Qualité de l'air indisponible",
+    "bands": {
+      "good": "Bon",
+      "fair": "Correct",
+      "moderate": "Moyen",
+      "poor": "Mauvais",
+      "veryPoor": "Très mauvais",
+      "extremelyPoor": "Extrêmement mauvais"
+    }
+  },
+  "chores": {
+    "title": "Tâches",
+    "leftToday": "{{count}} à faire aujourd'hui",
+    "allDone": "Tout est fait",
+    "today": "aujourd'hui",
+    "dueOn": "pour {{day}}",
+    "overdue": "en retard",
+    "undo": "Annuler",
+    "complete": "Terminer {{title}}",
+    "more": "+{{count}}"
+  },
+  "actions": {
+    "exit": "Quitter",
+    "fullscreen": "Plein écran",
+    "exitFullscreen": "Quitter le plein écran"
+  }
+}

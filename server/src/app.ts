@@ -82,7 +82,14 @@ const spaContentSecurityPolicy = {
         'img-src': ["'self'", 'data:', 'blob:', 'https:'],
         // 'self' + WebSocket for the app's own API; the two Open-Meteo hosts are
         // the Kiosk weather widget's direct browser fetches (no broad https:).
-        'connect-src': ["'self'", 'ws:', 'wss:', 'https://api.open-meteo.com', 'https://geocoding-api.open-meteo.com'],
+        // FORK-START: board
+        // The board's air-quality tile is a third direct fetch, and the only
+        // caller of the air-quality host. Without it here the tile reads
+        // "unavailable" wherever the server serves the SPA itself
+        // (SERVE_CLIENT_DIR), which was measured — nginx deployments send no CSP,
+        // so they were unaffected.
+        'connect-src': ["'self'", 'ws:', 'wss:', 'https://api.open-meteo.com', 'https://geocoding-api.open-meteo.com', 'https://air-quality-api.open-meteo.com'],
+        // FORK-END: board
         'font-src': ["'self'", 'data:'],
         'worker-src': ["'self'"],
         'manifest-src': ["'self'"],

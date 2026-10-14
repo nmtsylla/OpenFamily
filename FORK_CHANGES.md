@@ -48,20 +48,20 @@ explained below.
 | AI outing planner on the Planning page — real nearby places from OpenStreetMap/Overpass ranked for the selected day, weather, party and relevant family profiles; choose saved home, browser position or a temporary city/area without changing home settings; restaurants require the exact `diet:halal=only` tag; location-free activity ideas never invent venues; the chosen outing is added through upstream's `/api/planning` | `server/src/custom/lib/places.custom.ts`, `server/src/custom/lib/{location,kids}.custom.ts`, `server/src/custom/ai/outings.custom.ts`, `server/src/custom/routes/outings.custom.ts`, `server/test/outings.custom.test.ts`, `client/src/custom/components/OutingPlanner.custom.tsx`, `client/src/custom/hooks/useOutings.custom.ts` | `CUSTOM_FEATURE_OUTINGS_ENABLED` |
 | Barcode scanning, product lookup and promo watchlist | `server/src/custom/lib/{openFoodFacts,product}.custom.ts`, `server/src/custom/routes/productScan.custom.ts`, `server/test/productScan.custom.test.ts`, `client/src/custom/pages/{ProductScanner,PromoWatchlist}.custom.tsx`, `client/src/custom/components/{BarcodeScanner,ProductCard}.custom.tsx`, `client/src/custom/hooks/{useProductScan,usePromoWatchlist}.custom.ts`, `client/src/custom/lib/product.custom.ts` | `CUSTOM_FEATURE_SCANNER_ENABLED` |
 | Live supermarket promotions (PrijsProfeet, free plan): the promo screen's daily list with product pictures, filtered by store / category / discount / text and paginated, the family's own "never show me this" terms, and the watch list's deals pane | `server/src/custom/lib/{prijsprofeet,promoExclusions}.custom.ts`, `client/src/custom/components/{DailyPromos,PromoOfferRow,PrijsProfeetCredit,PromoWatchlistPanel}.custom.tsx`, `client/src/custom/hooks/useDailyPromos.custom.ts` (routes, page, hooks and translations shared with the row above) | `CUSTOM_FEATURE_SCANNER_ENABLED` |
-| Family dashboard — a chrome-less full-screen page for a wall tablet whose layout follows the time of day (morning / day / evening / night, cycleable by swipe or badge tap), reading the family's own appointments, tasks, meal plans and shopping list, and driving Home Assistant devices both ways through `/api/custom/ha` | `server/src/custom/lib/homeAssistantDevices.custom.ts`, `server/src/custom/routes/homeAssistantDevices.custom.ts`, `server/test/homeAssistantDevices.custom.test.ts`, `client/src/custom/pages/FamilyDashboard.custom.tsx`, `client/src/custom/hooks/useHomeAssistant.custom.ts`, `client/src/custom/lib/familyPhase.custom.ts` (keys in `dashboard.custom`) | `CUSTOM_FEATURE_FAMILY_DASHBOARD_ENABLED` |
+| Board — a full-screen wall-display page, the pastel tile grid of the reference mock: clock + greeting, today's agenda, weather with hourly rain-probability bars, meals, shopping, European air quality, over a full-width chores strip whose chips are tapped to complete (inline 5 s undo, Kiosk.tsx's pattern). Reads the upstream lists (appointments / tasks / meal plans / shopping) and Open-Meteo directly for weather and air quality (no key, public CORS); both follow the **family's** saved city (`GET /api/weather/location`, the coordinates a parent saves in Settings), so every account and every device shows one city and a change reaches the open boards over the `family` WebSocket. Chrome-less (`fixed inset-0` layer), so no upstream edit | `client/src/custom/pages/Board.custom.tsx`, `client/src/custom/lib/board.custom.css` (keys in `board.custom`) | `CUSTOM_FEATURE_BOARD_ENABLED` |
 | Feature flags / registration point | `server/src/custom/features.custom.ts`, `server/src/custom/register.custom.ts`, `server/src/custom/middleware/rateLimit.custom.ts` | — |
 | Client hooks for custom code | `client/src/custom/{nav.custom.ts,routes.custom.tsx}` | — |
 | Deploy assets | `deploy/README.md`, `deploy/up.sh`, `docker-compose.override.yml` | — |
 | Maintenance: clear the Budget / Meals / Pantry domains (dry run by default, `--yes` to delete) | `scripts/clean-custom-data.mjs` | — |
-| Translations | `client/src/i18n/locales/<lng>/{weather,activities,analytics,dashboard,budget,ai,lunchbox,pantry,outings,scan,layout}.custom.json` | — |
-| Screen wake lock — the app keeps the screen awake while it is the visible page, which is what makes a wall tablet or a phone left on the kitchen counter usable as a display; the lock is re-asked for on every return to visible (the browser drops it itself when the page hides) and released on unmount, and it exists once, in a hook shared by the app-wide mount and by the family dashboard's own inline effect it replaced, which had the idempotence bug of stacking a second lock on a mount followed by a visible event | `client/src/custom/hooks/useScreenWakeLock.custom.ts`, `client/src/custom/components/ScreenWakeLock.custom.tsx` (mounted from `client/src/main.tsx`) | — (no flag: client-only, no server route and no API surface, so there is nothing for a `CUSTOM_FEATURE_*` variable to unmount; its scope is the installed display mode, which `isStandalonePwa` holds — `matchMedia('(display-mode: standalone)')` or `navigator.standalone` — because a browser tab's screen is the browser's business, while the dashboard holds the lock whatever the display mode, a wall tablet being a display) |
+| Translations | `client/src/i18n/locales/<lng>/{weather,activities,analytics,dashboard,budget,ai,lunchbox,pantry,outings,scan,layout,board}.custom.json` | — |
+| Screen wake lock — the app keeps the screen awake while it is the visible page, which is what makes a wall tablet or a phone left on the kitchen counter usable as a display; the lock is re-asked for on every return to visible (the browser drops it itself when the page hides) and released on unmount, and it exists once, in a hook the app-wide mount uses (it absorbed the family dashboard's own inline effect, which had the idempotence bug of stacking a second lock on a mount followed by a visible event) | `client/src/custom/hooks/useScreenWakeLock.custom.ts`, `client/src/custom/components/ScreenWakeLock.custom.tsx` (mounted from `client/src/main.tsx`) | — (no flag: client-only, no server route and no API surface, so there is nothing for a `CUSTOM_FEATURE_*` variable to unmount; its scope is the installed display mode, which `isStandalonePwa` holds — `matchMedia('(display-mode: standalone)')` or `navigator.standalone` — because a browser tab's screen is the browser's business, while the dashboard holds the lock whatever the display mode, a wall tablet being a display) |
 | Landscape mobile tab-bar collapse | `client/src/custom/components/LandscapeTabsToggle.custom.tsx`, `client/src/custom/lib/landscapeTabs.custom.css`, `client/src/i18n/locales/<lng>/layout.custom.json` | — (no flag: client-only, no server route and no API surface) |
 
 Gating: a feature's `CUSTOM_FEATURE_*_ENABLED=false` unmounts its API routes and
 adds its module keys to `disabled_modules` in `/api/auth/me`, which hides the
 matching nav entry, page and dashboard widget through the client's existing module
 filter. Module keys: `weather`, `activities`, `budgetReceipts`, `budgetAnalytics`,
-`lunchbox`, `pantry`, `outings`, `productScan`, `familyDashboard`.
+`lunchbox`, `pantry`, `outings`, `productScan`, `board`.
 
 ## Ported from KeurTonux (`tonux/KeurTonux`, local checkout `/home/bsylla/keurtonux`)
 
@@ -99,7 +99,7 @@ existed; the exact count of rewritten upstream lines is the next section's table
 
 | File | Marker | Why |
 |------|--------|-----|
-| `server/src/app.ts` | `custom-routes`, `budget-custom` | One `registerCustomRoutes(app)` hook (import + call, above the upstream limiters) and one added condition so `/api/ai/extract-receipt` skips the 1 MB default JSON parser |
+| `server/src/app.ts` | `custom-routes`, `budget-custom`, `board` | One `registerCustomRoutes(app)` hook (import + call, above the upstream limiters) and one added condition so `/api/ai/extract-receipt` skips the 1 MB default JSON parser; the `board` marker adds the air-quality host to the SPA's CSP (see "The board takes the family city" below) |
 | `server/src/routes/auth.ts` | `custom-features`, `media` | Adds the env-disabled custom modules to `disabled_modules`; accepts an `s3:` avatar reference |
 | `server/src/routes/userSettings.ts` | `weather`, `custom-modules` | Adds the custom dashboard widget keys to `DASHBOARD_WIDGETS` (the list `parseDashboardPrefs` validates against — without it the widgets are silently dropped) and the custom module keys to `TOGGLEABLE_MODULES` (upstream rejects an unknown key in `PUT /api/auth/modules`, so a flag-disabled key reported through `/api/auth/me` would make the next module toggle fail with 400) |
 | `server/src/migrations/registry.ts` | `custom-migrations` | Appends the fork migrations (`custom/0001` … `custom/0009-promo-exclusions`) |
@@ -135,7 +135,7 @@ existed; the exact count of rewritten upstream lines is the next section's table
 
 ### Modified (non-additive) upstream lines — the complete list
 
-37 lines in 19 files (41 with `package-lock.json`), all wrapped in markers. The
+38 lines in 20 files (42 with `package-lock.json`), all wrapped in markers. The
 per-file counts were re-measured 2026-10-11 with `git diff --numstat
 upstream/main...develop -- <file>` (the deleted column — not `grep -c '^-[^-]'`,
 which misses a deleted line that itself starts with `-`, as `ROADMAP.md`'s does);
@@ -162,6 +162,7 @@ line is an added attribute, so it appears in the additive table above instead.
 | `client/src/components/app/MagicInput.tsx` | 3 | the `AiProposal` union carries `PantryProposal`; the card's title chain and its type label know that type |
 | `client/src/pages/Budget.tsx` | 1 | the limits `Sheet`'s backdrop loses its `onClick={onClose}` |
 | `client/src/pages/Integrations.tsx` | 1 | the connect modal's backdrop loses its `onClick={closeModal}` |
+| `server/src/app.ts` | 1 | the SPA CSP's `connect-src` line gains the board's air-quality host; the array line itself is rewritten (added 2026-10-14) |
 
 ## Measured latency of the AI dashboard widgets
 
@@ -294,7 +295,7 @@ instance from the earlier fork tree, rename these in your `.env`:
 | `MINIO_ENDPOINT` / `_ACCESS_KEY` / `_SECRET_KEY` / `_BUCKET` / `_REGION` | `CUSTOM_MINIO_*` |
 | `OPEN_METEO_BASE_URL` / `OPEN_METEO_GEOCODING_URL` | `CUSTOM_OPEN_METEO_*` |
 | `WEATHER_DEFAULT_LANG` / `_CACHE_TTL_MS` / `_REQUEST_TIMEOUT_MS` | `CUSTOM_WEATHER_*` |
-| — (new) | `CUSTOM_FEATURE_{WEATHER,MEDIA,BUDGET_RECEIPTS,BUDGET_ANALYTICS,LUNCHBOX,PANTRY,OUTINGS,SCANNER,AI_WIDGETS,FAMILY_DASHBOARD}_ENABLED` |
+| — (new) | `CUSTOM_FEATURE_{WEATHER,MEDIA,BUDGET_RECEIPTS,BUDGET_ANALYTICS,LUNCHBOX,PANTRY,OUTINGS,SCANNER,AI_WIDGETS,BOARD}_ENABLED` |
 | — (new) | `CUSTOM_OVERPASS_URL`, `CUSTOM_OVERPASS_TIMEOUT_MS`, `CUSTOM_OUTINGS_RADIUS_KM`, `CUSTOM_OUTINGS_CACHE_TTL_MS` |
 | — (new) | `CUSTOM_PRIJSPROFEET_API_KEY` (optional — the free plan works key-less), `CUSTOM_PRIJSPROFEET_COUNTRIES` (default `be`) |
 
@@ -316,19 +317,22 @@ upstream locale file:
   `client/scripts/check-i18n.mjs` fails the build on any namespace missing from a
   locale)
 - `dashboard.custom`, `budget.custom`, `ai.custom` (six locales; `dashboard.custom`
-  also carries the family dashboard's keys, and its `ru`/`zh` files are copies of
-  the English strings, same placeholder rule as `analytics.custom`)
+  now carries only the three custom widget labels upstream's own dashboard reads,
+  and its `ru`/`zh` files are copies of the English strings, same placeholder rule
+  as `analytics.custom`)
 - `lunchbox.custom`, `pantry.custom` (six locales). `pantry.custom` also carries
   the magic-input label of a pantry proposal (`magic.types.pantry_item`): the
   card's label is read from the feature's own namespace rather than from a key
-  added to upstream's `ai.json`, which this fork does not touch.
+  added to upstream's `ai.json`, which this fork does not touch. Its `dashboard.*`
+  keys stay: the pantry expiry card on upstream's dashboard reads them.
 - `outings.custom` (six locales)
 - `scan.custom` (six locales; `es`, `pt`, `ru`, `zh` are copies of the English
   strings, same placeholder rule as `analytics.custom`)
+- `board.custom` (six locales)
 
 ## Tests
 
-`server/test/{weather,aiProvider,budgetAnalytics,aiPrompt,lunchbox,pantry,receipt,outings,productScan,homeAssistantDevices,aiPantry}.custom.test.ts` — matched by the
+`server/test/{weather,aiProvider,budgetAnalytics,aiPrompt,lunchbox,pantry,receipt,outings,productScan,aiPantry}.custom.test.ts` — matched by the
 server's `tsx --test test/*.test.ts`. `aiPantry` covers the pantry
 half of the two AI prompts: the three states of the stock argument (`null` off,
 `[]` on and empty, values), the `pantry_item` validator (quantity 0 kept,
@@ -351,12 +355,7 @@ day (offset 0 before it, 1 from it), an evening on a home day targets tomorrow
 with mode `home`, and the picked `date` always equals `toDateKey(now + dayOffset)`
 for hours 0, 8, 17, 18 and 23; `flipsAt` is the nearer of the next 18:00 and
 midnight.
-`homeAssistantDevices` covers the rules that decide what the family dashboard may
-read and drive (domain whitelist, attribute trimming, entity/domain match,
-service-name shape) and how a non-2xx from Home Assistant is classified: a 4xx is
-that HA rejected the call and must never read as an outage, and HA's own 401/403
-must never surface as a 401, which is what the client's API layer treats as an
-expired session. The client
+The client
 has no test runner; the custom UI
 was verified in a browser instead (see "Verification" below).
 
@@ -367,12 +366,8 @@ was verified in a browser instead (see "Verification" below).
   reads it back, so the client no longer needs `city`/`latitude`/… on the user object.
 - Everything else keeps its path: `/api/weather`, `/api/ai/dashboard`,
   `/api/media`, `/api/budget/receipts`, `/api/budget-analytics`.
-- `/api/custom/ha` (family dashboard only) is new, and is the second custom mount
-  that reaches a host outside this server — the family's own Home Assistant, which
-  `safeFetch` re-vets on every redirect hop. It therefore takes the per-minute
-  `customRateLimiter` like the product scan rather than upstream's
-  30-per-15-minutes outbound budget, which a 30 s state poll would exhaust in
-  seven minutes.
+- `/api/custom/ha` existed for the family dashboard only and went with it
+  (2026-10-14).
 
 ## Known gaps and inherited issues
 
@@ -397,7 +392,8 @@ was verified in a browser instead (see "Verification" below).
   files are English placeholders pending translation (required by `check-i18n`).
 - **The main bundle was within ~500 bytes of the PWA's precache limit — closed on
   2026-10-11 by `df16f56` (the four remaining eager custom pages moved into their
-  own chunks, −87 kB).** Recorded because it shaped the kiosk rework: the branch it
+  own chunks, −87 kB).** Recorded because it shaped the family dashboard's kiosk
+  rework (that page has since been removed, see its section): the branch it
   was measured on (`6ce1c4e`) built a 2,096.76 kB main chunk against workbox's 2 MiB
   `maximumFileSizeToCacheInBytes` (2,097,152 B), i.e. a few hundred bytes of
   headroom, so the rework deleted as many `dashboard.custom` keys as it added
@@ -1152,6 +1148,16 @@ with the watchlist as its second tab:
 
 ### Family dashboard (2026-10-11)
 
+> **Removed 2026-10-14.** The page, its route and its two nav entries, its module
+> key and `CUSTOM_FEATURE_FAMILY_DASHBOARD_ENABLED`, the phase engine
+> (`lib/familyPhase.custom.ts`), the Home Assistant device proxy under
+> `/api/custom/ha` with the `useHomeAssistant` hook and
+> `homeAssistantDevices.custom.test.ts`, and its locale keys are all gone: the
+> board is the wall display now, and it reads the household's own lists plus
+> Open-Meteo for the family's saved city. Everything below, in this section and in
+> "The tablet becomes a kiosk", is the record of what the page was and why it was
+> built that way, not the state of the tree.
+
 A full-screen, chrome-less page for a wall tablet (`/family-dashboard`): a
 time-of-day phase (morning 06–09, day 09–17, evening 17–22, night 22–06) decides
 which widgets are on screen, the phase is cycleable by swiping the content or
@@ -1477,6 +1483,69 @@ Measured in Chromium with touch input against the demo client at 390x844 and
 - the budget limits sheet and the Integrations connect modal — their own backdrops,
   not the shared primitive — keep their X and no longer close on the backdrop either.
 
-`npx tsc --noEmit` is clean. Left alone: the family dashboard's house sheet
-(`custom/pages/FamilyDashboard.custom.tsx`), whose backdrop is its only way out, so
-removing that dismissal needs a close control of its own first.
+`npx tsc --noEmit` is clean. Left alone at the time: the family dashboard's house
+sheet (`custom/pages/FamilyDashboard.custom.tsx`), whose backdrop was its only way
+out, so removing that dismissal needed a close control of its own; that page was
+removed on 2026-10-14 (see its section), so the exception went with it.
+
+### The board takes the family city, and the family dashboard goes (2026-10-14)
+
+- **The board's city is the family's now.** `Board.custom.tsx` lost the whole
+  per-device city: the `openfamily.boardSettings` reader with its
+  `openfamily.kioskSettings` fallback, its writer, the geocoding search and the
+  city overlay. It reads `useSavedLocation()` (`GET /api/weather/location`)
+  instead — the same coordinate pair the dashboard widgets use, stored on the
+  family owner's row. `location` is memoized on the saved city's values, so the
+  30-minute Open-Meteo effect re-runs only when the family changes its city, and
+  a change reaches an open board over the existing `family` WebSocket event.
+  Both tiles gained a "no city set / set it in Settings" state (keys
+  `weather.noCity` and `weather.noCityHint`, six locales). With no city the board
+  no longer offers a picker of its own: the setting belongs to the family and is
+  written from Settings by a parent, which is the only write path.
+- **`/family-dashboard` is removed** with everything that existed only for it;
+  its section above lists the page, route, nav entries, module key and flag, the
+  Home Assistant device proxy and its hook and test, the phase engine and the
+  locale keys that went.
+
+Verified on a throwaway `postgres:16` container with the built client served by
+the Express server itself (`SERVE_CLIENT_DIR`, so `/api` and `/ws` share one
+origin). Two traps that shaped the run: the invoking shell exports the live
+deployment's variables (`POSTGRES_*`, `SMTP_*`, `VAPID_*`, `CUSTOM_MINIO_*`, a
+production `CORS_ORIGINS`), which the first launch of this stack inherited and
+acted on — it reached the real Scaleway bucket through `ensureBucket` before
+`env -i` closed the environment to thirteen variables — and Vite's dev proxy
+forwards `/api` only, not `/ws`, which made the board look like it ignored the
+`family` event until the check moved to the server-served build.
+
+- `npm test` (server): **99/99**, `tsc` clean. Client: `npm run build` passes
+  `check:i18n` (6 languages), `tsc` and Vite; main bundle 2,018.32 kB against
+  workbox's 2 MiB per-file precache limit, board chunk 17.37 kB (lazy).
+- In Chromium, against that stack: the board shows the saved city's name and
+  calls both Open-Meteo endpoints at the family's coordinates (51.16509 for the
+  Sint-Niklaas the geocoder stores as its French name, Saint-Nicolas);
+  `openfamily.boardSettings` and `openfamily.kioskSettings` set to Paris and Lyon
+  change nothing (same city, same 51.16509); and a `PUT /api/weather/location`
+  reaches the open board with no reload — the recorded WebSocket frames are
+  `{"type":"auth","success":true}` and, after the PUT,
+  `{"type":"update","entity":"family","action":"updated"}`, followed by the
+  weather and air refetches at the new coordinates.
+- Removal, same stack: `/family-dashboard` lands on `/`, no
+  `a[href="/family-dashboard"]` exists in the shell, `GET /api/custom/ha/states`
+  answers 404 and `/api/auth/me` reports no `familyDashboard` module key. The
+  dashboard itself still renders its custom widgets (the pantry card's
+  `pantry.custom:dashboard.*` labels were deliberately kept — see "Translations").
+- **A CSP gap in the server-served mode was found and closed.** With
+  `SERVE_CLIENT_DIR` the SPA carries upstream's `spaContentSecurityPolicy`, whose
+  `connect-src` lists the two Open-Meteo hosts upstream's Kiosk fetches but not
+  `air-quality-api.open-meteo.com`, which only the board's air tile calls. Before
+  the fix that tile read "Qualité de l'air indisponible" while a page-level probe
+  returned `Failed to fetch` for the air host and HTTP 200 for
+  `api.open-meteo.com`; after adding the host (the marker-wrapped line in
+  "Modifications to upstream files") the tile renders `AQI 36` with its band.
+  Deployments whose nginx serves the client send no CSP and were never affected.
+  The service worker replays the cached `index.html` response headers, so the
+  first check after the fix still failed until its registration and caches were
+  dropped.
+- The static demo has no backend to hold a family city, so the board's weather
+  and air tiles show their no-city state there; the board's row above no longer
+  claims the demo works.

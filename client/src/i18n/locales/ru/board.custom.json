@@ -1,0 +1,66 @@
+{
+  "common": {
+    "loading": "Загрузка…"
+  },
+  "nav": {
+    "board": "Табло"
+  },
+  "greet": {
+    "morning": "Доброе утро,",
+    "afternoon": "Добрый день,",
+    "evening": "Добрый вечер,",
+    "night": "Доброй ночи,",
+    "sub": "Вот ваш день."
+  },
+  "agenda": {
+    "title": "Сегодня",
+    "empty": "На сегодня ничего не запланировано",
+    "more": "ещё {{count}}"
+  },
+  "weather": {
+    "noCity": "Город не задан",
+    "noCityHint": "Укажите город семьи в Настройках",
+    "unavailable": "Погода недоступна",
+    "rainNow": "Ливни сейчас",
+    "rainFrom": "Ливни с {{time}}"
+  },
+  "meals": {
+    "title": "Питание",
+    "empty": "Ничего не запланировано"
+  },
+  "shopping": {
+    "title": "Покупки",
+    "left": "Осталось: {{count}}",
+    "empty": "Список пуст",
+    "more": "+{{count}}",
+    "check": "Отметить «{{name}}»"
+  },
+  "aqi": {
+    "title": "Воздух",
+    "unavailable": "Качество воздуха недоступно",
+    "bands": {
+      "good": "Хорошее",
+      "fair": "Приемлемое",
+      "moderate": "Среднее",
+      "poor": "Плохое",
+      "veryPoor": "Очень плохое",
+      "extremelyPoor": "Крайне плохое"
+    }
+  },
+  "chores": {
+    "title": "Дела",
+    "leftToday": "Осталось сегодня: {{count}}",
+    "allDone": "Всё сделано",
+    "today": "сегодня",
+    "dueOn": "до {{day}}",
+    "overdue": "просрочено",
+    "undo": "Отменить",
+    "complete": "Выполнить «{{title}}»",
+    "more": "+{{count}}"
+  },
+  "actions": {
+    "exit": "Выйти",
+    "fullscreen": "На весь экран",
+    "exitFullscreen": "Выйти из полноэкранного режима"
+  }
+}
