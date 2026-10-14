@@ -10,7 +10,9 @@
 //   - weather and air quality: Open-Meteo directly (no API key, public CORS),
 //     for the family's saved city;
 //   - news: GET /api/news, the one route this page reads (VRT NWS headlines,
-//     already scored and capped to 3 server-side);
+//     already scored and capped to 3 server-side); tapping a headline reads it
+//     in a dialog over the board — the same page, because a wall display has no
+//     back button to return from a navigation;
 //   - the clock, its greeting and the date: local.
 //
 // The agenda tile is a clock view: the event occupying the current time is the
@@ -35,8 +37,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
 import {
-    Calendar, Check, Leaf, Maximize2, Minimize2, Newspaper, ShoppingCart,
+    Calendar, Check, ExternalLink, Leaf, Maximize2, Minimize2, Newspaper, ShoppingCart,
     Undo2, UtensilsCrossed, X,
 } from 'lucide-react';
 import { api } from '../../lib/api';
@@ -160,6 +163,77 @@ const greetingForHour = (hour: number): 'morning' | 'afternoon' | 'evening' | 'n
     return 'night';
 };
 
+// ── The headline reader ──────────────────────────────────────────────────────
+
+// Tapping a headline reads it here instead of navigating away: the board is a
+// wall display, and a browser back button is the one thing a wall display does
+// not have. Built on the same Radix primitive as the app's `Dialog`, but
+// rendered in place rather than portalled — the app's Dialog portals at `z-50`
+// and the board is a `z-[60]` layer, so a portalled dialog would open behind
+// it — and painted in the board's own fixed palette, since the board ignores the
+// app theme on purpose.
+interface NewsDialogProps {
+    item: NewsItem | null;
+    onClose: () => void;
+}
+
+const NewsDialog: React.FC<NewsDialogProps> = ({ item, onClose }) => {
+    const { t } = useTranslation(['board.custom']);
+    return (
+        <DialogPrimitive.Root open={item !== null} onOpenChange={(open) => !open && onClose()}>
+            {item && (
+                <>
+                    <DialogPrimitive.Overlay className="fixed inset-0 z-[65] bg-[#2c2a33]/40" />
+                    <DialogPrimitive.Content
+                        className="fixed left-1/2 top-1/2 z-[70] flex max-h-[88vh] w-[min(40rem,92vw)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-[1.75rem] bg-white shadow-2xl"
+                    >
+                        <div className="flex items-start justify-between gap-3 px-6 pt-5">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-sm tabular-nums text-[#7d8f79]">{fmtHourMinute(item.published)}</span>
+                                {item.buckets.map((bucket) => (
+                                    <span
+                                        key={bucket}
+                                        className="rounded-full bg-[#e3f0dc] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#4f8f4f]"
+                                    >
+                                        {t(`news.${bucket}`)}
+                                    </span>
+                                ))}
+                            </div>
+                            <DialogPrimitive.Close
+                                aria-label={t('news.close')}
+                                className="-mr-1 -mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#5c5669] transition-colors hover:bg-[#f1eff5]"
+                            >
+                                <X className="h-5 w-5" />
+                            </DialogPrimitive.Close>
+                        </div>
+                        <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-5 pt-3">
+                            <DialogPrimitive.Title className="font-serif text-[clamp(1.4rem,2.2vw,1.9rem)] font-semibold leading-snug text-[#2f4a30]">
+                                {item.title}
+                            </DialogPrimitive.Title>
+                            <DialogPrimitive.Description className="mt-3 text-base leading-relaxed text-[#3a3446] md:text-lg">
+                                {item.summary}
+                            </DialogPrimitive.Description>
+                        </div>
+                        {/* A feed entry without a link still reads; only the way out is missing. */}
+                        {item.link && (
+                            <div className="border-t border-[#eceaf2] px-6 py-4">
+                                <a
+                                    href={item.link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-2 rounded-full bg-[#4f8f4f] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#437a43]"
+                                >
+                                    <ExternalLink className="h-4 w-4" /> {t('news.readArticle')}
+                                </a>
+                            </div>
+                        )}
+                    </DialogPrimitive.Content>
+                </>
+            )}
+        </DialogPrimitive.Root>
+    );
+};
+
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 const Board: React.FC = () => {
@@ -183,6 +257,9 @@ const Board: React.FC = () => {
     const [aqi, setAqi] = useState<number | null>(null);
     const [news, setNews] = useState<NewsItem[] | null>(null);
     const [newsFailed, setNewsFailed] = useState(false);
+    // The headline being read: the item itself is the open state, so a flag and
+    // an index can never disagree about which one is showing.
+    const [openNews, setOpenNews] = useState<NewsItem | null>(null);
 
     const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -553,38 +630,53 @@ const Board: React.FC = () => {
                         )}
                     </section>
 
-                    {/* Meals */}
-                    <section className="board-tile board-tile--meals lg:col-span-5">
-                        <h2 className="flex items-center gap-2.5 text-lg font-semibold text-[#3f8f57]">
-                            <UtensilsCrossed className="h-5 w-5 shrink-0" /> {t('meals.title')}
+                    {/* Belgian news (VRT NWS, scored server-side) — tap a headline to read it.
+                        It took the meals card's place in the row and the meals card took its;
+                        widths swapped with them, so the news card is the wide one now. */}
+                    <section className="board-tile board-tile--news lg:col-span-5">
+                        <h2 className="flex items-center gap-2.5 text-lg font-semibold text-[#4f8f4f]">
+                            <Newspaper className="h-5 w-5 shrink-0" /> {t('news.title')}
                         </h2>
-                        {loading && sortedMeals.length === 0 ? (
-                            <p className={emptyClass}>{t('common.loading')}</p>
-                        ) : sortedMeals.length === 0 ? (
-                            <p className={emptyClass}>{t('meals.empty')}</p>
+                        {!news ? (
+                            <p className={emptyClass}>{t(newsFailed ? 'news.unavailable' : 'common.loading')}</p>
+                        ) : news.length === 0 ? (
+                            // The feed can legitimately score nothing on a day
+                            // with only foreign news; unavailable would read as
+                            // a bug, so the tile says so plainly instead.
+                            <p className={emptyClass}>{t('news.nothingRelevant')}</p>
                         ) : (
-                            <div className="mt-2 flex min-h-0 flex-1 flex-col justify-center gap-2.5">
-                                {dinner && (
-                                    <div className="rounded-2xl bg-white/70 px-4 py-3">
-                                        <p className="text-xs uppercase tracking-wide text-[#7fa389]">
-                                            {t(`meals:mealTypes.${dinner.meal_type}`, { defaultValue: dinner.meal_type })}
-                                        </p>
-                                        <p className="truncate font-serif text-[clamp(1.5rem,2.4vw,2.1rem)] font-semibold text-[#2f5d3c]">
-                                            {dinner.recipe?.name || dinner.custom_meal}
-                                        </p>
-                                    </div>
-                                )}
-                                {otherMeals.slice(0, 3).map((m) => (
-                                    <div key={m.id} className="flex items-baseline gap-3 px-1">
-                                        <span className="w-32 shrink-0 truncate text-xs uppercase tracking-wide text-[#7fa389]">
-                                            {t(`meals:mealTypes.${m.meal_type}`, { defaultValue: m.meal_type })}
-                                        </span>
-                                        <span className="min-w-0 flex-1 truncate font-medium text-[#39543f]">
-                                            {m.recipe?.name || m.custom_meal}
-                                        </span>
-                                    </div>
+                            <ul className="mt-2 flex min-h-0 flex-1 flex-col justify-center gap-2">
+                                {news.map((item) => (
+                                    <li key={item.link || item.title}>
+                                        <button
+                                            type="button"
+                                            onClick={() => setOpenNews(item)}
+                                            className="w-full rounded-2xl bg-white/70 px-3.5 py-2.5 text-left transition-colors active:bg-white"
+                                        >
+                                            <div className="flex items-baseline gap-2.5">
+                                                <span className="w-[52px] shrink-0 text-xs tabular-nums text-[#7d8f79]">
+                                                    {fmtHourMinute(item.published)}
+                                                </span>
+                                                <span className="min-w-0 flex-1 text-sm font-medium leading-snug text-[#2f4a30] line-clamp-2">
+                                                    {item.title}
+                                                </span>
+                                            </div>
+                                            {item.buckets.length > 0 && (
+                                                <div className="mt-1 flex flex-wrap gap-1 pl-[62px]">
+                                                    {item.buckets.map((bucket) => (
+                                                        <span
+                                                            key={bucket}
+                                                            className="rounded-full bg-[#e3f0dc] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#4f8f4f]"
+                                                        >
+                                                            {t(`news.${bucket}`)}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </button>
+                                    </li>
                                 ))}
-                            </div>
+                            </ul>
                         )}
                     </section>
 
@@ -644,45 +736,40 @@ const Board: React.FC = () => {
                         )}
                     </section>
 
-                    {/* Belgian news (VRT NWS, scored server-side) */}
-                    <section className="board-tile board-tile--news lg:col-span-3">
-                        <h2 className="flex items-center gap-2.5 text-lg font-semibold text-[#4f8f4f]">
-                            <Newspaper className="h-5 w-5 shrink-0" /> {t('news.title')}
+                    {/* Meals — the narrow card of the row now, so each entry stacks its
+                        meal name over its dish: a label column beside the dish would
+                        truncate both halves in this width. */}
+                    <section className="board-tile board-tile--meals lg:col-span-3">
+                        <h2 className="flex items-center gap-2.5 text-lg font-semibold text-[#3f8f57]">
+                            <UtensilsCrossed className="h-5 w-5 shrink-0" /> {t('meals.title')}
                         </h2>
-                        {!news ? (
-                            <p className={emptyClass}>{t(newsFailed ? 'news.unavailable' : 'common.loading')}</p>
-                        ) : news.length === 0 ? (
-                            // The feed can legitimately score nothing on a day
-                            // with only foreign news; unavailable would read as
-                            // a bug, so the tile says so plainly instead.
-                            <p className={emptyClass}>{t('news.nothingRelevant')}</p>
+                        {loading && sortedMeals.length === 0 ? (
+                            <p className={emptyClass}>{t('common.loading')}</p>
+                        ) : sortedMeals.length === 0 ? (
+                            <p className={emptyClass}>{t('meals.empty')}</p>
                         ) : (
-                            <ul className="mt-2 flex min-h-0 flex-1 flex-col justify-center gap-2">
-                                {news.map((item) => (
-                                    <li key={item.link || item.title} className="rounded-2xl bg-white/70 px-3 py-2">
-                                        <div className="flex items-baseline gap-2.5">
-                                            <span className="w-[52px] shrink-0 text-xs tabular-nums text-[#7d8f79]">
-                                                {fmtHourMinute(item.published)}
-                                            </span>
-                                            <span className="min-w-0 flex-1 text-sm font-medium leading-snug text-[#2f4a30] line-clamp-2">
-                                                {item.title}
-                                            </span>
-                                        </div>
-                                        {item.buckets.length > 0 && (
-                                            <div className="mt-1 flex flex-wrap gap-1 pl-[62px]">
-                                                {item.buckets.map((bucket) => (
-                                                    <span
-                                                        key={bucket}
-                                                        className="rounded-full bg-[#e3f0dc] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#4f8f4f]"
-                                                    >
-                                                        {t(`news.${bucket}`)}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </li>
+                            <div className="mt-2 flex min-h-0 flex-1 flex-col justify-center gap-2">
+                                {dinner && (
+                                    <div className="rounded-2xl bg-white/70 px-4 py-3">
+                                        <p className="text-xs uppercase tracking-wide text-[#7fa389]">
+                                            {t(`meals:mealTypes.${dinner.meal_type}`, { defaultValue: dinner.meal_type })}
+                                        </p>
+                                        <p className="font-serif text-[clamp(1.3rem,1.6vw,1.7rem)] font-semibold leading-snug text-[#2f5d3c] line-clamp-2">
+                                            {dinner.recipe?.name || dinner.custom_meal}
+                                        </p>
+                                    </div>
+                                )}
+                                {otherMeals.slice(0, 3).map((m) => (
+                                    <div key={m.id} className="px-1">
+                                        <p className="truncate text-xs uppercase tracking-wide text-[#7fa389]">
+                                            {t(`meals:mealTypes.${m.meal_type}`, { defaultValue: m.meal_type })}
+                                        </p>
+                                        <p className="truncate font-medium text-[#39543f]">
+                                            {m.recipe?.name || m.custom_meal}
+                                        </p>
+                                    </div>
                                 ))}
-                            </ul>
+                            </div>
                         )}
                     </section>
                 </div>
@@ -738,6 +825,9 @@ const Board: React.FC = () => {
                         )}
                     </div>
                 </section>
+
+                {/* Last child on purpose: the dialog paints over every tile. */}
+                <NewsDialog item={openNews} onClose={() => setOpenNews(null)} />
             </div>
         </div>
     );
