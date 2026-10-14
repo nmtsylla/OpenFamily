@@ -17,7 +17,8 @@
 //
 // The agenda tile is a clock view: the event occupying the current time is the
 // tile's anchor, earlier events are faded and compressed, later ones full
-// weight.
+// weight. From 6 pm, once nothing today is still running or still to come, it
+// hands the tile over to the next events of the coming week.
 //
 // Chrome-less without touching App.tsx's route list: the root is a
 // `fixed inset-0 z-[60]` layer above Layout's own fixed chrome (its highest is
@@ -51,7 +52,7 @@ import { CONDITION_ICON, weatherCondition } from '../lib/weatherCode.custom';
 import '../lib/board.custom.css';
 
 interface Member { id: string; name: string; color: string }
-interface Appointment { id: string; occurrence_id?: string; title: string; start_time: string; location?: string; family_members_data?: Member[] }
+interface Appointment { id: string; occurrence_id?: string; title: string; start_time: string; end_time?: string | null; location?: string; family_members_data?: Member[] }
 interface Task { id: string; title: string; is_completed: boolean; due_date?: string }
 interface MealPlan { id: string; meal_type: string; custom_meal?: string; recipe?: { name: string } }
 interface ShoppingItem { id: string; name: string; quantity?: number; unit?: string; is_checked: boolean }
@@ -71,6 +72,19 @@ interface WeatherHour { time: string; precip: number; peak: boolean }
 interface BoardWeather { temp: number; code: number; rainNow: boolean; hours: WeatherHour[] }
 
 const RAIN_PROBABILITY = 40; // % — the point where the tile names an hour
+
+// The agenda tile keeps today plus this many days in hand, so it has something
+// to show once the day is over.
+const AGENDA_DAYS = 7;
+
+// The hour from which the day counts as over. Past it, and with nothing left
+// running or still to come today, the tile shows what is next instead of a day
+// that is done — at 6 pm the household is looking at tomorrow, not at the
+// morning's faded lines.
+const EVENING_HOUR = 18;
+
+// How many of those next events the tile lists (the first one as its anchor).
+const UPCOMING_SHOWN = 4;
 
 const fetchBoardWeather = async (loc: BoardLocation): Promise<BoardWeather> => {
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}`
@@ -276,10 +290,14 @@ const Board: React.FC = () => {
 
     const loadAll = async () => {
         const today = new Date();
+        const week = new Date(today);
+        week.setDate(week.getDate() + AGENDA_DAYS);
         // Naive local bounds: appointment start_time is stored as a local
-        // "YYYY-MM-DDTHH:mm:ss" string, so the window must not be UTC.
+        // "YYYY-MM-DDTHH:mm:ss" string, so the window must not be UTC. The one
+        // request covers the week because the tile has to look past midnight
+        // once the day is over; which events belong to today is decided below.
         const start = `${ymd(today)}T00:00:00`;
-        const end = `${ymd(today)}T23:59:59`;
+        const end = `${ymd(week)}T23:59:59`;
         try {
             const [apptRes, taskRes, mealRes, shopRes] = await Promise.all([
                 api.get<{ success: boolean; data: Appointment[] }>(`/api/appointments?start_date=${start}&end_date=${end}`),
@@ -408,9 +426,21 @@ const Board: React.FC = () => {
         return `${weekday.charAt(0).toUpperCase()}${weekday.slice(1)} · ${dayMonth}`;
     }, [now]);
 
+    // The fetch covers a week now, so today's list is the events that touch
+    // today (one that started last night and ran into the morning still belongs
+    // to today), and everything later is what the evening view shows.
+    const todayKey = ymd(now);
     const todayAppointments = useMemo(
-        () => [...appointments].sort((a, b) => a.start_time.localeCompare(b.start_time)),
-        [appointments]
+        () => appointments
+            .filter((a) => a.start_time <= `${todayKey}T23:59:59` && (a.end_time ?? a.start_time) >= `${todayKey}T00:00:00`)
+            .sort((a, b) => a.start_time.localeCompare(b.start_time)),
+        [appointments, todayKey]
+    );
+    const upcomingEvents = useMemo(
+        () => appointments
+            .filter((a) => a.start_time > `${todayKey}T23:59:59`)
+            .sort((a, b) => a.start_time.localeCompare(b.start_time)),
+        [appointments, todayKey]
     );
     const sortedMeals = useMemo(
         () => [...meals].sort((a, b) => MEAL_ORDER.indexOf(a.meal_type) - MEAL_ORDER.indexOf(b.meal_type)),
@@ -444,6 +474,25 @@ const Board: React.FC = () => {
     const pastEvents = todayAppointments.slice(Math.max(0, nowIdx - 2), nowIdx);
     const nextEvents = nowIdx >= 0 ? todayAppointments.slice(nowIdx + 1, nowIdx + 3) : [];
     const shownCount = (nowIdx >= 0 ? 1 : 0) + pastEvents.length + nextEvents.length;
+
+    // Evening hand-off: from EVENING_HOUR, once nothing today is still running
+    // or still to come, the tile shows the next events instead of the day that
+    // just ended. An event with no end time counts as over when it has started.
+    const dayIsOver = todayAppointments.every(
+        (a) => new Date(a.end_time ?? a.start_time).getTime() <= now.getTime()
+    );
+    const showUpcoming = now.getHours() >= EVENING_HOUR && dayIsOver && upcomingEvents.length > 0;
+
+    /** "Tomorrow" for the next day, the locale's short weekday and date past it. */
+    const upcomingDay = (iso: string): string => {
+        const day = new Date(iso);
+        const midnight = new Date(iso);
+        midnight.setHours(0, 0, 0, 0);
+        const today = new Date(now);
+        today.setHours(0, 0, 0, 0);
+        if (Math.round((midnight.getTime() - today.getTime()) / 86_400_000) === 1) return t('agenda.tomorrow');
+        return new Intl.DateTimeFormat(intlLocale(), { weekday: 'short', day: 'numeric' }).format(day);
+    };
 
     const duePill = (task: Task): { label: string; className: string } | null => {
         if (!task.due_date) return null;
@@ -507,13 +556,49 @@ const Board: React.FC = () => {
                         </div>
                     </section>
 
-                    {/* Today's agenda */}
+                    {/* Today's agenda — or, once the day is over, what is next */}
                     <section className="board-tile board-tile--agenda lg:col-span-4">
                         <h2 className="flex items-center gap-2.5 text-lg font-semibold text-[#4285c8]">
-                            <Calendar className="h-5 w-5 shrink-0" /> {t('agenda.title')}
+                            <Calendar className="h-5 w-5 shrink-0" /> {t(showUpcoming ? 'agenda.upNext' : 'agenda.title')}
                         </h2>
-                        {loading && todayAppointments.length === 0 ? (
+                        {loading && todayAppointments.length === 0 && upcomingEvents.length === 0 ? (
                             <p className={emptyClass}>{t('common.loading')}</p>
+                        ) : showUpcoming ? (
+                            <div className="mt-2 flex min-h-0 flex-1 flex-col justify-center gap-2">
+                                {/* The next event carries the tile, the way the current
+                                    one does in the today view. */}
+                                <div className="rounded-2xl border-2 border-[#9db9dd] bg-white/80 px-3.5 py-2.5">
+                                    <p className="text-xs uppercase tracking-wide text-[#66738a]">
+                                        {upcomingDay(upcomingEvents[0].start_time)} · {fmtHourMinute(upcomingEvents[0].start_time)}
+                                    </p>
+                                    <p className="truncate font-serif text-2xl font-semibold text-[#2c3440]">
+                                        {upcomingEvents[0].title}
+                                    </p>
+                                </div>
+                                {upcomingEvents.length > 1 && (
+                                    <div className="flex flex-col gap-1 border-l-2 border-[#9db9dd] pl-3">
+                                        {upcomingEvents.slice(1, UPCOMING_SHOWN).map((a, i) => (
+                                            <div key={a.occurrence_id || a.id} className="flex items-baseline gap-2 text-sm font-medium text-[#2c3440]">
+                                                {/* The day is named once per day, the way an
+                                                    agenda groups: the slice starts at the second
+                                                    event, so index i is the row above. */}
+                                                <span className="w-24 shrink-0 truncate text-xs uppercase tracking-wide text-[#66738a]">
+                                                    {upcomingEvents[i].start_time.slice(0, 10) === a.start_time.slice(0, 10)
+                                                        ? ''
+                                                        : upcomingDay(a.start_time)}
+                                                </span>
+                                                <span className="shrink-0 tabular-nums text-[#35608f]">{fmtHourMinute(a.start_time)}</span>
+                                                <span className="min-w-0 flex-1 truncate">{a.title}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                {upcomingEvents.length > UPCOMING_SHOWN && (
+                                    <p className="px-1 text-xs text-[#66738a]">
+                                        {t('agenda.more', { count: upcomingEvents.length - UPCOMING_SHOWN })}
+                                    </p>
+                                )}
+                            </div>
                         ) : todayAppointments.length === 0 ? (
                             <p className={emptyClass}>{t('agenda.empty')}</p>
                         ) : (

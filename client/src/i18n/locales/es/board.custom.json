@@ -17,7 +17,9 @@
     "empty": "Nada previsto para hoy",
     "more": "{{count}} más",
     "now": "Ahora",
-    "nothingAfter": "Nada después"
+    "upNext": "Próximamente",
+    "nothingAfter": "Nada después",
+    "tomorrow": "Mañana"
   },
   "weather": {
     "noCity": "Sin ciudad",

@@ -17,7 +17,9 @@
     "empty": "今天没有安排",
     "more": "还有 {{count}} 项",
     "now": "现在",
-    "nothingAfter": "之后没有安排"
+    "upNext": "即将到来",
+    "nothingAfter": "之后没有安排",
+    "tomorrow": "明天"
   },
   "weather": {
     "noCity": "未设置城市",
