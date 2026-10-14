@@ -15,14 +15,17 @@
   "agenda": {
     "title": "今天",
     "empty": "今天没有安排",
-    "more": "还有 {{count}} 项"
+    "more": "还有 {{count}} 项",
+    "now": "现在",
+    "nothingAfter": "之后没有安排"
   },
   "weather": {
     "noCity": "未设置城市",
     "noCityHint": "在设置中配置家庭城市",
     "unavailable": "天气不可用",
     "rainNow": "正在下雨",
-    "rainFrom": "{{time}}起有阵雨"
+    "rainFrom": "{{time}}起有阵雨",
+    "air": "空气"
   },
   "meals": {
     "title": "用餐",
@@ -36,8 +39,6 @@
     "check": "勾选{{name}}"
   },
   "aqi": {
-    "title": "空气",
-    "unavailable": "空气质量不可用",
     "bands": {
       "good": "优",
       "fair": "良",
@@ -62,5 +63,14 @@
     "exit": "退出",
     "fullscreen": "全屏",
     "exitFullscreen": "退出全屏"
+  },
+  "news": {
+    "title": "今日比利时",
+    "unavailable": "新闻不可用",
+    "nothingRelevant": "今天没有相关新闻",
+    "tech": "科技",
+    "health": "健康",
+    "family": "家庭",
+    "work": "工作"
   }
 }

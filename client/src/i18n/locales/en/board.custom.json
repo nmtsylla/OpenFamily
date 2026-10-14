@@ -15,14 +15,17 @@
   "agenda": {
     "title": "Today",
     "empty": "Nothing planned today",
-    "more": "{{count}} more"
+    "more": "{{count}} more",
+    "now": "Now",
+    "nothingAfter": "Nothing after"
   },
   "weather": {
     "noCity": "No city set",
     "noCityHint": "Set the family city in Settings",
     "unavailable": "Weather unavailable",
     "rainNow": "Showers right now",
-    "rainFrom": "Showers from {{time}}"
+    "rainFrom": "Showers from {{time}}",
+    "air": "Air"
   },
   "meals": {
     "title": "Meals",
@@ -36,8 +39,6 @@
     "check": "Check off {{name}}"
   },
   "aqi": {
-    "title": "Air",
-    "unavailable": "Air quality unavailable",
     "bands": {
       "good": "Good",
       "fair": "Fair",
@@ -62,5 +63,14 @@
     "exit": "Exit",
     "fullscreen": "Fullscreen",
     "exitFullscreen": "Exit fullscreen"
+  },
+  "news": {
+    "title": "Belgium today",
+    "unavailable": "News unavailable",
+    "nothingRelevant": "Nothing relevant today",
+    "tech": "Tech",
+    "health": "Health",
+    "family": "Family",
+    "work": "Work"
   }
 }

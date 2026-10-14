@@ -41,7 +41,7 @@
     background: #f9e7ef;
 }
 
-.board-tile--aqi {
+.board-tile--news {
     background: #eaf3e0;
 }
 
@@ -50,7 +50,7 @@
     border-radius: 1.75rem;
 }
 
-/* Round chrome on a tile (fullscreen / exit / change city). Kept faint by
+/* Round chrome on a tile (fullscreen / exit). Kept faint by
  * default so a wall display does not look like it has buttons; a mouse or a
  * deliberate tap brings them back. */
 .board-icon-btn {

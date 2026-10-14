@@ -18,6 +18,7 @@ import budgetAnalyticsRoutes from './routes/budgetAnalytics.custom';
 import budgetReceiptsRoutes from './routes/budgetReceipts.custom';
 import lunchboxRoutes from './routes/lunchbox.custom';
 import mediaRoutes from './routes/media.custom';
+import newsRoutes from './routes/news.custom';
 import outingsRoutes from './routes/outings.custom';
 import pantryRoutes from './routes/pantry.custom';
 import productScanRoutes from './routes/productScan.custom';
@@ -35,6 +36,11 @@ export const registerCustomRoutes = (app: Express): void => {
 
     if (isCustomFeatureEnabled('weather')) {
         app.use('/api/weather', customRateLimiter, weatherRoutes);
+    }
+
+    if (isCustomFeatureEnabled('board')) {
+        // Read-only public Belgium feed (VRT NWS) for the board's news tile.
+        app.use('/api/news', customRateLimiter, newsRoutes);
     }
 
     if (isCustomFeatureEnabled('aiWidgets')) {

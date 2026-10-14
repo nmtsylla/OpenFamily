@@ -15,14 +15,17 @@
   "agenda": {
     "title": "Aujourd'hui",
     "empty": "Rien de prévu aujourd'hui",
-    "more": "{{count}} de plus"
+    "more": "{{count}} de plus",
+    "now": "Maintenant",
+    "nothingAfter": "Rien ensuite"
   },
   "weather": {
     "noCity": "Ville non définie",
     "noCityHint": "Définissez la ville de la famille dans les Paramètres",
     "unavailable": "Météo indisponible",
     "rainNow": "Averses en cours",
-    "rainFrom": "Averses à partir de {{time}}"
+    "rainFrom": "Averses à partir de {{time}}",
+    "air": "Air"
   },
   "meals": {
     "title": "Repas",
@@ -36,8 +39,6 @@
     "check": "Cocher {{name}}"
   },
   "aqi": {
-    "title": "Air",
-    "unavailable": "Qualité de l'air indisponible",
     "bands": {
       "good": "Bon",
       "fair": "Correct",
@@ -62,5 +63,14 @@
     "exit": "Quitter",
     "fullscreen": "Plein écran",
     "exitFullscreen": "Quitter le plein écran"
+  },
+  "news": {
+    "title": "La Belgique aujourd’hui",
+    "unavailable": "Actualités indisponibles",
+    "nothingRelevant": "Rien de pertinent aujourd’hui",
+    "tech": "Tech",
+    "health": "Santé",
+    "family": "Famille",
+    "work": "Travail"
   }
 }

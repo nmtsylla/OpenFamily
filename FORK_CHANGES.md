@@ -48,7 +48,7 @@ explained below.
 | AI outing planner on the Planning page — real nearby places from OpenStreetMap/Overpass ranked for the selected day, weather, party and relevant family profiles; choose saved home, browser position or a temporary city/area without changing home settings; restaurants require the exact `diet:halal=only` tag; location-free activity ideas never invent venues; the chosen outing is added through upstream's `/api/planning` | `server/src/custom/lib/places.custom.ts`, `server/src/custom/lib/{location,kids}.custom.ts`, `server/src/custom/ai/outings.custom.ts`, `server/src/custom/routes/outings.custom.ts`, `server/test/outings.custom.test.ts`, `client/src/custom/components/OutingPlanner.custom.tsx`, `client/src/custom/hooks/useOutings.custom.ts` | `CUSTOM_FEATURE_OUTINGS_ENABLED` |
 | Barcode scanning, product lookup and promo watchlist | `server/src/custom/lib/{openFoodFacts,product}.custom.ts`, `server/src/custom/routes/productScan.custom.ts`, `server/test/productScan.custom.test.ts`, `client/src/custom/pages/{ProductScanner,PromoWatchlist}.custom.tsx`, `client/src/custom/components/{BarcodeScanner,ProductCard}.custom.tsx`, `client/src/custom/hooks/{useProductScan,usePromoWatchlist}.custom.ts`, `client/src/custom/lib/product.custom.ts` | `CUSTOM_FEATURE_SCANNER_ENABLED` |
 | Live supermarket promotions (PrijsProfeet, free plan): the promo screen's daily list with product pictures, filtered by store / category / discount / text and paginated, the family's own "never show me this" terms, and the watch list's deals pane | `server/src/custom/lib/{prijsprofeet,promoExclusions}.custom.ts`, `client/src/custom/components/{DailyPromos,PromoOfferRow,PrijsProfeetCredit,PromoWatchlistPanel}.custom.tsx`, `client/src/custom/hooks/useDailyPromos.custom.ts` (routes, page, hooks and translations shared with the row above) | `CUSTOM_FEATURE_SCANNER_ENABLED` |
-| Board — a full-screen wall-display page, the pastel tile grid of the reference mock: clock + greeting, today's agenda, weather with hourly rain-probability bars, meals, shopping, European air quality, over a full-width chores strip whose chips are tapped to complete (inline 5 s undo, Kiosk.tsx's pattern). Reads the upstream lists (appointments / tasks / meal plans / shopping) and Open-Meteo directly for weather and air quality (no key, public CORS); both follow the **family's** saved city (`GET /api/weather/location`, the coordinates a parent saves in Settings), so every account and every device shows one city and a change reaches the open boards over the `family` WebSocket. Chrome-less (`fixed inset-0` layer), so no upstream edit | `client/src/custom/pages/Board.custom.tsx`, `client/src/custom/lib/board.custom.css` (keys in `board.custom`) | `CUSTOM_FEATURE_BOARD_ENABLED` |
+| Board — a full-screen wall-display page, the pastel tile grid of the reference mock: clock + greeting, today's agenda as a **clock view** (the event occupying the current time at full weight with a "now" badge, the two past ones faded, struck through and compressed, the next two full weight, the overflow counted in the footer), weather with hourly rain-probability bars **and the air quality folded in as its secondary line** (muted `Air {n} · {band}`), meals, shopping, **a Belgian news tile** (VRT NWS headlines, scored server-side for the family's fixed interest set: software/tech, healthcare, school-and-parenting, working-parent economics, plus a base tier of Binnenland/Politiek; see `routes/news.custom.ts`), over a full-width chores strip whose chips are tapped to complete (inline 5 s undo, Kiosk.tsx's pattern). Reads the upstream lists (appointments / tasks / meal plans / shopping), `/api/news`, and Open-Meteo directly for weather and air quality (no key, public CORS); the weather side follows the **family's** saved city (`GET /api/weather/location`, the coordinates a parent saves in Settings), so every account and every device shows one city and a change reaches the open boards over the `family` WebSocket. Chrome-less (`fixed inset-0` layer), so no upstream edit | `client/src/custom/pages/Board.custom.tsx`, `client/src/custom/lib/board.custom.css`, `server/src/custom/{routes/news,lib/news}.custom.ts`, `server/test/news.custom.test.ts` (keys in `board.custom`) | `CUSTOM_FEATURE_BOARD_ENABLED` |
 | Feature flags / registration point | `server/src/custom/features.custom.ts`, `server/src/custom/register.custom.ts`, `server/src/custom/middleware/rateLimit.custom.ts` | — |
 | Client hooks for custom code | `client/src/custom/{nav.custom.ts,routes.custom.tsx}` | — |
 | Deploy assets | `deploy/README.md`, `deploy/up.sh`, `docker-compose.override.yml` | — |
@@ -328,11 +328,12 @@ upstream locale file:
 - `outings.custom` (six locales)
 - `scan.custom` (six locales; `es`, `pt`, `ru`, `zh` are copies of the English
   strings, same placeholder rule as `analytics.custom`)
-- `board.custom` (six locales)
+- `board.custom` (six locales; the news tile's title, chip labels and its two
+  empty states, plus the clock agenda's "now" badge and empty-next text)
 
 ## Tests
 
-`server/test/{weather,aiProvider,budgetAnalytics,aiPrompt,lunchbox,pantry,receipt,outings,productScan,aiPantry}.custom.test.ts` — matched by the
+`server/test/{weather,aiProvider,budgetAnalytics,aiPrompt,lunchbox,pantry,receipt,outings,productScan,aiPantry,news}.custom.test.ts` — matched by the
 server's `tsx --test test/*.test.ts`. `aiPantry` covers the pantry
 half of the two AI prompts: the three states of the stock argument (`null` off,
 `[]` on and empty, values), the `pantry_item` validator (quantity 0 kept,
@@ -1549,3 +1550,59 @@ forwards `/api` only, not `/ws`, which made the board look like it ignored the
 - The static demo has no backend to hold a family city, so the board's weather
   and air tiles show their no-city state there; the board's row above no longer
   claims the demo works.
+
+### The board grows a Belgian news tile, and its agenda becomes a clock (2026-10-14)
+
+- **A news tile in the slot the air-quality tile vacated** (`lg:col-span-3`,
+  row 2 right column). One feed, VRT NWS headlines
+  (`https://www.vrt.be/vrtnws/nl.rss.headlines.xml`, Atom, HTTP 200), one
+  read-only route `GET /api/news` behind `customRateLimiter` and the `board`
+  flag: parse, score in-process, cache 30 minutes unkeyed (one household, one
+  feed, the board polls every 5 minutes), answer the top 3. Scoring is a fixed
+  registry, not a setting: a base tier of `Binnenland`/`Politiek` (Belgian
+  national and government, always relevant) plus four buckets mapped from the
+  feed's `vrtns:nstag` labels and title keywords (`tech`, `health`, `family`,
+  `work` for the software-working parent, the nursing student, the school-age
+  kids and the working-parent economy). Only titles and tags are scanned;
+  summaries mention children and care in passing far too often to be a signal
+  (measured: an obituary scored as family news on its summary alone).
+  `xml2js` is deliberately NOT imported: it resolves in the dev tree only
+  because a client devDependency hoists it, and `server/Dockerfile` builds with
+  `npm ci --omit=dev --workspace=server --workspace=shared`, so the production
+  image would not have it and the server would die at import. The feed is
+  structurally stable Atom, so `lib/news.custom.ts` parses the five needed
+  fields at the boundary (`<entry>`, CDATA-stripped `<title>`/`<summary>`,
+  `<published>`, the `rel="alternate"` link, every `<vrtns:nstag>`) and the
+  fixture test pins one entry with all five. The client renders time, title and
+  bucket chips, refreshes every 5 minutes, and shows `news.unavailable` on a
+  failed fetch and `news.nothingRelevant` on a feed day that scores nothing
+  (a real state, not an error).
+- **Air quality folds into the weather tile** as its secondary line, muted
+  (`Air {n} · {band}`, the `aqi.bands.*` keys it already had; `aqi.title` and
+  `aqi.unavailable` died with the tile). A failed air fetch leaves the row as
+  `Air —` so the tile layout never jumps.
+- **The agenda becomes a clock view**: the event occupying the current time at
+  full weight with a "now" badge, the two past ones faded, struck through and
+  compressed (`opacity-45`, `text-xs`, `line-through`), the next two full
+  weight and readable, overflow counted in the footer. No new settings, no flag
+  change.
+- The stale wake-lock comment in `ScreenWakeLock.custom.tsx` (it named the
+  deleted family dashboard as a direct caller) and the `board.custom.css`
+  `.board-icon-btn` comment (the change-city button died with the picker) were
+  corrected in passing.
+
+Verified on a scratch `postgres:16` with the server from source and the built
+client served by it, driven in Chromium: `npm test` 106/106 (7 new in
+`news.custom.test.ts`: parser fields, dropped entries, bucket mapping, title
+keywords, sort order, base-tier padding, cap), `tsc` clean, client build passes
+`check:i18n`/`tsc`/Vite with the main bundle at 2,019.52 kB against workbox's
+2 MiB per-file limit. Seeded four appointments bracketing the current time and
+asserted the computed opacity (0.45), the strike-through, the bold now block
+with its badge, the readable next column and the overflow count; the weather
+tile read `Saint-Nicolas | 18° | Air 24 · Correct | …` and the news tile
+rendered three scored stories with their chips (a GSK jobs story ranked `work`
++ `health`, a school story `family`); a clean boot (token present before the
+app's first script) shows zero console errors — the one boot error seen earlier
+was the seed script writing the token after the app had already booted
+unauthenticated, which 401s the first `/api/auth/me` and is a test-harness
+artifact, not a product path.

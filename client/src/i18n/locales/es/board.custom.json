@@ -15,14 +15,17 @@
   "agenda": {
     "title": "Hoy",
     "empty": "Nada previsto para hoy",
-    "more": "{{count}} más"
+    "more": "{{count}} más",
+    "now": "Ahora",
+    "nothingAfter": "Nada después"
   },
   "weather": {
     "noCity": "Sin ciudad",
     "noCityHint": "Configura la ciudad de la familia en Ajustes",
     "unavailable": "Tiempo no disponible",
     "rainNow": "Chubascos ahora mismo",
-    "rainFrom": "Chubascos a partir de las {{time}}"
+    "rainFrom": "Chubascos a partir de las {{time}}",
+    "air": "Aire"
   },
   "meals": {
     "title": "Comidas",
@@ -36,8 +39,6 @@
     "check": "Marcar {{name}}"
   },
   "aqi": {
-    "title": "Aire",
-    "unavailable": "Calidad del aire no disponible",
     "bands": {
       "good": "Bueno",
       "fair": "Aceptable",
@@ -62,5 +63,14 @@
     "exit": "Salir",
     "fullscreen": "Pantalla completa",
     "exitFullscreen": "Salir de pantalla completa"
+  },
+  "news": {
+    "title": "Bélgica hoy",
+    "unavailable": "Noticias no disponibles",
+    "nothingRelevant": "Nada relevante hoy",
+    "tech": "Tecnología",
+    "health": "Salud",
+    "family": "Familia",
+    "work": "Trabajo"
   }
 }

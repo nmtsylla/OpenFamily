@@ -1,15 +1,21 @@
 // The board: a fixed-layout kiosk display for a wall tablet.
 //
 // It reproduces the glanceable card grid of the reference mock — clock over
-// today's agenda, weather with hourly rain bars, meals, shopping, air quality,
-// and a full-width chores strip whose chips are tapped, not read. Everything on
-// it is real household data; there is no server route of its own:
+// today's agenda, weather with hourly rain bars and the air-quality line, meals,
+// shopping, Belgian news, and a full-width chores strip whose chips are tapped,
+// not read:
 //
 //   - appointments / tasks / meals / shopping: the upstream lists, fetched on
 //     Kiosk.tsx's cadence (first load + 60 s + websockets);
 //   - weather and air quality: Open-Meteo directly (no API key, public CORS),
 //     for the family's saved city;
+//   - news: GET /api/news, the one route this page reads (VRT NWS headlines,
+//     already scored and capped to 3 server-side);
 //   - the clock, its greeting and the date: local.
+//
+// The agenda tile is a clock view: the event occupying the current time is the
+// tile's anchor, earlier events are faded and compressed, later ones full
+// weight.
 //
 // Chrome-less without touching App.tsx's route list: the root is a
 // `fixed inset-0 z-[60]` layer above Layout's own fixed chrome (its highest is
@@ -30,7 +36,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
-    Calendar, Check, Leaf, Maximize2, Minimize2, ShoppingCart,
+    Calendar, Check, Leaf, Maximize2, Minimize2, Newspaper, ShoppingCart,
     Undo2, UtensilsCrossed, X,
 } from 'lucide-react';
 import { api } from '../../lib/api';
@@ -116,6 +122,17 @@ const fetchBoardAqi = async (loc: BoardLocation): Promise<number> => {
     return d.current.european_aqi;
 };
 
+// ── Belgian news (VRT, scored server-side) ───────────────────────────────────
+
+interface NewsItem {
+    title: string;
+    summary: string;
+    published: string;
+    link: string;
+    tags: string[];
+    buckets: ('tech' | 'health' | 'family' | 'work')[];
+}
+
 // ── Time formatting ──────────────────────────────────────────────────────────
 
 const fmtHourMinute = (iso: string) =>
@@ -164,7 +181,8 @@ const Board: React.FC = () => {
     const [weather, setWeather] = useState<BoardWeather | null>(null);
     const [weatherFailed, setWeatherFailed] = useState(false);
     const [aqi, setAqi] = useState<number | null>(null);
-    const [aqiFailed, setAqiFailed] = useState(false);
+    const [news, setNews] = useState<NewsItem[] | null>(null);
+    const [newsFailed, setNewsFailed] = useState(false);
 
     const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -227,7 +245,6 @@ const Board: React.FC = () => {
         setWeather(null);
         setAqi(null);
         setWeatherFailed(false);
-        setAqiFailed(false);
         const load = async () => {
             const [weatherResult, aqiResult] = await Promise.allSettled([
                 fetchBoardWeather(location),
@@ -236,13 +253,35 @@ const Board: React.FC = () => {
             if (cancelled) return;
             if (weatherResult.status === 'fulfilled') setWeather(weatherResult.value);
             else setWeatherFailed(true);
+            // A failed air-quality fetch leaves aqi null: the weather tile then
+            // shows its muted "Air —" line rather than losing the row.
             if (aqiResult.status === 'fulfilled') setAqi(aqiResult.value);
-            else setAqiFailed(true);
         };
         void load();
         const id = setInterval(() => void load(), 30 * 60_000);
         return () => { cancelled = true; clearInterval(id); };
     }, [location]);
+
+    // Belgian news — one server-cached feed, refreshed every 5 min; a failure
+    // shows the tile's unavailable text and the next cycle retries.
+    useEffect(() => {
+        let cancelled = false;
+        const load = async () => {
+            const [result] = await Promise.allSettled([
+                api.get<{ success: boolean; data: { items: NewsItem[] } }>('/api/news'),
+            ]);
+            if (cancelled) return;
+            if (result.status === 'fulfilled' && result.value.success) {
+                setNews(result.value.data.items);
+                setNewsFailed(false);
+            } else {
+                setNewsFailed(true);
+            }
+        };
+        void load();
+        const id = setInterval(() => void load(), 5 * 60_000);
+        return () => { cancelled = true; clearInterval(id); };
+    }, []);
 
     useEffect(() => {
         const onChange = () => setIsFullscreen(Boolean(document.fullscreenElement));
@@ -315,6 +354,20 @@ const Board: React.FC = () => {
         [tasks]
     );
 
+    // Clock agenda: the current event is the one that started at or before now
+    // (favouring the latest such start); before anything starts today it is the
+    // first one. Past events fade and compress, future ones stay full weight.
+    const nowIdx = useMemo(() => {
+        let idx = 0;
+        for (let i = 0; i < todayAppointments.length; i++) {
+            if (new Date(todayAppointments[i].start_time).getTime() <= now.getTime()) idx = i;
+        }
+        return todayAppointments.length === 0 ? -1 : idx;
+    }, [todayAppointments, now]);
+    const pastEvents = todayAppointments.slice(Math.max(0, nowIdx - 2), nowIdx);
+    const nextEvents = nowIdx >= 0 ? todayAppointments.slice(nowIdx + 1, nowIdx + 3) : [];
+    const shownCount = (nowIdx >= 0 ? 1 : 0) + pastEvents.length + nextEvents.length;
+
     const duePill = (task: Task): { label: string; className: string } | null => {
         if (!task.due_date) return null;
         const due = task.due_date.slice(0, 10);
@@ -335,7 +388,6 @@ const Board: React.FC = () => {
     };
 
     const ConditionIcon = weather ? CONDITION_ICON[weatherCondition(weather.code)] : null;
-    const aqiPosition = aqi === null ? 0 : (Math.max(0, Math.min(120, aqi)) / 120) * 100;
 
     const emptyClass = 'flex flex-1 items-center justify-center py-4 text-center text-sm text-[#8a8492]';
 
@@ -388,32 +440,64 @@ const Board: React.FC = () => {
                         ) : todayAppointments.length === 0 ? (
                             <p className={emptyClass}>{t('agenda.empty')}</p>
                         ) : (
-                            <ul className="mt-3 flex min-h-0 flex-1 flex-col gap-2">
-                                {todayAppointments.slice(0, 3).map((a) => (
-                                    <li key={a.occurrence_id || a.id} className="rounded-2xl bg-white/70 px-3.5 py-2.5">
-                                        <div className="flex items-baseline gap-3">
-                                            <span className="w-[72px] shrink-0 font-serif text-xl font-semibold tabular-nums text-[#35608f]">
-                                                {fmtHourMinute(a.start_time)}
-                                            </span>
-                                            <span className="min-w-0 flex-1 truncate font-medium text-[#2c3440]">{a.title}</span>
+                            <div className="mt-2 flex min-h-0 flex-1 flex-col justify-center gap-2">
+                                {/* The event occupying the current time, full weight. */}
+                                <div className="rounded-2xl border-2 border-[#9db9dd] bg-white/80 px-3.5 py-2.5">
+                                    <div className="flex items-baseline gap-3">
+                                        <span className="shrink-0 font-serif text-2xl font-semibold tabular-nums text-[#35608f]">
+                                            {fmtHourMinute(todayAppointments[nowIdx].start_time)}
+                                        </span>
+                                        <span className="min-w-0 flex-1 truncate text-xl font-semibold text-[#2c3440]">
+                                            {todayAppointments[nowIdx].title}
+                                        </span>
+                                        <span className="shrink-0 rounded-full bg-[#4285c8] px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white">
+                                            {t('agenda.now')}
+                                        </span>
+                                    </div>
+                                    {(todayAppointments[nowIdx].location || (todayAppointments[nowIdx].family_members_data || []).length > 0) && (
+                                        <div className="mt-1 flex items-center gap-3 text-xs text-[#66738a]">
+                                            {todayAppointments[nowIdx].location && <span className="truncate">{todayAppointments[nowIdx].location}</span>}
+                                            {(todayAppointments[nowIdx].family_members_data || []).slice(0, 2).map((m) => (
+                                                <span key={m.id} className="inline-flex shrink-0 items-center gap-1.5">
+                                                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: m.color }} />
+                                                    {m.name}
+                                                </span>
+                                            ))}
                                         </div>
-                                        {(a.location || (a.family_members_data || []).length > 0) && (
-                                            <div className="mt-1 flex items-center gap-3 pl-[84px] text-xs text-[#66738a]">
-                                                {a.location && <span className="truncate">{a.location}</span>}
+                                    )}
+                                </div>
+                                {/* Fake timeline: what was (faded, small) vs what comes next. */}
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="flex flex-col gap-1 opacity-45">
+                                        {pastEvents.map((a) => (
+                                            <div key={a.occurrence_id || a.id} className="flex items-baseline gap-2 text-xs text-[#556077]">
+                                                <span className="shrink-0 tabular-nums">{fmtHourMinute(a.start_time)}</span>
+                                                <span className="min-w-0 flex-1 truncate line-through">{a.title}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="flex flex-col gap-1 border-l-2 border-[#9db9dd] pl-3">
+                                        {nextEvents.map((a) => (
+                                            <div key={a.occurrence_id || a.id} className="flex items-baseline gap-2 text-sm font-medium text-[#2c3440]">
+                                                <span className="shrink-0 tabular-nums text-[#35608f]">{fmtHourMinute(a.start_time)}</span>
+                                                <span className="min-w-0 flex-1 truncate">{a.title}</span>
                                                 {(a.family_members_data || []).slice(0, 2).map((m) => (
-                                                    <span key={m.id} className="inline-flex shrink-0 items-center gap-1.5">
+                                                    <span key={m.id} className="inline-flex shrink-0 items-center gap-1 text-xs text-[#66738a]">
                                                         <span className="h-2 w-2 rounded-full" style={{ backgroundColor: m.color }} />
                                                         {m.name}
                                                     </span>
                                                 ))}
                                             </div>
+                                        ))}
+                                        {nextEvents.length === 0 && (
+                                            <p className="text-xs text-[#66738a]">{t('agenda.nothingAfter')}</p>
                                         )}
-                                    </li>
-                                ))}
-                                {todayAppointments.length > 3 && (
-                                    <li className="px-1 text-xs text-[#66738a]">{t('agenda.more', { count: todayAppointments.length - 3 })}</li>
+                                    </div>
+                                </div>
+                                {todayAppointments.length > shownCount && (
+                                    <p className="px-1 text-xs text-[#66738a]">{t('agenda.more', { count: todayAppointments.length - shownCount })}</p>
                                 )}
-                            </ul>
+                            </div>
                         )}
                     </section>
 
@@ -437,6 +521,15 @@ const Board: React.FC = () => {
                                     </p>
                                     {ConditionIcon && <ConditionIcon className="mt-1.5 h-10 w-10 text-[#8a7f6d]" />}
                                 </div>
+                                {/* Air quality as a secondary line — weather stays dominant. */}
+                                <p className="mt-1 flex items-center gap-1.5 text-xs text-[#8a8172]">
+                                    <Leaf className="h-3.5 w-3.5 shrink-0" />
+                                    {aqi !== null ? (
+                                        <span>{t('weather.air')} {Math.round(aqi)} · {t(`aqi.bands.${aqiBand(aqi)}` as never)}</span>
+                                    ) : (
+                                        <span>{t('weather.air')} —</span>
+                                    )}
+                                </p>
                                 <p className="mt-1.5 text-sm font-medium text-[#e2823c]">{rainLine(weather)}</p>
                                 <div className="mt-auto flex items-end justify-between gap-2 pt-3">
                                     {weather.hours.map((h) => (
@@ -551,39 +644,45 @@ const Board: React.FC = () => {
                         )}
                     </section>
 
-                    {/* Air quality */}
-                    <section className="board-tile board-tile--aqi lg:col-span-3">
+                    {/* Belgian news (VRT NWS, scored server-side) */}
+                    <section className="board-tile board-tile--news lg:col-span-3">
                         <h2 className="flex items-center gap-2.5 text-lg font-semibold text-[#4f8f4f]">
-                            <Leaf className="h-5 w-5 shrink-0" /> {t('aqi.title')}
+                            <Newspaper className="h-5 w-5 shrink-0" /> {t('news.title')}
                         </h2>
-                        {!location ? (
-                            savedLocation.loading ? (
-                                <p className={emptyClass}>{t('common.loading')}</p>
-                            ) : (
-                                <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-1 text-center">
-                                    <p className="font-serif text-2xl font-semibold text-[#7d8f79]">{t('weather.noCity')}</p>
-                                    <p className="text-xs text-[#9aab96]">{t('weather.noCityHint')}</p>
-                                </div>
-                            )
-                        ) : aqi !== null ? (
-                            <>
-                                <p className="mt-1 font-serif text-[clamp(2.4rem,4.5vw,3.6rem)] font-semibold leading-none tabular-nums text-[#33532f]">
-                                    AQI {Math.round(aqi)}
-                                </p>
-                                <p className="mt-1 text-sm font-semibold text-[#4f8f4f]">{t(`aqi.bands.${aqiBand(aqi)}` as never)}</p>
-                                <div className="relative mt-auto pt-4">
-                                    <div
-                                        className="h-2.5 w-full rounded-full"
-                                        style={{ background: 'linear-gradient(90deg,#7bc47f 0%,#e7d05a 35%,#f0a44a 55%,#e2695a 75%,#b96cc9 100%)' }}
-                                    />
-                                    <span
-                                        className="absolute top-1/2 h-5 w-5 -translate-y-1/2 rounded-full border-[3px] border-white shadow"
-                                        style={{ left: `calc(${aqiPosition}% - 10px)` }}
-                                    />
-                                </div>
-                            </>
+                        {!news ? (
+                            <p className={emptyClass}>{t(newsFailed ? 'news.unavailable' : 'common.loading')}</p>
+                        ) : news.length === 0 ? (
+                            // The feed can legitimately score nothing on a day
+                            // with only foreign news; unavailable would read as
+                            // a bug, so the tile says so plainly instead.
+                            <p className={emptyClass}>{t('news.nothingRelevant')}</p>
                         ) : (
-                            <p className={emptyClass}>{t(aqiFailed ? 'aqi.unavailable' : 'common.loading')}</p>
+                            <ul className="mt-2 flex min-h-0 flex-1 flex-col justify-center gap-2">
+                                {news.map((item) => (
+                                    <li key={item.link || item.title} className="rounded-2xl bg-white/70 px-3 py-2">
+                                        <div className="flex items-baseline gap-2.5">
+                                            <span className="w-[52px] shrink-0 text-xs tabular-nums text-[#7d8f79]">
+                                                {fmtHourMinute(item.published)}
+                                            </span>
+                                            <span className="min-w-0 flex-1 text-sm font-medium leading-snug text-[#2f4a30] line-clamp-2">
+                                                {item.title}
+                                            </span>
+                                        </div>
+                                        {item.buckets.length > 0 && (
+                                            <div className="mt-1 flex flex-wrap gap-1 pl-[62px]">
+                                                {item.buckets.map((bucket) => (
+                                                    <span
+                                                        key={bucket}
+                                                        className="rounded-full bg-[#e3f0dc] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#4f8f4f]"
+                                                    >
+                                                        {t(`news.${bucket}`)}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </li>
+                                ))}
+                            </ul>
                         )}
                     </section>
                 </div>
