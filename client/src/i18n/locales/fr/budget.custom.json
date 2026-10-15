@@ -11,6 +11,7 @@
     "pickHint": "Photographiez un ticket ou joignez une facture (PDF) : les montants sont lus puis répartis par catégorie.",
     "reviewHint": "Vérifiez les montants et les catégories, décochez ce que vous ne voulez pas, puis validez.",
     "pick": "Choisir des documents",
+    "takePhoto": "Prendre une photo",
     "filesHint": "JPEG, PNG, WebP ou PDF — 5 documents maximum",
     "analyze": "Analyser",
     "analyzing": "Analyse en cours…",

@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { format } from 'date-fns';
-import { FileText, Loader2, Plus, Receipt as ReceiptIcon, Trash2, Upload } from 'lucide-react';
+import { Camera, FileText, Loader2, Plus, Receipt as ReceiptIcon, Trash2, Upload } from 'lucide-react';
 import { api } from '../../lib/api';
 import { formatCurrency } from '../../lib/utils';
 import { useCategories } from '../../hooks/useCategories';
@@ -142,6 +142,7 @@ export const ReceiptImportDialog: React.FC<Props> = ({ open, onOpenChange, curre
     const { showToast } = useToast();
     const { categories } = useCategories();
     const fileInput = useRef<HTMLInputElement>(null);
+    const cameraInput = useRef<HTMLInputElement>(null);
     // Bumped on every reset: a document still being read/analysed when the user
     // closes the dialog must not repopulate the review screen afterwards.
     const analysisId = useRef(0);
@@ -447,15 +448,38 @@ export const ReceiptImportDialog: React.FC<Props> = ({ open, onOpenChange, curre
                                 event.target.value = '';
                             }}
                         />
-                        <button
-                            type="button"
-                            onClick={() => fileInput.current?.click()}
-                            className="flex w-full flex-col items-center gap-2 rounded-input border border-dashed border-border bg-surface-1 px-4 py-8 text-center transition-colors hover:bg-surface-2"
-                        >
-                            <Upload className="h-6 w-6 text-muted-foreground" />
-                            <span className="text-caption font-medium text-foreground">{t('budget.custom:receipt.pick')}</span>
-                            <span className="text-micro text-muted-foreground">{t('budget.custom:receipt.filesHint')}</span>
-                        </button>
+                        {/* `capture` is what opens the camera: a plain file input
+                            only lists the documents the shell lets the user pick. */}
+                        <input
+                            ref={cameraInput}
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            className="hidden"
+                            onChange={(event) => {
+                                addFiles(event.target.files);
+                                event.target.value = '';
+                            }}
+                        />
+                        <div className="grid gap-2 sm:grid-cols-2">
+                            <button
+                                type="button"
+                                onClick={() => cameraInput.current?.click()}
+                                className="flex flex-col items-center gap-2 rounded-input border border-dashed border-border bg-surface-1 px-4 py-6 text-center transition-colors hover:bg-surface-2"
+                            >
+                                <Camera className="h-6 w-6 text-muted-foreground" />
+                                <span className="text-caption font-medium text-foreground">{t('budget.custom:receipt.takePhoto')}</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => fileInput.current?.click()}
+                                className="flex flex-col items-center gap-2 rounded-input border border-dashed border-border bg-surface-1 px-4 py-6 text-center transition-colors hover:bg-surface-2"
+                            >
+                                <Upload className="h-6 w-6 text-muted-foreground" />
+                                <span className="text-caption font-medium text-foreground">{t('budget.custom:receipt.pick')}</span>
+                                <span className="text-micro text-muted-foreground">{t('budget.custom:receipt.filesHint')}</span>
+                            </button>
+                        </div>
 
                         {files.length > 0 && (
                             <ul className="space-y-2">

@@ -11,6 +11,7 @@
     "pickHint": "Fotografe um recibo ou anexe uma fatura (PDF): os valores são lidos e repartidos por categoria.",
     "reviewHint": "Verifique os valores e as categorias, desmarque o que não quer e confirme.",
     "pick": "Escolher documentos",
+    "takePhoto": "Tirar uma foto",
     "filesHint": "JPEG, PNG, WebP ou PDF — 5 documentos no máximo",
     "analyze": "Analisar",
     "analyzing": "A analisar…",

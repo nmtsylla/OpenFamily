@@ -11,6 +11,7 @@
     "pickHint": "Haz una foto de un tique o adjunta una factura (PDF): se leen los importes y se reparten por categoría.",
     "reviewHint": "Revisa los importes y las categorías, desmarca lo que no quieras y confirma.",
     "pick": "Elegir documentos",
+    "takePhoto": "Hacer una foto",
     "filesHint": "JPEG, PNG, WebP o PDF — máximo 5 documentos",
     "analyze": "Analizar",
     "analyzing": "Analizando…",
