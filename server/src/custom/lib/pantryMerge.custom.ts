@@ -14,11 +14,11 @@ import { pantryKeyResolver, type PantryLineSeed } from './pantry.custom';
  * up, and a unit only ever fills a hole (the row's own unit wins).
  *
  * The row a seed lands on is decided by `pantryKeyResolver` against the names
- * already in the pantry: the folded name, or the household's own qualified row
- * when the import is the bare name ('Uien' into a pantry that tracks 'Uien -
- * Oignon'). The resolved key is what the upsert below targets, so the whole
- * batch converges on the rows the family already has instead of filling the
- * page with near-copies of them.
+ * already in the pantry: the folded name, or any name an existing row declares
+ * ('Uien' and 'Oignon' both land on a pantry that tracks 'Uien - Oignon', in
+ * whatever language the ticket prints). The resolved key is what the upsert
+ * below targets, so the merge converges on the rows the family already has
+ * instead of filling the page with near-copies of them.
  *
  * A single `INSERT … ON CONFLICT DO UPDATE` on the partial unique index
  * (`custom/0005-pantry-name-unique`), so two concurrent merges cannot both

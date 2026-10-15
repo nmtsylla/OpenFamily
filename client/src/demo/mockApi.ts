@@ -43,13 +43,14 @@ const lunchboxWithMember = (box: Json) => {
 // demo's page, its tabs and the dashboard widget have something to show.
 const pantryKey = (name: string) =>
     name.normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/œ/gi, 'oe').toLowerCase().trim().replace(/\s+/g, ' ');
-// The server's second rule (lib/pantry.custom.ts, pantryHeadKey): a bare name
-// lands on the household's own qualified row, so a ticket's 'Uien' adds up to
-// 'Uien - Oignon' instead of opening a second row.
-const pantryHeadKey = (name: string) => {
+// The server's second rule (lib/pantry.custom.ts, pantryAliasKeys): a name a
+// stored row declares lands on that row, so a ticket's 'Uien' — or its
+// 'Oignon' — adds up to 'Uien - Oignon' instead of opening a second row.
+const pantryAliasKeys = (name: string) => {
     const key = pantryKey(name);
-    const cut = key.search(/[-–—,;:•·|/()[\]{}«»]/);
-    return cut > 0 ? key.slice(0, cut).trim() : key;
+    if (!key) return [];
+    const segments = key.split(/[-–—,;:•·|/()[\]{}«»]/).map((part) => part.trim()).filter(Boolean);
+    return segments.length > 0 ? segments : [key];
 };
 let demoPantry: Json[] = [
     { id: 'pantry-demo-1', name: 'Lait', category: 'Alimentation', quantity: 1, unit: 'L', location: 'fridge', expires_on: null, low_stock_threshold: 1, lunchbox_bucket: 'drink', notes: null, source: 'manual' },
@@ -89,7 +90,7 @@ const mergePantryLines = (lines: Json[], source = 'receipt'): { created: number;
         const key = pantryKey(name);
         const mergeable = demoPantry.filter((item) => item.source !== 'grocy');
         const existing = mergeable.find((item) => pantryKey(String(item.name)) === key)
-            ?? mergeable.find((item) => pantryHeadKey(String(item.name)) === key);
+            ?? mergeable.find((item) => pantryAliasKeys(String(item.name)).includes(key));
         if (existing) {
             existing.quantity = Number(existing.quantity ?? 0) + Number(line.quantity ?? 1);
             updated += 1;
