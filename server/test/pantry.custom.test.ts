@@ -6,6 +6,8 @@ import {
     isLowStock,
     mapGrocyStock,
     mapReceiptItems,
+    pantryHeadKey,
+    pantryKeyResolver,
     pantryNameKey,
     sanitizePantryItem,
     splitReceiptLines,
@@ -26,6 +28,63 @@ test('pantryNameKey folds accents, ligatures and whitespace', () => {
     assert.equal(pantryNameKey('  Crème   Fraîche '), 'creme fraiche');
     assert.equal(pantryNameKey('OEufs'), pantryNameKey('œufs'));
     assert.equal(pantryNameKey('a'.repeat(500)).length, MAX_PANTRY_NAME);
+});
+
+test('pantryHeadKey stops at the first qualifier', () => {
+    assert.equal(pantryHeadKey('Uien - Oignon'), 'uien');
+    assert.equal(pantryHeadKey('Pommes de terre (sac 5kg)'), 'pommes de terre');
+    assert.equal(pantryHeadKey('Lait, demi-écrémé'), 'lait');
+    assert.equal(pantryHeadKey('Coca-Cola'), 'coca');
+    // No qualifier: the head IS the key, which is what makes the merge an exact
+    // match rather than a guess.
+    assert.equal(pantryHeadKey('Tomates'), 'tomates');
+    assert.equal(pantryHeadKey('  '), '');
+});
+
+// The duplication the family reported: a ticket says 'Uien' (or 'Tomaten los')
+// while the pantry already holds 'Uien - Oignon' ('Tomates').
+test('pantryKeyResolver adds a bare name to the household\'s qualified row', () => {
+    const resolve = pantryKeyResolver([pantryNameKey('Tomates'), pantryNameKey('Uien - Oignon')]);
+
+    assert.equal(resolve('Uien'), pantryNameKey('Uien - Oignon'));
+    assert.equal(resolve('uien'), pantryNameKey('Uien - Oignon'));
+    assert.equal(resolve('Tomates'), pantryNameKey('Tomates'));
+    // The cross-language case ('Tomaten los' into 'Tomates') is not a string
+    // rule: the extraction returns the pantry's name, see the prompt tests.
+    assert.equal(resolve('Tomaten'), pantryNameKey('Tomaten'));
+});
+
+test('pantryKeyResolver keeps a qualified incoming name its own row', () => {
+    const resolve = pantryKeyResolver([pantryNameKey('Tomates'), pantryNameKey('Lait')]);
+
+    // A qualifier on the incoming name says it is the more precise product:
+    // cherry tomatoes are not the tomatoes already in the pantry.
+    assert.equal(resolve('Tomates cerises'), pantryNameKey('Tomates cerises'));
+    assert.equal(resolve('Lait - demi-écrémé'), pantryNameKey('Lait - demi-écrémé'));
+    // A multi-word product is not a qualifier: only a separator makes a head.
+    assert.equal(pantryKeyResolver([pantryNameKey('Riz basmati')])('Riz'), pantryNameKey('Riz'));
+});
+
+test('pantryKeyResolver converges a whole batch on the rows it just named', () => {
+    const resolve = pantryKeyResolver([]);
+
+    assert.equal(resolve('Uien - Oignon'), pantryNameKey('Uien - Oignon'));
+    // Same import, second line: the bare name joins the row opened a moment ago.
+    assert.equal(resolve('Uien'), pantryNameKey('Uien - Oignon'));
+    // A name resolved before it is stored keeps resolving to the same row.
+    assert.equal(resolve('uien'), pantryNameKey('Uien - Oignon'));
+    // Unrelated names keep their own key.
+    assert.equal(resolve('Tomates'), pantryNameKey('Tomates'));
+});
+
+test('pantryKeyResolver never folds two rows the family kept apart', () => {
+    const resolve = pantryKeyResolver([pantryNameKey('Poisson'), pantryNameKey('Boisson')]);
+
+    assert.equal(resolve('Poisson'), pantryNameKey('Poisson'));
+    assert.equal(resolve('Boisson'), pantryNameKey('Boisson'));
+    // One letter apart is not the same product, and empty names never match.
+    assert.equal(resolve('Poison'), pantryNameKey('Poison'));
+    assert.equal(resolve('   '), '');
 });
 
 test('sanitizePantryItem refuses a body without a usable name or quantity', () => {

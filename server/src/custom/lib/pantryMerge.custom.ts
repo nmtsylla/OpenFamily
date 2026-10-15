@@ -7,11 +7,18 @@
 // pantry in the same transaction as the budget entries it creates.
 // =============================================================================
 
-import { pantryNameKey, type PantryLineSeed } from './pantry.custom';
+import { pantryKeyResolver, type PantryLineSeed } from './pantry.custom';
 
 /**
- * Merge seeds into the pantry: one non-Grocy row per folded name, quantities add
+ * Merge seeds into the pantry: one non-Grocy row per product, quantities add
  * up, and a unit only ever fills a hole (the row's own unit wins).
+ *
+ * The row a seed lands on is decided by `pantryKeyResolver` against the names
+ * already in the pantry: the folded name, or the household's own qualified row
+ * when the import is the bare name ('Uien' into a pantry that tracks 'Uien -
+ * Oignon'). The resolved key is what the upsert below targets, so the whole
+ * batch converges on the rows the family already has instead of filling the
+ * page with near-copies of them.
  *
  * A single `INSERT … ON CONFLICT DO UPDATE` on the partial unique index
  * (`custom/0005-pantry-name-unique`), so two concurrent merges cannot both
@@ -33,9 +40,20 @@ export const mergeIntoPantry = async (
 ): Promise<{ created: number; updated: number }> => {
     let created = 0;
     let updated = 0;
+    if (seeds.length === 0) return { created, updated };
+
+    // Read inside the caller's transaction: the batch sees one snapshot, and the
+    // upsert below stays the serialisation point for two concurrent merges.
+    const existing = await client.query(
+        `SELECT name_key FROM custom_pantry_items
+          WHERE user_id = $1 AND source <> 'grocy'
+          ORDER BY name_key`,
+        [userId],
+    );
+    const resolveKey = pantryKeyResolver(existing.rows.map((row) => String(row.name_key)));
 
     for (const seed of seeds) {
-        const key = pantryNameKey(seed.name);
+        const key = resolveKey(seed.name);
         if (key.length === 0) continue;
 
         const result = await client.query(

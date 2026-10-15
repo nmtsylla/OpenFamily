@@ -6,9 +6,12 @@
 // number, an expiry date that is a date, and the folded `name_key` every merge
 // (receipt import, shopping bridge, Grocy import) compares on.
 //
-// The merge key is the folded name ONLY. Two rows for the same product in two
-// locations (one in the fridge, one in the cellar) therefore merge into one on
-// the next import — accepted ceiling, noted on the page, split manually.
+// The merge key is the folded name, with one deliberate exception: a bare
+// incoming name lands on the household's own qualified row ('Uien' against a
+// pantry that tracks 'Uien - Oignon') instead of opening a second one — see
+// pantryKeyResolver. Two rows for the same product in two locations (one in the
+// fridge, one in the cellar) still merge into one on the next import — accepted
+// ceiling, noted on the page, split manually.
 // =============================================================================
 
 import { isCalendarDate } from './validation.custom';
@@ -49,6 +52,63 @@ export const pantryNameKey = (name: string): string =>
         .trim()
         .replace(/\s+/g, ' ')
         .slice(0, MAX_PANTRY_NAME);
+
+/** The characters a pantry name uses to hang a qualifier on its product. */
+const QUALIFIER_SEPARATOR = /[-–—,;:•·|/()[\]{}«»]/;
+
+/**
+ * The folded name up to its first qualifier: 'uien' for 'Uien - Oignon',
+ * 'pommes de terre' for 'Pommes de terre (sac)'. Equal to the key above when
+ * the name carries no qualifier, which is the common case.
+ */
+export const pantryHeadKey = (name: string): string => {
+    const key = pantryNameKey(name);
+    const cut = key.search(QUALIFIER_SEPARATOR);
+    return cut > 0 ? key.slice(0, cut).trim() : key;
+};
+
+/**
+ * What an incoming name adds up to. An exact folded name always wins; failing
+ * that, the family's own head: an import that says 'Uien' while the household
+ * tracks 'Uien - Oignon' stocks THAT row instead of opening a second one, which
+ * is the duplicate the family could not unsee.
+ *
+ * The reverse never matches: 'Tomates cerises' or 'Lait - demi-écrémé' stay
+ * their own row, because a qualifier on the incoming name says it is a more
+ * precise product, while a bare incoming name says nothing about the row it
+ * might have come from.
+ *
+ * Only the head is compared, never the whole name: 'Riz' against 'Riz basmati'
+ * is two products that look alike, and telling them apart needs the model (the
+ * extraction is offered the family's names, ai/receipt.custom.ts) or the family
+ * itself. Edit distance is deliberately absent: 'poisson' and 'boisson' are one
+ * letter apart.
+ *
+ * The returned resolver remembers what it has already resolved, so a name later
+ * in the same batch lands on the row an earlier one created.
+ */
+export const pantryKeyResolver = (existingKeys: readonly string[]) => {
+    const rows = new Set(existingKeys);
+    // head → row key, so 'uien' finds the row actually named 'uien - oignon'.
+    const heads = new Map<string, string>();
+    for (const key of existingKeys) {
+        const head = pantryHeadKey(key);
+        if (head !== key && !heads.has(head)) heads.set(head, key);
+    }
+
+    return (name: string): string => {
+        const own = pantryNameKey(name);
+        if (own.length === 0) return own;
+
+        const key = rows.has(own) ? own : heads.get(own) ?? own;
+        const head = pantryHeadKey(name);
+        // A row this batch just opened keeps its own qualifiers: a bare name
+        // later in the same import adds up to it rather than opening a copy.
+        if (key === own && head !== own && !heads.has(head)) heads.set(head, own);
+        rows.add(key);
+        return key;
+    };
+};
 
 const cleanText = (value: unknown, max: number): string | null => {
     if (typeof value !== 'string') return null;
