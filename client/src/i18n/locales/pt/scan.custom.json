@@ -85,6 +85,8 @@
     "tab": "Today’s deals",
     "watchlistTab": "My watchlist",
     "subtitle": "What the supermarkets are promoting today.",
+    "focus": "Groceries",
+    "focusHint": "Your pantry and receipts first, then the shops' grocery deals.",
     "search": "Product",
     "searchPlaceholder": "Search a product",
     "store": "Store",

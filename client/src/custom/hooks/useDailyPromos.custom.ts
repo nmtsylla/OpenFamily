@@ -27,6 +27,8 @@ export interface PromoQueryState {
     /** "10", "25", "50" or "" for no floor. */
     minSavings: string;
     sort: PromoSort;
+    /** "My groceries": the pantry and receipts first, then the shops' food deals. */
+    focus: boolean;
 }
 
 const INITIAL_QUERY: PromoQueryState = {
@@ -36,6 +38,7 @@ const INITIAL_QUERY: PromoQueryState = {
     category: '',
     minSavings: '',
     sort: 'savings',
+    focus: true,
 };
 
 export function useDailyPromos() {
@@ -52,7 +55,7 @@ export function useDailyPromos() {
     // since it is the server that leaves them out.
     const [refresh, setRefresh] = useState(0);
 
-    const { country, q, retailer, category, minSavings, sort } = query;
+    const { country, q, retailer, category, minSavings, sort, focus } = query;
 
     useEffect(() => {
         const timer = setTimeout(() => setDeferredQuery(q), SEARCH_DEBOUNCE_MS);
@@ -124,6 +127,7 @@ export function useDailyPromos() {
             setLoading(true);
             const params = new URLSearchParams({ sort, page: String(pageNumber), page_size: String(PAGE_SIZE) });
             if (country) params.set('country', country);
+            if (focus) params.set('focus', '1');
             if (deferredQuery.trim()) params.set('q', deferredQuery.trim());
             if (retailer) params.set('retailer', retailer);
             if (category) params.set('category', category);
@@ -159,7 +163,7 @@ export function useDailyPromos() {
         return () => {
             cancelled = true;
         };
-    }, [country, deferredQuery, retailer, category, minSavings, sort, pageNumber, refresh]);
+    }, [country, deferredQuery, retailer, category, minSavings, sort, focus, pageNumber, refresh]);
 
     /** A filter change always goes back to page 1: page 7 of another filter is meaningless. */
     const update = useCallback((patch: Partial<PromoQueryState>) => {

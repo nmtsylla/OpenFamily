@@ -85,6 +85,8 @@
     "tab": "Promos du jour",
     "watchlistTab": "Ma liste de suivi",
     "subtitle": "Ce que les magasins mettent en promotion aujourd’hui.",
+    "focus": "Courses",
+    "focusHint": "Votre garde-manger et vos tickets d’abord, puis les promos de produits d’épicerie.",
     "search": "Produit",
     "searchPlaceholder": "Rechercher un produit",
     "store": "Magasin",

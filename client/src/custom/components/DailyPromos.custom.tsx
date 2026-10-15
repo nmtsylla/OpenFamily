@@ -66,7 +66,23 @@ const DailyPromos: React.FC = () => {
         <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="flex-1 text-body text-muted-foreground">{t('dailyPromos.subtitle')}</p>
-                <DisplayViewToggle view={view} onChange={setView} />
+                <div className="flex items-center gap-2">
+                    {/* "My groceries": the pantry and the receipts first, then the
+                        shops' general grocery deals — not the whole catalogue.
+                        On by default; a household's own shopping is the better
+                        starting point. */}
+                    <Button
+                        size="sm"
+                        variant={query.focus ? 'secondary' : 'ghost'}
+                        onClick={() => update({ focus: !query.focus })}
+                        aria-pressed={query.focus}
+                        title={t('dailyPromos.focusHint')}
+                        className="whitespace-nowrap"
+                    >
+                        {t('dailyPromos.focus')}
+                    </Button>
+                    <DisplayViewToggle view={view} onChange={setView} />
+                </div>
             </div>
 
             <div className="space-y-3 rounded-card border border-border bg-card p-4">

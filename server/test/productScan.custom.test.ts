@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { firstCategory, normalizeProduct } from '../src/custom/lib/openFoodFacts.custom';
 import { applyExclusions, isExcluded, normalizeTerm } from '../src/custom/lib/promoExclusions.custom';
+import { focusMatches, focusTermsOf, GENERAL_GROCERY_CATEGORIES, MAX_FOCUS_TERMS } from '../src/custom/lib/promoFocus.custom';
 import { configuredCountries, labelOf, normalizeOffers, normalizePromoFilters, normalizePromoPage, promoQueryOf, type PromoOffer } from '../src/custom/lib/prijsprofeet.custom';
 import { barcodeOf, optionalPrice } from '../src/custom/lib/product.custom';
 
@@ -405,4 +406,48 @@ test('applyExclusions: what is left, and what that hid on this page', () => {
         ['Pistolet wit']
     );
     assert.equal(withoutSoftDrinks.hidden, 2);
+});
+
+// =============================================================================
+// "My products": the term list built from the pantry/receipt names and the
+// verification that keeps only the offers that really name one of them. The API
+// searches fuzzily — "brood" answers tortilla chips — so this is the rule that
+// makes the focus claim true.
+// =============================================================================
+
+test('focusTermsOf: typed text first, family names deduped the way the pantry merges', () => {
+    assert.deepEqual(focusTermsOf(['Œufs', 'oeufs ', 'Lait demi-écrémé'], 'bio'), [
+        'bio',
+        'Œufs',
+        'Lait demi-écrémé',
+    ]);
+
+    // One letter would match half the shop, an empty name is not a product.
+    assert.deepEqual(focusTermsOf(['a', '  ', 'Bio'], ''), ['Bio']);
+
+    // Bounded: the newest names win, the rest are not searched.
+    const many = Array.from({ length: MAX_FOCUS_TERMS + 5 }, (_, index) => `produit ${index}`);
+    assert.equal(focusTermsOf(many, '').length, MAX_FOCUS_TERMS);
+    assert.equal(focusTermsOf(many, '')[0], 'produit 0');
+});
+
+test('focusMatches: the offer has to name the product, accents and case aside', () => {
+    const terms = ['melk', 'oeufs'];
+
+    assert.equal(focusMatches(offer('Boni Selection halfvolle melk', 'Boni'), terms), true);
+    assert.equal(focusMatches(offer(null, 'Oeufs Bio'), terms), true); // brand counts too
+    assert.equal(focusMatches(offer('Croky Tortilla chips Paprika', 'Croky'), terms), false); // the API's fuzzy noise
+    assert.equal(focusMatches(offer(null, null), terms), false);
+    assert.equal(focusMatches(offer('Anything', 'Anything'), []), false);
+});
+
+test('GENERAL_GROCERY_CATEGORIES: the food aisles only, no duplicates', () => {
+    assert.ok(GENERAL_GROCERY_CATEGORIES.length >= 10);
+    assert.equal(new Set(GENERAL_GROCERY_CATEGORIES).size, GENERAL_GROCERY_CATEGORIES.length);
+    assert.ok(GENERAL_GROCERY_CATEGORIES.includes('groente-fruit'));
+
+    // The candles, toothpaste and pet food a supermarket also sells are not groceries.
+    for (const nonFood of ['huishouden', 'drogisterij', 'huidverzorging', 'mondverzorging', 'huisdier', 'overig']) {
+        assert.equal(GENERAL_GROCERY_CATEGORIES.includes(nonFood as never), false, `${nonFood} is not a grocery`);
+    }
 });

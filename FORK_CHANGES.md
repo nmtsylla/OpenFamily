@@ -47,7 +47,7 @@ explained below.
 | Smart pantry — what the household has at home (locations, expiry, low stock), bridging the shopping list both ways, Grocy stock in, and the receipt import feeding it: the obviously stockable lines merge in under the brand-free name the AI read off the ticket, the rest wait in a review queue on the page; lunchbox AI and a "cook from what you have" tab out | `server/src/custom/lib/pantry.custom.ts`, `server/src/custom/lib/pantryMerge.custom.ts`, `server/src/custom/lib/validation.custom.ts`, `server/src/custom/routes/pantry.custom.ts`, `client/src/custom/pages/Pantry.custom.tsx`, `client/src/custom/components/PantryExpiryCard.custom.tsx`, `client/src/custom/lib/pantryMatch.custom.ts` | `CUSTOM_FEATURE_PANTRY_ENABLED` |
 | AI outing planner on the Planning page — real nearby places from OpenStreetMap/Overpass ranked for the selected day, weather, party and relevant family profiles; choose saved home, browser position or a temporary city/area without changing home settings; restaurants require the exact `diet:halal=only` tag; location-free activity ideas never invent venues; the chosen outing is added through upstream's `/api/planning` | `server/src/custom/lib/places.custom.ts`, `server/src/custom/lib/{location,kids}.custom.ts`, `server/src/custom/ai/outings.custom.ts`, `server/src/custom/routes/outings.custom.ts`, `server/test/outings.custom.test.ts`, `client/src/custom/components/OutingPlanner.custom.tsx`, `client/src/custom/hooks/useOutings.custom.ts` | `CUSTOM_FEATURE_OUTINGS_ENABLED` |
 | Barcode scanning, product lookup and promo watchlist | `server/src/custom/lib/{openFoodFacts,product}.custom.ts`, `server/src/custom/routes/productScan.custom.ts`, `server/test/productScan.custom.test.ts`, `client/src/custom/pages/{ProductScanner,PromoWatchlist}.custom.tsx`, `client/src/custom/components/{BarcodeScanner,ProductCard}.custom.tsx`, `client/src/custom/hooks/{useProductScan,usePromoWatchlist}.custom.ts`, `client/src/custom/lib/product.custom.ts` | `CUSTOM_FEATURE_SCANNER_ENABLED` |
-| Live supermarket promotions (PrijsProfeet, free plan): the promo screen's daily list with product pictures, filtered by store / category / discount / text and paginated, the family's own "never show me this" terms, and the watch list's deals pane | `server/src/custom/lib/{prijsprofeet,promoExclusions}.custom.ts`, `client/src/custom/components/{DailyPromos,PromoOfferRow,PrijsProfeetCredit,PromoWatchlistPanel}.custom.tsx`, `client/src/custom/hooks/useDailyPromos.custom.ts` (routes, page, hooks and translations shared with the row above) | `CUSTOM_FEATURE_SCANNER_ENABLED` |
+| Live supermarket promotions (PrijsProfeet, free plan): the promo screen's daily list with product pictures, filtered by store / category / discount / text and paginated, a **"my groceries" focus** that leads with the pantry's stock and every imported receipt line and then fills with the shops' general grocery deals (food categories only; on by default, with its own toggle), the family's own "never show me this" terms, and the watch list's deals pane | `server/src/custom/lib/{prijsprofeet,promoExclusions,promoFocus}.custom.ts`, `client/src/custom/components/{DailyPromos,PromoOfferRow,PrijsProfeetCredit,PromoWatchlistPanel}.custom.tsx`, `client/src/custom/hooks/useDailyPromos.custom.ts` (routes, page, hooks and translations shared with the row above) | `CUSTOM_FEATURE_SCANNER_ENABLED` |
 | Board — a full-screen wall-display page, the pastel tile grid of the reference mock: clock + greeting, today's agenda as a **clock view** (the event occupying the current time at full weight with a "now" badge, the two past ones faded, struck through and compressed, the next two full weight, the overflow counted in the footer), weather with hourly rain-probability bars **and the air quality folded in as its secondary line** (muted `Air {n} · {band}`), meals, shopping, **a Belgian news tile** (VRT NWS headlines, scored server-side for the family's fixed interest set: software/tech, healthcare, school-and-parenting, working-parent economics, plus a base tier of Binnenland/Politiek; see `routes/news.custom.ts`), over a full-width chores strip whose chips are tapped to complete (inline 5 s undo, Kiosk.tsx's pattern). Reads the upstream lists (appointments / tasks / meal plans / shopping), `/api/news`, and Open-Meteo directly for weather and air quality (no key, public CORS); the weather side follows the **family's** saved city (`GET /api/weather/location`, the coordinates a parent saves in Settings), so every account and every device shows one city and a change reaches the open boards over the `family` WebSocket. Chrome-less (`fixed inset-0` layer), so no upstream edit | `client/src/custom/pages/Board.custom.tsx`, `client/src/custom/lib/board.custom.css`, `server/src/custom/{routes/news,lib/news}.custom.ts`, `server/test/news.custom.test.ts` (keys in `board.custom`) | `CUSTOM_FEATURE_BOARD_ENABLED` |
 | Feature flags / registration point | `server/src/custom/features.custom.ts`, `server/src/custom/register.custom.ts`, `server/src/custom/middleware/rateLimit.custom.ts` | — |
 | Client hooks for custom code | `client/src/custom/{nav.custom.ts,routes.custom.tsx}` | — |
@@ -1606,3 +1606,62 @@ app's first script) shows zero console errors — the one boot error seen earlie
 was the seed script writing the token after the app had already booted
 unauthenticated, which 401s the first `/api/auth/me` and is a test-harness
 artifact, not a product path.
+
+### "My groceries" on the promo screen: the day's deals, led by the household (2026-10-15)
+
+The promo screen's "Today's deals" tab used to show the country's whole live
+catalogue — 5 759 promotions on a good day, candles and toothpaste included —
+which is a shop's list, not a family's. It now opens **focused on the household's
+groceries**, with a toggle to get the full catalogue back.
+
+- **Two layers, the family's own first.** (1) The names in `custom_pantry_items`
+  (the smart pantry's stock) and every line of every imported receipt
+  (`budget_receipt_items.label`), newest first — what the household actually has
+  or has bought. (2) The shops' top deals in each **food category**
+  (`GENERAL_GROCERY_CATEGORIES` in the new `lib/promoFocus.custom.ts`: the 15
+  PrijsProfeet slugs from `groente-fruit` to `diepvries`, both hosts sharing the
+  same list). Layer 2 is what keeps the focus from being too narrow: a household
+  with a thin pantry, or none at all, still gets a useful grocery list rather
+  than an empty one, and the non-food aisles (`huishouden`, `drogisterij`,
+  `huisdier`, …) stay in "all deals". Personal matches lead, the general
+  groceries fill.
+- **Why the names are searched one at a time and verified locally.** Neither the
+  pantry nor a receipt line carries a barcode, so the join key is the product
+  **name**; and PrijsProfeet's free tier has no "my assortment" filter (that is
+  the Pro `/match` + `/shelf-prices`). Its `q` is fuzzy enough that `q=brood`
+  answers tortilla chips — measured on the live API, 2 of its 40 rows actually
+  contained the word — so a single long OR of every household name would be both
+  noisy and unbounded. Each name is therefore asked on its own (`personalOffers`
+  in `lib/prijsprofeet.custom.ts`) and kept only when the offer really names the
+  term (`focusMatches`). The general groceries need no such check: they are the
+  category, not a word match. Up to 24 names × 24 offers and one 24-offer page per
+  grocery category, all cached until the morning boundary like the rest of the
+  day's data.
+- **Default on, toggle off.** The focus is the point, so it is the default; the
+  "Groceries" button releases it to the country's catalogue and back. It is a
+  mode, not a saved preference (the display view is the only thing persisted), so
+  a reload returns to the focused list.
+- **Server**: `GET /api/products/promos?focus=1` branches inside the existing
+  route. The route owns the two-table name query and stays the only writer-free
+  reader of those tables. All custom files, no upstream edit:
+  `routes/productScan.custom.ts`, `lib/promoFocus.custom.ts`,
+  `lib/prijsprofeet.custom.ts`.
+- **Client**: `hooks/useDailyPromos.custom.ts` gains `focus` in the query state
+  (sent as `focus=1`); `components/DailyPromos.custom.tsx` gains the toggle
+  (`aria-pressed`). Two keys added to every `scan.custom.json`
+  (`dailyPromos.focus`, `.focusHint`).
+
+No migration, no dependency change, no upstream file touched.
+
+Verified on the isolated stack (`verify-openfamily`), against the live
+PrijsProfeet API: `npm test` 109/109 (3 new pure tests — `focusTermsOf` dedupe of
+`Œufs`/`oeufs`, one-letter rejection and the cap; `focusMatches` name-or-brand,
+accents aside, rejecting the fuzzy noise; and `GENERAL_GROCERY_CATEGORIES` being
+food-only and duplicate-free); `tsc` clean on server and client; `check:i18n` OK
+across 6 languages. Driven in Chromium: a fresh account with pantry `eieren`
+lands on "Today's deals" with the "Groceries" toggle on, shows the pantry's
+`eieren` offers first followed by general grocery deals (24 rows, `total` 363);
+an account with no pantry at all still gets 264 general grocery deals; toggling
+focus off returns the full catalogue. New harness `drive-promo-focus.mjs` (PASS);
+the existing `drive-daily-promos-view.mjs` and `drive-promo-watchlist.mjs` were
+updated for the toggle's new label and still PASS.
