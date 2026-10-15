@@ -4,6 +4,11 @@
     "promoWatchlist": "Promos",
     "mobileScanner": "Scan"
   },
+  "display": {
+    "viewMode": "显示方式",
+    "viewList": "列表视图",
+    "viewGrid": "网格视图"
+  },
   "scanner": {
     "title": "Scan a product",
     "subtitle": "Point the camera at a food barcode to get the product.",
@@ -68,10 +73,7 @@
     "upcoming": "starts next week",
     "until": "until",
     "multiBuy": "{{count}} for {{price}}",
-    "loyalty": "member price",
-    "viewMode": "显示方式",
-    "viewList": "列表视图",
-    "viewGrid": "网格视图"
+    "loyalty": "member price"
   },
   "promos": {
     "title": "Promotions"

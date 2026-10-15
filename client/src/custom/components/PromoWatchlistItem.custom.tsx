@@ -8,14 +8,14 @@ import { ChevronDown, ChevronRight, Plus, Tag, Trash2 } from 'lucide-react';
 import { Button } from '../../components/ui';
 import { cn, formatCurrency, formatDate } from '../../lib/utils';
 import type { PromoPrice, WatchlistItem } from '../hooks/usePromoWatchlist.custom';
-import type { WatchlistView } from '../hooks/useWatchlistView.custom';
+import type { DisplayView } from '../hooks/useDisplayView.custom';
 import type { PromoOffer } from '../lib/product.custom';
 import { PrijsProfeetCredit } from './PrijsProfeetCredit.custom';
 import { PromoOfferRow } from './PromoOfferRow.custom';
 
 interface PromoWatchlistItemProps {
     item: WatchlistItem;
-    view: WatchlistView;
+    view: DisplayView;
     open: boolean;
     currency: string;
     offers: PromoOffer[];

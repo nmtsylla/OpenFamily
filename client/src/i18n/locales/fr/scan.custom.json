@@ -4,6 +4,11 @@
     "promoWatchlist": "Promos",
     "mobileScanner": "Scan"
   },
+  "display": {
+    "viewMode": "Affichage",
+    "viewList": "Vue liste",
+    "viewGrid": "Vue grille"
+  },
   "scanner": {
     "title": "Scanner un produit",
     "subtitle": "Visez le code-barres d'un produit alimentaire avec la caméra.",
@@ -68,10 +73,7 @@
     "upcoming": "dès la semaine prochaine",
     "until": "jusqu’au",
     "multiBuy": "{{count}} pour {{price}}",
-    "loyalty": "prix membre",
-    "viewMode": "Affichage",
-    "viewList": "Vue liste",
-    "viewGrid": "Vue grille"
+    "loyalty": "prix membre"
   },
   "promos": {
     "title": "Promotions"

@@ -4,6 +4,11 @@
     "promoWatchlist": "Promos",
     "mobileScanner": "Scan"
   },
+  "display": {
+    "viewMode": "Visualização",
+    "viewList": "Vista de lista",
+    "viewGrid": "Vista de grelha"
+  },
   "scanner": {
     "title": "Scan a product",
     "subtitle": "Point the camera at a food barcode to get the product.",
@@ -68,10 +73,7 @@
     "upcoming": "starts next week",
     "until": "until",
     "multiBuy": "{{count}} for {{price}}",
-    "loyalty": "member price",
-    "viewMode": "Visualização",
-    "viewList": "Vista de lista",
-    "viewGrid": "Vista de grelha"
+    "loyalty": "member price"
   },
   "promos": {
     "title": "Promotions"

@@ -13,7 +13,10 @@ import { Button, Input, Select, useToast } from '../../components/ui';
 import { useAuth } from '../../contexts/AuthContext';
 import { PrijsProfeetCredit } from './PrijsProfeetCredit.custom';
 import { PromoOfferRow } from './PromoOfferRow.custom';
+import { PromoOfferTile } from './PromoOfferTile.custom';
+import DisplayViewToggle from './DisplayViewToggle.custom';
 import { useDailyPromos } from '../hooks/useDailyPromos.custom';
+import { useDisplayView } from '../hooks/useDisplayView.custom';
 import type { PromoCountry, PromoSort } from '../lib/product.custom';
 import { EXCLUDE_TERM_MIN_LENGTH } from '../lib/product.custom';
 
@@ -45,6 +48,7 @@ const DailyPromos: React.FC = () => {
         hideOffer,
     } = useDailyPromos();
     const [excludeTerm, setExcludeTerm] = useState('');
+    const { view, setView } = useDisplayView('openfamily.promoDaily.view.v1');
 
     const sortLabels: Record<PromoSort, string> = {
         savings: t('dailyPromos.sortSavings'),
@@ -60,6 +64,11 @@ const DailyPromos: React.FC = () => {
 
     return (
         <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="flex-1 text-body text-muted-foreground">{t('dailyPromos.subtitle')}</p>
+                <DisplayViewToggle view={view} onChange={setView} />
+            </div>
+
             <div className="space-y-3 rounded-card border border-border bg-card p-4">
                 <Input
                     label={t('dailyPromos.search')}
@@ -234,25 +243,45 @@ const DailyPromos: React.FC = () => {
                         {t('dailyPromos.count', { count: page.total })}
                         {page.hidden ? ` · ${t('dailyPromos.hidden', { count: page.hidden })}` : ''}
                     </p>
-                    <ul
-                        className={`divide-y divide-border overflow-hidden rounded-card border border-border bg-card ${loading ? 'opacity-60' : ''}`}
-                    >
-                        {page.offers.map((offer, index) => (
-                            <PromoOfferRow
-                                key={`${offer.retailer}-${offer.product_url ?? offer.quantity ?? index}-${index}`}
-                                offer={offer}
-                                currency={currency}
-                                showCountry={countries.length > 1}
-                                showProduct
-                                onHide={(hidden) =>
-                                    hideOffer(hidden).catch(() =>
-                                        showToast({ title: t('dailyPromos.excludeFailed') })
-                                    )
-                                }
-                                className="px-3 py-2"
-                            />
-                        ))}
-                    </ul>
+                    {view === 'grid' ? (
+                        <ul
+                            className={`grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 ${loading ? 'opacity-60' : ''}`}
+                        >
+                            {page.offers.map((offer, index) => (
+                                <PromoOfferTile
+                                    key={`${offer.retailer}-${offer.product_url ?? offer.quantity ?? index}-${index}`}
+                                    offer={offer}
+                                    currency={currency}
+                                    showCountry={countries.length > 1}
+                                    onHide={(hidden) =>
+                                        hideOffer(hidden).catch(() =>
+                                            showToast({ title: t('dailyPromos.excludeFailed') })
+                                        )
+                                    }
+                                />
+                            ))}
+                        </ul>
+                    ) : (
+                        <ul
+                            className={`divide-y divide-border overflow-hidden rounded-card border border-border bg-card ${loading ? 'opacity-60' : ''}`}
+                        >
+                            {page.offers.map((offer, index) => (
+                                <PromoOfferRow
+                                    key={`${offer.retailer}-${offer.product_url ?? offer.quantity ?? index}-${index}`}
+                                    offer={offer}
+                                    currency={currency}
+                                    showCountry={countries.length > 1}
+                                    showProduct
+                                    onHide={(hidden) =>
+                                        hideOffer(hidden).catch(() =>
+                                            showToast({ title: t('dailyPromos.excludeFailed') })
+                                        )
+                                    }
+                                    className="px-3 py-2"
+                                />
+                            ))}
+                        </ul>
+                    )}
                     <PrijsProfeetCredit countries={offerCountries} />
 
                     {lastPage > 1 ? (

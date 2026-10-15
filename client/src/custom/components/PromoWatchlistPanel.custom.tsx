@@ -14,10 +14,10 @@ import { Tag } from 'lucide-react';
 import { Button, Dialog, Input, Textarea, useToast } from '../../components/ui';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePromoWatchlist, type PromoPrice, type WatchlistItem } from '../hooks/usePromoWatchlist.custom';
-import { useWatchlistView } from '../hooks/useWatchlistView.custom';
+import { useDisplayView } from '../hooks/useDisplayView.custom';
 import { optionalNumber, type PromoOffer } from '../lib/product.custom';
 import PromoWatchlistItem from './PromoWatchlistItem.custom';
-import PromoWatchlistViewToggle from './PromoWatchlistViewToggle.custom';
+import DisplayViewToggle from './DisplayViewToggle.custom';
 
 interface LogPriceDialogProps {
     item: WatchlistItem;
@@ -108,7 +108,7 @@ const PromoWatchlistPanel: React.FC = () => {
     const { user } = useAuth();
     const currency = user?.currency || 'EUR';
     const { watchlist, loading, error, removeWatch, logPrice, fetchPrices, fetchOffers } = usePromoWatchlist();
-    const { view, setView } = useWatchlistView();
+    const { view, setView } = useDisplayView('openfamily.promoWatchlist.view.v1');
 
     const [openBarcode, setOpenBarcode] = useState<string | null>(null);
     const [history, setHistory] = useState<PromoPrice[]>([]);
@@ -195,7 +195,7 @@ const PromoWatchlistPanel: React.FC = () => {
         <div className="space-y-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="flex-1 text-body text-muted-foreground">{t('promoWatchlist.subtitle')}</p>
-                {watchlist.length > 0 ? <PromoWatchlistViewToggle view={view} onChange={setView} /> : null}
+                {watchlist.length > 0 ? <DisplayViewToggle view={view} onChange={setView} /> : null}
             </div>
 
             {error ? (
