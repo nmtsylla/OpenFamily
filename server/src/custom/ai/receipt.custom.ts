@@ -21,6 +21,14 @@
 // product adds up to the same row instead of opening a second one under a brand
 // name. The `label` stays the printed text (it describes the budget entry).
 //
+// The prompt also receives the names already in the household's pantry, and one
+// rule is added with them: when a line IS one of those products, the model hands
+// back that name unchanged. It is how 'Tomaten los' lands on 'Tomates' and 'Uien'
+// on 'Uien - Oignon'. Naming alone cannot do it — dropping the brand leaves
+// strings, and no string rule tells 'Riz' from 'Riz basmati' or 'poisson' from
+// 'boisson' (lib/pantry.custom.ts, pantryKeyResolver, is the half that still runs
+// with no model in the loop).
+//
 // `pantry_stock` is the model's verdict on whether that line is plainly
 // household stock: only those lines are stocked automatically, the rest wait on
 // the pantry page for the family to name and categorise them
@@ -38,6 +46,13 @@ export const MAX_RECEIPT_FILE_BYTES = 8 * 1024 * 1024;
 
 /** Line items kept from one document (a long supermarket ticket fits). */
 export const MAX_RECEIPT_ITEMS = 60;
+
+/**
+ * Pantry names offered to the model as the names to reuse. A household with
+ * more products than this keeps the ones that sort first; the rest only costs a
+ * missed match, never a wrong one (the merge falls back to the folded name).
+ */
+export const MAX_RECEIPT_PANTRY_NAMES = 150;
 
 const MAX_MERCHANT = 120;
 const MAX_LABEL = 160;
@@ -126,11 +141,28 @@ export function buildReceiptPrompt(
     categories: readonly string[],
     todayIso: string,
     currency: string,
+    pantryNames: readonly string[] = [],
 ): string {
+    // Family-typed names go into the prompt: one line each, whitespace flattened
+    // so a name carrying a newline cannot pose as another line of instructions.
+    const pantryList = pantryNames
+        .map((name) => String(name ?? '').replace(/\s+/g, ' ').trim().slice(0, MAX_PANTRY_NAME))
+        .filter((name) => name.length > 0)
+        .slice(0, MAX_RECEIPT_PANTRY_NAMES)
+        .map((name) => `- ${name}`)
+        .join('\n');
+
     return [
         `Tu analyses la photo ou le PDF d'un ticket de caisse ou d'une facture, pour l'application de budget familial d'un foyer.`,
         ``,
         `Date du jour : ${todayIso}. Devise habituelle du foyer : ${currency || 'EUR'}.`,
+        ...(pantryList
+            ? [
+                  ``,
+                  `Produits DÉJÀ dans le garde-manger de ce foyer (liste exhaustive) :`,
+                  pantryList,
+              ]
+            : []),
         ``,
         `Réponds UNIQUEMENT avec un objet JSON, sans texte autour, avec exactement ces champs :`,
         `- "document_type" : "receipt" pour un ticket de caisse (achats détaillés), "invoice" pour une facture (abonnement, énergie, loyer, téléphone…).`,
@@ -146,6 +178,8 @@ export function buildReceiptPrompt(
         `  "amount" = montant total de la ligne, remises déjà déduites,`,
         `  "category" = EXACTEMENT l'une de : ${categories.join(', ')}.`,
         `  "pantry_item" = le MÊME article réduit à ce qu'on stocke à la maison : enlève la marque, l'enseigne, le format, le poids, le volume et tout texte promotionnel ("LAIT DEMI-ECREME BIO VILLAGE 1L" → "Lait demi-écrémé", "POULET FERMIER S/O PESEE" → "Poulet", "LESSIVE LIQUIDE X 40D" → "Lessive"). Garde la langue du ticket et un nom court et générique : c'est ce qui sera additionné au garde-manger quand un autre ticket contiendra le même produit. "" si le libellé est déjà ce nom générique.`,
+        `    SAUF si ce produit est DÉJÀ dans le garde-manger ci-dessus sous un autre nom : recopie alors EXACTEMENT le nom du garde-manger, caractère pour caractère, même s'il est dans une autre langue, au singulier ou au pluriel, ou accompagné d'un mot de plus ("Tomaten los" pour "Tomates", "Uien" pour "Uien - Oignon"). Deux noms pour un même produit créent deux lignes dans le garde-manger : le nom déjà présent a toujours la priorité.`,
+        `    La liste est celle des produits du foyer, pas celle du ticket : ne l'utilise jamais pour inventer une ligne que le ticket ne porte pas, et ignore les produits du foyer qui ne sont pas sur ce ticket.`,
         `  "pantry_unit" = l'unité de conditionnement ou de contenu que le ticket précise ("L", "kg", "pièce", "pot", "paquet"…), "" sinon.`,
         `  "pantry_stock" = true UNIQUEMENT si cette ligne est clairement un produit que le foyer garde chez lui (alimentaire, boisson, entretien, hygiène…) ET que "pantry_item" est un nom générique net. false pour un service, une taxe, une consigne, du carburant, une ligne illisible ou abrégée, et dès que tu as un doute : ces lignes seront proposées à la famille, qui décidera elle-même.`,
         ``,
