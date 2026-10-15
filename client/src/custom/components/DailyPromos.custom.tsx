@@ -6,7 +6,7 @@
 // server/src/custom/lib/prijsprofeet.custom.ts), so this is the day's list, not a
 // snapshot that drifts.
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Search, X } from 'lucide-react';
 import { Button, Input, Select, useToast } from '../../components/ui';
@@ -49,6 +49,14 @@ const DailyPromos: React.FC = () => {
     } = useDailyPromos();
     const [excludeTerm, setExcludeTerm] = useState('');
     const { view, setView } = useDisplayView('openfamily.promoDaily.view.v1');
+    // The count line above the offers: its top is where a page flip should land.
+    // Without this the new page renders while the viewport stays at the pagination
+    // buttons at the bottom, and the user scrolls up by hand.
+    const listTopRef = useRef<HTMLParagraphElement>(null);
+    const goToPage = (page: number) => {
+        setPageNumber(page);
+        listTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
 
     const sortLabels: Record<PromoSort, string> = {
         savings: t('dailyPromos.sortSavings'),
@@ -255,7 +263,7 @@ const DailyPromos: React.FC = () => {
                 </div>
             ) : (
                 <>
-                    <p className="text-caption text-muted-foreground">
+                    <p ref={listTopRef} className="scroll-mt-24 text-caption text-muted-foreground">
                         {t('dailyPromos.count', { count: page.total })}
                         {page.hidden ? ` · ${t('dailyPromos.hidden', { count: page.hidden })}` : ''}
                     </p>
@@ -306,7 +314,7 @@ const DailyPromos: React.FC = () => {
                                 size="sm"
                                 variant="ghost"
                                 disabled={pageNumber <= 1 || loading}
-                                onClick={() => setPageNumber(pageNumber - 1)}
+                                onClick={() => goToPage(pageNumber - 1)}
                             >
                                 {t('dailyPromos.previous')}
                             </Button>
@@ -317,7 +325,7 @@ const DailyPromos: React.FC = () => {
                                 size="sm"
                                 variant="ghost"
                                 disabled={pageNumber >= lastPage || loading}
-                                onClick={() => setPageNumber(pageNumber + 1)}
+                                onClick={() => goToPage(pageNumber + 1)}
                             >
                                 {t('dailyPromos.next')}
                             </Button>
