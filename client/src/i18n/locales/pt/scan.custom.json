@@ -68,7 +68,10 @@
     "upcoming": "starts next week",
     "until": "until",
     "multiBuy": "{{count}} for {{price}}",
-    "loyalty": "member price"
+    "loyalty": "member price",
+    "viewMode": "Visualização",
+    "viewList": "Vista de lista",
+    "viewGrid": "Vista de grelha"
   },
   "promos": {
     "title": "Promotions"

@@ -68,7 +68,10 @@
     "upcoming": "dès la semaine prochaine",
     "until": "jusqu’au",
     "multiBuy": "{{count}} pour {{price}}",
-    "loyalty": "prix membre"
+    "loyalty": "prix membre",
+    "viewMode": "Affichage",
+    "viewList": "Vue liste",
+    "viewGrid": "Vue grille"
   },
   "promos": {
     "title": "Promotions"

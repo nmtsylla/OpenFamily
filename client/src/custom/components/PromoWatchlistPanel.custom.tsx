@@ -10,14 +10,14 @@
 
 import React, { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronDown, ChevronRight, Plus, Tag, Trash2 } from 'lucide-react';
+import { Tag } from 'lucide-react';
 import { Button, Dialog, Input, Textarea, useToast } from '../../components/ui';
 import { useAuth } from '../../contexts/AuthContext';
-import { formatCurrency, formatDate } from '../../lib/utils';
 import { usePromoWatchlist, type PromoPrice, type WatchlistItem } from '../hooks/usePromoWatchlist.custom';
+import { useWatchlistView } from '../hooks/useWatchlistView.custom';
 import { optionalNumber, type PromoOffer } from '../lib/product.custom';
-import { PrijsProfeetCredit } from './PrijsProfeetCredit.custom';
-import { PromoOfferRow } from './PromoOfferRow.custom';
+import PromoWatchlistItem from './PromoWatchlistItem.custom';
+import PromoWatchlistViewToggle from './PromoWatchlistViewToggle.custom';
 
 interface LogPriceDialogProps {
     item: WatchlistItem;
@@ -108,6 +108,7 @@ const PromoWatchlistPanel: React.FC = () => {
     const { user } = useAuth();
     const currency = user?.currency || 'EUR';
     const { watchlist, loading, error, removeWatch, logPrice, fetchPrices, fetchOffers } = usePromoWatchlist();
+    const { view, setView } = useWatchlistView();
 
     const [openBarcode, setOpenBarcode] = useState<string | null>(null);
     const [history, setHistory] = useState<PromoPrice[]>([]);
@@ -182,10 +183,6 @@ const PromoWatchlistPanel: React.FC = () => {
         }
     };
 
-    // The attribution links follow the countries actually present in the list:
-    // the licence term is one link per source, and only when its data shows.
-    const offerCountries = [...new Set(offers.map((offer) => offer.country))];
-
     if (loading) {
         return (
             <div className="flex h-full min-h-[50vh] items-center justify-center">
@@ -196,7 +193,10 @@ const PromoWatchlistPanel: React.FC = () => {
 
     return (
         <div className="space-y-5">
-            <p className="text-body text-muted-foreground">{t('promoWatchlist.subtitle')}</p>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="flex-1 text-body text-muted-foreground">{t('promoWatchlist.subtitle')}</p>
+                {watchlist.length > 0 ? <PromoWatchlistViewToggle view={view} onChange={setView} /> : null}
+            </div>
 
             {error ? (
                 <div className="rounded-input border border-danger/30 bg-danger/10 px-4 py-3 text-caption text-danger">
@@ -212,127 +212,26 @@ const PromoWatchlistPanel: React.FC = () => {
                 </div>
             ) : null}
 
-            {watchlist.map((item) => {
-                const open = openBarcode === item.barcode;
-                const Chevron = open ? ChevronDown : ChevronRight;
-                return (
-                    <div key={item.id} className="overflow-hidden rounded-card border border-border bg-card">
-                        <div className="flex items-center gap-3 p-4">
-                            {item.image_url ? (
-                                <img
-                                    src={item.image_url}
-                                    alt=""
-                                    className="h-14 w-14 flex-shrink-0 rounded-card bg-surface-2 object-contain"
-                                />
-                            ) : (
-                                <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-card bg-surface-2 text-muted-foreground">
-                                    <Tag className="h-5 w-5" />
-                                </div>
-                            )}
-
-                            <button
-                                type="button"
-                                onClick={() => void toggleHistory(item)}
-                                aria-expanded={open}
-                                className="flex min-w-0 flex-1 items-center gap-2 text-left"
-                            >
-                                <div className="min-w-0 flex-1">
-                                    <p className="truncate text-body font-medium text-foreground">{item.name}</p>
-                                    {item.brand ? (
-                                        <p className="truncate text-micro text-muted-foreground">{item.brand}</p>
-                                    ) : null}
-                                    <div className="mt-1 flex flex-wrap gap-2 text-micro text-muted-foreground">
-                                        {item.target_price ? (
-                                            <span>
-                                                {t('promoWatchlist.targetPrice')} :{' '}
-                                                {formatCurrency(Number(item.target_price), currency)}
-                                            </span>
-                                        ) : null}
-                                        <span className={item.best_promo_price ? 'font-semibold text-primary' : ''}>
-                                            {t('promoWatchlist.bestPromo')} :{' '}
-                                            {item.best_promo_price
-                                                ? formatCurrency(Number(item.best_promo_price), currency)
-                                                : t('promoWatchlist.noPromo')}
-                                        </span>
-                                    </div>
-                                </div>
-                                <Chevron className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-                            </button>
-                        </div>
-
-                        <div className="flex flex-wrap gap-2 border-t border-border px-4 py-3">
-                            <Button size="sm" onClick={() => setLogging(item)}>
-                                <Plus className="mr-1 h-4 w-4" />
-                                {t('promoWatchlist.logPrice')}
-                            </Button>
-                            <Button size="sm" variant="ghost" onClick={() => void stopWatching(item)}>
-                                <Trash2 className="mr-1 h-4 w-4" />
-                                {t('promoWatchlist.stopWatching')}
-                            </Button>
-                        </div>
-
-                        {open ? (
-                            <div className="border-t border-border bg-surface-2/40 px-4 py-3">
-                                <p className="mb-2 text-caption font-semibold uppercase tracking-wide text-muted-foreground">
-                                    {t('promoWatchlist.offers')}
-                                </p>
-                                {offersLoading ? (
-                                    <p className="text-caption text-muted-foreground">{t('promoWatchlist.offersLoading')}</p>
-                                ) : offersFailed ? (
-                                    <p className="text-caption text-muted-foreground">{t('promoWatchlist.offersUnavailable')}</p>
-                                ) : offers.length === 0 ? (
-                                    <p className="text-caption text-muted-foreground">{t('promoWatchlist.noOffers')}</p>
-                                ) : (
-                                    <>
-                                        <ul className="space-y-1.5">
-                                            {offers.map((offer, index) => (
-                                                <PromoOfferRow
-                                                    key={`${offer.country}-${offer.retailer}-${index}`}
-                                                    offer={offer}
-                                                    currency={currency}
-                                                    showCountry={offerCountries.length > 1}
-                                                />
-                                            ))}
-                                        </ul>
-                                        <PrijsProfeetCredit countries={offerCountries} />
-                                    </>
-                                )}
-                            </div>
-                        ) : null}
-
-                        {open ? (
-                            <div className="border-t border-border bg-surface-2/40 px-4 py-3">
-                                <p className="mb-2 text-caption font-semibold uppercase tracking-wide text-muted-foreground">
-                                    {t('promoWatchlist.history')}
-                                </p>
-                                {history.length === 0 ? (
-                                    <p className="text-caption text-muted-foreground">{t('promoWatchlist.noHistory')}</p>
-                                ) : (
-                                    <ul className="space-y-1.5">
-                                        {history.map((price) => (
-                                            <li key={price.id} className="flex items-baseline justify-between gap-3 text-caption">
-                                                <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                                                    {formatDate(price.logged_at)}
-                                                    {price.store_name ? ` · ${price.store_name}` : ''}
-                                                    {price.notes ? ` · ${price.notes}` : ''}
-                                                </span>
-                                                <span className="flex-shrink-0 font-semibold text-foreground">
-                                                    {formatCurrency(Number(price.promo_price), currency)}
-                                                    {price.regular_price ? (
-                                                        <span className="ml-2 font-normal text-muted-foreground line-through">
-                                                            {formatCurrency(Number(price.regular_price), currency)}
-                                                        </span>
-                                                    ) : null}
-                                                </span>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                )}
-                            </div>
-                        ) : null}
-                    </div>
-                );
-            })}
+            {watchlist.length > 0 ? (
+                <div className={view === 'grid' ? 'grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4' : 'space-y-5'}>
+                    {watchlist.map((item) => (
+                        <PromoWatchlistItem
+                            key={item.id}
+                            item={item}
+                            view={view}
+                            open={openBarcode === item.barcode}
+                            currency={currency}
+                            offers={offers}
+                            offersLoading={offersLoading}
+                            offersFailed={offersFailed}
+                            history={history}
+                            onToggle={toggleHistory}
+                            onLog={setLogging}
+                            onStop={(target) => void stopWatching(target)}
+                        />
+                    ))}
+                </div>
+            ) : null}
 
             {logging ? (
                 <LogPriceDialog item={logging} onClose={() => setLogging(null)} onSave={savePrice} />
