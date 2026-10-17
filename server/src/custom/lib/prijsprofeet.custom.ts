@@ -31,7 +31,7 @@
 // one extra request is nothing.
 
 import { safeFetch, readCappedText } from '../../lib/safeFetch';
-import { focusMatches, GENERAL_GROCERY_CATEGORIES, MAX_FOCUS_TERMS } from './promoFocus.custom';
+import { focusMatches, comparable, GENERAL_GROCERY_CATEGORIES, MAX_FOCUS_TERMS } from './promoFocus.custom';
 
 export type PromoCountry = 'nl' | 'be';
 
@@ -565,4 +565,52 @@ export async function focusedOffers(
 /** The filter choices and their counts for one country, cached for the day. */
 export async function promoFilters(country: PromoCountry): Promise<PromoFilters> {
     return cached(`filters:${country}`, msUntilRefresh(), () => fetchFilters(country));
+}
+
+// ---------------------------------------------------------------------------
+// The shopping list's "where to buy" plan: one search per household term, kept
+// only when the offer really names that term (the same verification the focus
+// list uses — the API's `q` is fuzzy).
+// ---------------------------------------------------------------------------
+
+/** One search for one term, verified against it. Same call shape as fetchFocusPage,
+ *  minus every filter: the plan compares the four chains itself. */
+const fetchTermOffers = async (country: PromoCountry, term: string): Promise<PromoOffer[]> => {
+    const payload = await requestJson(`${HOSTS[country]}/api/v1/search`, {
+        q: term,
+        promotion_status: 'active',
+        page: 1,
+        page_size: FOCUS_PAGE_SIZE,
+    });
+    return normalizeOffers(country, '', payload).filter((offer) => focusMatches(offer, [term]));
+};
+
+/**
+ * The running promotions for a list of household terms, verified and deduped.
+ *
+ * Cached one entry per term (the term and its country are the whole query), so a
+ * family whose list repeats a product pays one request a day for it. The terms
+ * are asked one after the other on purpose: the shopping list searches many items
+ * at once, and keeping each call at one request lets the caller's own pool be the
+ * only limit on how many requests are in flight.
+ *
+ * A term the API cannot answer is a failure for that term alone; only when no
+ * term could be answered — none live, none from the cache — is the caller told
+ * the search could not happen at all.
+ */
+export async function offersForTerms(country: PromoCountry, terms: readonly string[]): Promise<PromoOffer[]> {
+    const wanted = terms.map((term) => String(term ?? '').trim()).filter((term) => term.length > 0);
+    const lists: PromoOffer[][] = [];
+    let failure: unknown = null;
+
+    for (const term of wanted) {
+        try {
+            lists.push(await cached(`market:${country}:${comparable(term)}`, msUntilRefresh(), () => fetchTermOffers(country, term)));
+        } catch (error) {
+            failure ??= error;
+        }
+    }
+
+    if (wanted.length > 0 && lists.length === 0) throw failure;
+    return mergeOffers(lists);
 }

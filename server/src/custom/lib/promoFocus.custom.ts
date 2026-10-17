@@ -59,7 +59,7 @@ const MAX_TERM_LENGTH = 60;
 const MIN_TERM_LENGTH = 2;
 
 /** Lowercase, no accents, single spaces: what two texts are compared as. */
-const comparable = (value: string): string =>
+export const comparable = (value: string): string =>
     value
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
