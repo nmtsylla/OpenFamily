@@ -1,0 +1,41 @@
+{
+  "card": {
+    "title": "Где купить",
+    "promosFrom": "акции от {{date}}",
+    "summary": "<covered>В акции {{covered}} из {{total}}</covered>. {{mode}}: <stores>{{stores}}</stores>, к оплате <totalPrice>{{totalPrice}}</totalPrice>, это <savings>{{savings}}</savings> по сравнению с обычной ценой.",
+    "modeSingle": "в одном магазине",
+    "modePair": "в двух магазинах",
+    "modeAll": "во всех магазинах",
+    "planSingle": "1 магазин",
+    "planPair": "2 магазина",
+    "planAll": "Везде",
+    "planNoStore": "магазинов нет",
+    "stops_one": "{{count}} остановка",
+    "stops_few": "{{count}} остановки",
+    "stops_many": "{{count}} остановок",
+    "stops_other": "{{count}} остановки",
+    "articles_one": "{{covered}}/{{count}} товар",
+    "articles_few": "{{covered}}/{{count}} товара",
+    "articles_many": "{{covered}}/{{count}} товаров",
+    "articles_other": "{{covered}}/{{count}} товара",
+    "footerArticles_one": "{{count}} шт.",
+    "footerArticles_few": "{{count}} шт.",
+    "footerArticles_many": "{{count}} шт.",
+    "footerArticles_other": "{{count}} шт.",
+    "referenceNote_one": "Обычная цена = последний оплаченный чек, иначе самая низкая зачёркнутая цена (известна для {{count}} из {{total}}).",
+    "referenceNote_few": "Обычная цена = последний оплаченный чек, иначе самая низкая зачёркнутая цена (известна для {{count}} из {{total}}).",
+    "referenceNote_many": "Обычная цена = последний оплаченный чек, иначе самая низкая зачёркнутая цена (известна для {{count}} из {{total}}).",
+    "referenceNote_other": "Обычная цена = последний оплаченный чек, иначе самая низкая зачёркнутая цена (известна для {{count}} из {{total}}).",
+    "missing_one": "{{count}} товар без скидки на этой неделе, берите его там, где обычно.",
+    "missing_few": "{{count}} товара без скидки на этой неделе, берите их там, где обычно.",
+    "missing_many": "{{count}} товаров без скидки на этой неделе, берите их там, где обычно.",
+    "missing_other": "{{count}} товара без скидки на этой неделе, берите их там, где обычно.",
+    "caveat": "Три магазина и более: вариант «Везде» окупается, только если вы и так едете мимо."
+  },
+  "badge": {
+    "alsoAt": "Ещё в {{store}} {{price}}",
+    "validUntil": "до {{date}}",
+    "usualPrice": "Обычная цена: {{price}}",
+    "lastPaid": "Последняя цена: {{price}} ({{receipt}})"
+  }
+}
