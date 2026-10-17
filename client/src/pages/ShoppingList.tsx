@@ -10,6 +10,11 @@ import { Plus, Trash2, Check, ShoppingBag, Save, ListChecks, Store, ChevronLeft,
 import { ScanLine, Tag } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 // FORK-END: product-scan
+// FORK-START: market-plan
+import { MarketPlanCard } from '../custom/components/MarketPlanCard.custom';
+import { MarketPriceBadge } from '../custom/components/MarketPriceBadge.custom';
+import { useMarketPlan } from '../custom/hooks/useMarketPlan.custom';
+// FORK-END: market-plan
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -396,6 +401,19 @@ const ShoppingList: React.FC = () => {
     const pendingItems = useMemo(() => items.filter((item) => !item.is_checked), [items]);
     const completedItems = useMemo(() => items.filter((item) => item.is_checked), [items]);
 
+    // FORK-START: market-plan
+    // The "where to buy" card: which chain is cheapest for this list, one
+    // request that the hook debounces and re-runs when the pending lines
+    // change. `marketPlan.data` stays null while the feature is off, so the
+    // card and the badge below simply do not render then.
+    const { isModuleEnabled: isMarketPlanEnabled } = useAuth();
+    const marketPlan = useMarketPlan({
+        enabled: isMarketPlanEnabled('marketPlan') && pendingItems.length > 0,
+        items: pendingItems.map((item) => ({ id: item.id, name: item.name, quantity: item.quantity })),
+        lang: user?.language ?? 'en',
+    });
+    // FORK-END: market-plan
+
     /**
      * Ready-made items to add in one tap. Filtered by what has been typed, and
      * hiding anything already on the list so a suggestion never produces a
@@ -571,6 +589,17 @@ const ShoppingList: React.FC = () => {
                 {/* FORK-END: product-scan */}
             </div>
 
+            {/* FORK-START: market-plan */}
+            {marketPlan.data ? (
+                <MarketPlanCard
+                    data={marketPlan.data}
+                    chosen={marketPlan.chosen}
+                    onChoose={marketPlan.setChosen}
+                    currency={currency}
+                />
+            ) : null}
+            {/* FORK-END: market-plan */}
+
             <Card>
                 <CardHeader>
                     <CardTitle>{t('shopping:add.title')}</CardTitle>
@@ -698,6 +727,15 @@ const ShoppingList: React.FC = () => {
                                             </button>
                                         ) : null}
                                         {/* FORK-END: product-scan */}
+
+                                        {/* FORK-START: market-plan */}
+                                        <MarketPriceBadge
+                                            plan={marketPlan.data?.items.find((entry) => entry.id === item.id)}
+                                            row={marketPlan.rowFor(item.id)}
+                                            alternative={marketPlan.alternativeFor(item.id)}
+                                            currency={currency}
+                                        />
+                                        {/* FORK-END: market-plan */}
 
                                         {editingQuantityId === item.id ? (
                                             <span className="flex items-center gap-1">

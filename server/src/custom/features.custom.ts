@@ -19,6 +19,7 @@ export type CustomFeature =
     | 'outings'
     | 'aiWidgets'
     | 'productScan'
+    | 'marketPlan'
     | 'board';
 
 const FLAGS: Record<CustomFeature, string> = {
@@ -31,6 +32,7 @@ const FLAGS: Record<CustomFeature, string> = {
     outings: 'CUSTOM_FEATURE_OUTINGS_ENABLED',
     aiWidgets: 'CUSTOM_FEATURE_AI_WIDGETS_ENABLED',
     productScan: 'CUSTOM_FEATURE_SCANNER_ENABLED',
+    marketPlan: 'CUSTOM_FEATURE_MARKET_PLAN_ENABLED',
     board: 'CUSTOM_FEATURE_BOARD_ENABLED',
 };
 
@@ -47,6 +49,7 @@ const MODULE_KEYS: Record<CustomFeature, readonly string[]> = {
     outings: ['outings'],
     aiWidgets: [],
     productScan: ['productScan'],
+    marketPlan: ['marketPlan'],
     board: ['board'],
 };
 
@@ -62,7 +65,7 @@ const MODULE_KEYS: Record<CustomFeature, readonly string[]> = {
 // (which reports the key as disabled), not through a checkbox. Listing them
 // there would mean fork-owned label keys in six locales for a switch the env
 // flag already provides.
-export const CUSTOM_MODULE_KEYS = ['weather', 'activities', 'budgetReceipts', 'budgetAnalytics', 'lunchbox', 'pantry', 'outings', 'productScan', 'board'] as const;
+export const CUSTOM_MODULE_KEYS = ['weather', 'activities', 'budgetReceipts', 'budgetAnalytics', 'lunchbox', 'pantry', 'outings', 'productScan', 'marketPlan', 'board'] as const;
 
 // Dashboard widgets this fork adds. The server's own DASHBOARD_WIDGETS list
 // (routes/userSettings.ts) sanitises what a member may store, so a widget that

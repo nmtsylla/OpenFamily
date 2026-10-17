@@ -17,6 +17,7 @@ import aiDashboardRoutes from './routes/aiDashboard.custom';
 import budgetAnalyticsRoutes from './routes/budgetAnalytics.custom';
 import budgetReceiptsRoutes from './routes/budgetReceipts.custom';
 import lunchboxRoutes from './routes/lunchbox.custom';
+import marketRoutes from './routes/market.custom';
 import mediaRoutes from './routes/media.custom';
 import newsRoutes from './routes/news.custom';
 import outingsRoutes from './routes/outings.custom';
@@ -85,5 +86,13 @@ export const registerCustomRoutes = (app: Express): void => {
         // Behind the same limiter as the weather surface: this router fans out
         // to a third-party API (Open Food Facts) on a cache miss.
         app.use('/api/products', customRateLimiter, productScanRoutes);
+    }
+
+    if (isCustomFeatureEnabled('marketPlan')) {
+        // One inbound call fans out to the FIXED PrijsProfeet host (a search per
+        // list item, cached per term until the morning boundary) plus the family's
+        // own configured model, so it rides the shared fixed-host limiter rather
+        // than upstream's 30-per-15-minutes outbound budget.
+        app.use('/api/market', customRateLimiter, marketRoutes);
     }
 };
