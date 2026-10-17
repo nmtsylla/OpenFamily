@@ -38,6 +38,7 @@ import {
     bestPlans,
     candidateTerms,
     dedupeTerms,
+    itemOffersOf,
     mapWithConcurrency,
     marketCountry,
     marketStores,
@@ -111,6 +112,8 @@ interface MarketItemState {
     reference: MarketItemReference | null;
     /** Text path only: at least one search answered, so a Dutch fallback is worth asking. */
     searched: boolean;
+    /** The Dutch words the model proposed, kept whether or not they ended up matching. */
+    dutchTerms: string[];
     /** Text path only: a Dutch fallback term is what matched. */
     translated: boolean;
 }
@@ -180,6 +183,7 @@ router.post('/plan', async (req: AuthRequest, res) => {
             offers: [],
             reference: null,
             searched: false,
+            dutchTerms: [],
             translated: false,
         }));
 
@@ -232,6 +236,7 @@ router.post('/plan', async (req: AuthRequest, res) => {
                 await mapWithConcurrency(fallback, MAX_MARKET_FETCHES, async (state) => {
                     const terms = dutchTerms.get(state.seed.name) ?? [];
                     if (!terms.length) return;
+                    state.dutchTerms = terms;
                     state.terms = dedupeTerms([...state.terms, ...terms]);
                     try {
                         const offers = await offersForTerms(country, terms);
@@ -288,7 +293,9 @@ router.post('/plan', async (req: AuthRequest, res) => {
                 status: state.offers.length > 0 ? 'covered' : 'uncovered',
                 reference: state.reference,
                 terms: state.terms,
+                dutch_terms: state.dutchTerms,
                 translated: state.translated,
+                offers: itemOffersOf(state.offers, storeOrder),
             })),
         };
 

@@ -6,6 +6,7 @@ import {
     bestPlans,
     candidateTerms,
     dedupeTerms,
+    itemOffersOf,
     mapWithConcurrency,
     marketCountry,
     marketStores,
@@ -251,6 +252,97 @@ test('planFor: a null price counts as 0 in the total, and the sum does not drift
     assert.equal(plan.total, 0.3);
     assert.equal(plan.savings, 2.7);
     assert.equal(plan.missing, 0);
+});
+
+test('itemOffersOf: the cheapest offer of every configured store, in configured order', () => {
+    const offers = [
+        offer({ retailer: 'lidl_be', price: 2.99, name: 'Broccoli Lidl' }),
+        offer({ retailer: 'colruyt', price: 2.39, name: 'Broccoli Colruyt' }),
+        offer({ retailer: 'colruyt', price: 2.59, name: 'Broccoli Colruyt bio' }),
+        offer({ retailer: 'albert_heijn_be', price: 2.49, name: 'AH broccoli' }),
+    ];
+
+    const list = itemOffersOf(offers, ['albert_heijn_be', 'colruyt', 'aldi_be', 'lidl_be']);
+
+    // Configured order, not price order: the cheapest store is not the first row.
+    // ALDI has no offer, so it is simply absent.
+    assert.deepEqual(
+        list.map((one) => [one.retailer, one.price]),
+        [
+            ['albert_heijn_be', 2.49],
+            ['colruyt', 2.39],
+            ['lidl_be', 2.99],
+        ]
+    );
+    assert.equal(list[0].retailer_name, 'Albert Heijn');
+    // The cheaper of the two Colruyt offers is the one the sheet lists.
+    assert.equal(list[1].name, 'Broccoli Colruyt');
+});
+
+test('itemOffersOf: the sheet and the plan read the same price for the same store', () => {
+    const stores = ['albert_heijn_be', 'colruyt', 'aldi_be', 'lidl_be'];
+    const items = [
+        item(
+            'broccoli',
+            [
+                offer({ retailer: 'colruyt', price: 2.39 }),
+                offer({ retailer: 'colruyt', price: 2.59 }),
+                offer({ retailer: 'albert_heijn_be', price: 2.49 }),
+            ],
+            2.99
+        ),
+    ];
+
+    const list = itemOffersOf(items[0].offers, stores);
+    for (const row of planFor(items, stores).rows) {
+        const sameStore = list.find((one) => one.retailer === row.retailer);
+        assert.ok(sameStore, `the sheet lists ${row.retailer}`);
+        assert.equal(sameStore.price, row.price);
+    }
+});
+
+test('itemOffersOf: the deal shapes the shared offer row renders survive the pass', () => {
+    const list = itemOffersOf(
+        [
+            offer({
+                retailer: 'colruyt',
+                price: 2.0,
+                original_price: 2.5,
+                savings_percentage: 20,
+                quantity: '500 g',
+                brand: 'Boni',
+                loyalty_price: 1.8,
+                multi_buy_quantity: 2,
+                multi_buy_price: 3.5,
+                promotion_status: 'active',
+                valid_until: '2026-10-24',
+                image_url: 'https://cdn.example/broccoli.png',
+                product_url: 'https://colruyt.example/broccoli',
+            }),
+        ],
+        ['colruyt']
+    );
+
+    assert.deepEqual(list, [
+        {
+            retailer: 'colruyt',
+            retailer_name: 'Colruyt',
+            country: 'be',
+            name: null,
+            brand: 'Boni',
+            quantity: '500 g',
+            price: 2.0,
+            original_price: 2.5,
+            savings_percentage: 20,
+            loyalty_price: 1.8,
+            multi_buy_quantity: 2,
+            multi_buy_price: 3.5,
+            promotion_status: 'active',
+            image_url: 'https://cdn.example/broccoli.png',
+            product_url: 'https://colruyt.example/broccoli',
+            valid_until: '2026-10-24',
+        },
+    ]);
 });
 
 test('bestPlans: the audit regression — money first, coverage only inside the same cent', () => {

@@ -32,17 +32,25 @@ import { isCalendarDate } from './validation.custom';
 // change here is a change to the client.
 // ---------------------------------------------------------------------------
 
-/** The fields of one offer the plan card renders. */
+/** The fields of one offer the plan card and the row's detail sheet render. */
 export interface MarketPlanOffer {
     /** The API's chain key, e.g. `albert_heijn_be`. */
     retailer: string;
     /** The same key spelled for display: `Albert Heijn`. */
     retailer_name: string;
+    /** The country whose host answered; the sheet says so when lists mix. */
+    country: PromoCountry;
     name: string | null;
+    brand: string | null;
     quantity: string | null;
     price: number | null;
     original_price: number | null;
     savings_percentage: number | null;
+    /** The deal's other shapes, all rendered by the shared promo offer row. */
+    loyalty_price: number | null;
+    multi_buy_quantity: number | null;
+    multi_buy_price: number | null;
+    promotion_status: string | null;
     image_url: string | null;
     product_url: string | null;
     valid_until: string | null;
@@ -93,8 +101,12 @@ export interface MarketItemPlan {
     reference: MarketItemReference | null;
     /** Every search term used for this item, deduped, in order. */
     terms: string[];
+    /** The Dutch words the model proposed for this item, in the order it gave them. */
+    dutch_terms: string[];
     /** True when a Dutch fallback term is what matched. */
     translated: boolean;
+    /** The cheapest offer of each configured store, in configured order: the sheet's list. */
+    offers: MarketPlanOffer[];
 }
 
 /** The whole answer to one `POST /api/market/plan`. */
@@ -303,23 +315,29 @@ const cents = (value: number): number => Math.round(value * 100) / 100;
 const offerFieldsOf = (offer: PromoOffer): MarketPlanOffer => ({
     retailer: offer.retailer,
     retailer_name: labelOf(offer.retailer),
+    country: offer.country,
     name: offer.name,
+    brand: offer.brand,
     quantity: offer.quantity,
     price: offer.price,
     original_price: offer.original_price,
     savings_percentage: offer.savings_percentage,
+    loyalty_price: offer.loyalty_price,
+    multi_buy_quantity: offer.multi_buy_quantity,
+    multi_buy_price: offer.multi_buy_price,
+    promotion_status: offer.promotion_status,
     image_url: offer.image_url,
     product_url: offer.product_url,
     valid_until: offer.valid_until,
 });
 
 /**
- * The cheapest of the item's offers among `stores`. Ties go to the earlier store
- * of `stores` — which is the configured order of the chain list, so the answer
- * does not depend on the order the API happened to publish.
+ * The cheapest offer of every store that has one, in `stores` order. Both the
+ * plan's row choice and the item's own offer list go through here, so the
+ * sheet and the plan can never disagree about a price.
  */
-const cheapestAmong = (offers: readonly PromoOffer[], stores: readonly string[]): PromoOffer | null => {
-    let best: PromoOffer | null = null;
+export const cheapestByStore = (offers: readonly PromoOffer[], stores: readonly string[]): PromoOffer[] => {
+    const result: PromoOffer[] = [];
     for (const store of stores) {
         let cheapest: PromoOffer | null = null;
         for (const offer of offers) {
@@ -328,9 +346,25 @@ const cheapestAmong = (offers: readonly PromoOffer[], stores: readonly string[])
                 cheapest = offer;
             }
         }
-        if (cheapest === null) continue;
-        if (best === null || (cheapest.price ?? Number.POSITIVE_INFINITY) < (best.price ?? Number.POSITIVE_INFINITY)) {
-            best = cheapest;
+        if (cheapest) result.push(cheapest);
+    }
+    return result;
+};
+
+/** The per-store cheapest offers, serialized for the detail sheet. */
+export const itemOffersOf = (offers: readonly PromoOffer[], stores: readonly string[]): MarketPlanOffer[] =>
+    cheapestByStore(offers, stores).map(offerFieldsOf);
+
+/**
+ * The cheapest of the item's offers among `stores`. Ties go to the earlier store
+ * of `stores` — which is the configured order of the chain list, so the answer
+ * does not depend on the order the API happened to publish.
+ */
+const cheapestAmong = (offers: readonly PromoOffer[], stores: readonly string[]): PromoOffer | null => {
+    let best: PromoOffer | null = null;
+    for (const offer of cheapestByStore(offers, stores)) {
+        if (best === null || (offer.price ?? Number.POSITIVE_INFINITY) < (best.price ?? Number.POSITIVE_INFINITY)) {
+            best = offer;
         }
     }
     return best;
