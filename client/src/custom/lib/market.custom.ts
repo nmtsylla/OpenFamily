@@ -8,22 +8,17 @@
 
 import { intlLocale } from '../../i18n/format';
 import { formatCurrency } from '../../lib/utils';
+import type { PromoCountry, PromoOffer } from './product.custom';
 
-/** The cheapest current promotion a chain runs on one item. */
-export interface MarketPlanOffer {
-    /** The chain's key, e.g. `albert_heijn_be`. */
-    retailer: string;
-    retailer_name: string;
-    /** The chain's own name for the product. */
-    name: string | null;
-    quantity: string | null;
-    price: number | null;
-    original_price: number | null;
-    savings_percentage: number | null;
-    image_url: string | null;
-    product_url: string | null;
-    valid_until: string | null;
-}
+/**
+ * The cheapest current promotion a chain runs on one item.
+ *
+ * The same fields as the promo API's own offer, and deliberately the same type:
+ * the planner's serializer (server/src/custom/lib/marketPlan.custom.ts) copies
+ * one from the other field for field, so the shared PromoOfferRow can render a
+ * plan's offer without a second, drifting row shape.
+ */
+export type MarketPlanOffer = PromoOffer;
 
 /** One offer, tagged with the list item it was matched to. */
 export interface MarketPlanRow extends MarketPlanOffer {
@@ -61,16 +56,21 @@ export interface MarketItemPlan {
     name: string;
     status: 'covered' | 'uncovered';
     reference: MarketItemReference | null;
-    /** The Dutch terms the match rested on. */
+    /** Every search term used for this item, deduped, in order. */
     terms: string[];
+    /** The Dutch words the model proposed for it; empty without an AI pass. */
+    dutch_terms: string[];
     /** The item's own wording found nothing and the Dutch fallback did. */
     translated: boolean;
+    /** The cheapest offer of every configured store that has one, in `store_order`. */
+    offers: MarketPlanOffer[];
 }
 
 export interface MarketPlanResponse {
     /** When the promotion snapshot behind these plans was taken. */
     fetched_at: string;
-    country: string;
+    /** The one country the planner searched. */
+    country: PromoCountry;
     store_order: string[];
     store_names: Record<string, string>;
     /** The server's pick between the best single-store and the best two-store plan. */

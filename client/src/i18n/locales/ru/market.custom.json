@@ -37,5 +37,21 @@
     "validUntil": "до {{date}}",
     "usualPrice": "Обычная цена: {{price}}",
     "lastPaid": "Последняя цена: {{price}} ({{receipt}})"
+  },
+  "sheet": {
+    "openHint": "Посмотреть подробности предложенного товара: {{name}}",
+    "storesCount_one": "{{count}} магазин предлагает его по акции на этой неделе",
+    "storesCount_few": "{{count}} магазина предлагают его по акции на этой неделе",
+    "storesCount_many": "{{count}} магазинов предлагают его по акции на этой неделе",
+    "storesCount_other": "{{count}} магазина предлагают его по акции на этой неделе",
+    "seeAt": "Посмотреть в {{store}}",
+    "usualReceipt": "Обычно вы платите {{price}} ({{details}})",
+    "receiptMerchant": "в {{merchant}}",
+    "usualRegular": "Обычная цена {{price}} (самая низкая зачёркнутая цена)",
+    "lessThan": "на {{amount}} меньше, чем обычно",
+    "moreThan": "на {{amount}} больше, чем обычно",
+    "everyStore": "Все магазины, от дешёвых к дорогим",
+    "suggested": "Предложено",
+    "matchedDutch": "Найдено по нидерландскому названию: {{terms}}"
   }
 }

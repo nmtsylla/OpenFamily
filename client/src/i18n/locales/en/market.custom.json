@@ -27,5 +27,19 @@
     "validUntil": "until {{date}}",
     "usualPrice": "Usual price: {{price}}",
     "lastPaid": "Last paid: {{price}} ({{receipt}})"
+  },
+  "sheet": {
+    "openHint": "See the details of the suggested product for {{name}}",
+    "storesCount_one": "{{count}} store has it on promo this week",
+    "storesCount_other": "{{count}} stores have it on promo this week",
+    "seeAt": "See at {{store}}",
+    "usualReceipt": "You usually pay {{price}} ({{details}})",
+    "receiptMerchant": "at {{merchant}}",
+    "usualRegular": "Usual price {{price}} (lowest crossed-out price)",
+    "lessThan": "{{amount}} less than you usually pay",
+    "moreThan": "{{amount}} more than you usually pay",
+    "everyStore": "Every store, cheapest first",
+    "suggested": "Suggested",
+    "matchedDutch": "Matched via the Dutch name: {{terms}}"
   }
 }

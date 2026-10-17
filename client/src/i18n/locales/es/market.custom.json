@@ -27,5 +27,19 @@
     "validUntil": "hasta el {{date}}",
     "usualPrice": "Precio habitual: {{price}}",
     "lastPaid": "Último precio pagado: {{price}} ({{receipt}})"
+  },
+  "sheet": {
+    "openHint": "Ver el detalle del producto sugerido para {{name}}",
+    "storesCount_one": "{{count}} tienda lo tiene en oferta esta semana",
+    "storesCount_other": "{{count}} tiendas lo tienen en oferta esta semana",
+    "seeAt": "Ver en {{store}}",
+    "usualReceipt": "Sueles pagar {{price}} ({{details}})",
+    "receiptMerchant": "en {{merchant}}",
+    "usualRegular": "Precio habitual {{price}} (precio tachado más bajo)",
+    "lessThan": "{{amount}} menos de lo que sueles pagar",
+    "moreThan": "{{amount}} más de lo que sueles pagar",
+    "everyStore": "Todas las tiendas, de la más barata a la más cara",
+    "suggested": "Sugerido",
+    "matchedDutch": "Encontrado por el nombre neerlandés: {{terms}}"
   }
 }

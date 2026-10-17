@@ -22,5 +22,18 @@
     "validUntil": "截至 {{date}}",
     "usualPrice": "平常价格：{{price}}",
     "lastPaid": "上次付款价：{{price}}（{{receipt}}）"
+  },
+  "sheet": {
+    "openHint": "查看 {{name}} 的推荐商品详情",
+    "storesCount_other": "本周有 {{count}} 家店在促销",
+    "seeAt": "去 {{store}} 看看",
+    "usualReceipt": "你平时付 {{price}}（{{details}}）",
+    "receiptMerchant": "在 {{merchant}}",
+    "usualRegular": "平常价格 {{price}}（最低划线价）",
+    "lessThan": "比平时少 {{amount}}",
+    "moreThan": "比平时多 {{amount}}",
+    "everyStore": "所有商店，从最便宜到最贵",
+    "suggested": "推荐",
+    "matchedDutch": "通过荷兰语名称匹配：{{terms}}"
   }
 }
