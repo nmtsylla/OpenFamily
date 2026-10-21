@@ -7,6 +7,9 @@ import { formatCurrency } from '../../lib/utils';
 import { useCategories } from '../../hooks/useCategories';
 import { aiErrorKey } from '../../components/app/MagicInput';
 import { Button, Dialog, useToast } from '../../components/ui';
+// Emitted as its own asset by Vite: importing the URL costs nothing, the ~1 MB
+// worker is only fetched when pdf.js starts on the first PDF.
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
 // ─── Types (mirror server/src/services/ai/receipt.ts) ─────────────────────────
 
@@ -71,12 +74,19 @@ interface Props {
 
 // Mirrors the server limits: 5 documents, JPEG/PNG/WebP/PDF.
 const MAX_FILES = 5;
-// A PDF reaches the model as-is, so the route's own per-file ceiling applies to
-// it. An image is re-encoded to a ≤1600px JPEG first (a few hundred KB whatever
-// the camera wrote), so its original size only costs a client-side decode: this
-// second bound is a sanity limit on absurd files, not an upload limit.
-const MAX_PDF_BYTES = 8 * 1024 * 1024;
+// A PDF is never uploaded as a PDF: every page is rendered to a JPEG here and
+// sent like a photo. Providers that take a `file` part are unreliable — the
+// OpenCode Zen gateway ingests about one document in five and answers the rest
+// with `file must have a file_id or file_data` (or hangs until the route's 60 s
+// timeout), a failed ingest is then cached for the whole session so later PDFs
+// come back as an empty draft, and Ollama refuses anything but images. Rendered
+// pages cost what a photo costs, so a PDF's own size only costs a local parse.
+// Bounds are sanity limits on absurd files: the upload is checked after encoding.
+const MAX_PDF_BYTES = 25 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
+// Sentinel error message so analyze() can tell "this PDF has too many pages"
+// from "this file could not be decoded"; both are reported before the upload.
+const PDF_TOO_MANY_PAGES = 'PDF_TOO_MANY_PAGES';
 // The route's JSON parser takes 12 MB. The encoded attachments (base64, so 4/3
 // of the uploaded bytes) are checked against that in analyze(), where their real
 // size is known: the picked photos' own sizes say nothing about it.
@@ -86,31 +96,65 @@ const MAX_PAYLOAD_BYTES = 11 * 1024 * 1024;
 const SUPPORTED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'image/heic', 'image/heif'];
 // Phone photos are 3–10 MB and carry far more pixels than a model needs: the
 // canvas below caps the long side at 1600px (~200–500 KB), which keeps five
-// scans well under the 12 MB body limit.
+// scans well under the 12 MB body limit. PDF pages are rendered at the same cap.
 const MAX_DIMENSION = 1600;
 
-/** btoa() takes a binary string; 32 KB per chunk keeps String.fromCharCode happy. */
-const toBase64 = (bytes: Uint8Array): string => {
-    let binary = '';
-    for (let offset = 0; offset < bytes.length; offset += 0x8000) {
-        binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+/**
+ * pdf.js is a ~400 KB download, and the dialog is part of the budget screen's
+ * initial bundle: only the first PDF pays for the parser. Its worker is emitted
+ * as its own asset, so the main thread never blocks on a scan.
+ */
+const loadPdfJs = async () => {
+    const pdfjs = await import('pdfjs-dist');
+    pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+    return pdfjs;
+};
+
+/** Base64 JPEG bytes of a rendered canvas, the shape the API takes per file. */
+const toJpeg = (canvas: HTMLCanvasElement): string => canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+
+/**
+ * One attachment per PDF page. A page is scaled exactly like a photo (long side
+ * ≤1600px) and the page count is bounded by what the route accepts, so a scan
+ * never turns into the oversized body the dialog refuses to send.
+ */
+const renderPdf = async (file: File): Promise<Attachment[]> => {
+    const pdfjs = await loadPdfJs();
+    // The loading task owns the parsed document and its worker: destroying it
+    // frees both, so a dialog reopened on the same file starts from scratch.
+    const task = pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) });
+    try {
+        const pdf = await task.promise;
+        if (pdf.numPages > MAX_FILES) throw new Error(PDF_TOO_MANY_PAGES);
+        const attachments: Attachment[] = [];
+        for (let number = 1; number <= pdf.numPages; number += 1) {
+            const page = await pdf.getPage(number);
+            const natural = page.getViewport({ scale: 1 });
+            const scale = Math.min(2, MAX_DIMENSION / Math.max(natural.width, natural.height));
+            const viewport = page.getViewport({ scale });
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, Math.round(viewport.width));
+            canvas.height = Math.max(1, Math.round(viewport.height));
+            await page.render({ canvas, viewport }).promise;
+            attachments.push({
+                name: pdf.numPages > 1 ? `${file.name} — ${number}` : file.name,
+                mime_type: 'image/jpeg',
+                data: toJpeg(canvas),
+            });
+        }
+        return attachments;
+    } finally {
+        void task.destroy();
     }
-    return btoa(binary);
 };
 
 /**
- * Encodes one picked document. Throws when the browser cannot decode the image:
- * sending undecodable bytes to the model only wastes an upload, so the caller
- * reports the file instead.
+ * Encodes one picked document into what the model reads. Throws when the browser
+ * cannot decode the file: sending undecodable bytes to the model only wastes an
+ * upload, so the caller reports the file instead.
  */
-const toAttachment = async (file: File): Promise<Attachment> => {
-    if (file.type === 'application/pdf') {
-        return {
-            name: file.name,
-            mime_type: 'application/pdf',
-            data: toBase64(new Uint8Array(await file.arrayBuffer())),
-        };
-    }
+const toAttachments = async (file: File): Promise<Attachment[]> => {
+    if (file.type === 'application/pdf') return renderPdf(file);
     // createImageBitmap decodes off the main thread and applies the EXIF
     // orientation, which a plain <img> would not.
     const bitmap = await createImageBitmap(file);
@@ -122,7 +166,7 @@ const toAttachment = async (file: File): Promise<Attachment> => {
     if (!context) throw new Error('no 2d context');
     context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
     bitmap.close();
-    return { name: file.name, mime_type: 'image/jpeg', data: canvas.toDataURL('image/jpeg', 0.85).split(',')[1] };
+    return [{ name: file.name, mime_type: 'image/jpeg', data: toJpeg(canvas) }];
 };
 
 const toAmount = (value: string): number => {
@@ -224,17 +268,35 @@ export const ReceiptImportDialog: React.FC<Props> = ({ open, onOpenChange, curre
         try {
             const attachments: Attachment[] = [];
             for (const file of files) {
+                let encoded: Attachment[];
                 try {
-                    attachments.push(await toAttachment(file));
-                } catch {
-                    // Undecodable image (HEIC in a browser without its codec…):
-                    // report it instead of uploading bytes the model cannot read.
+                    encoded = await toAttachments(file);
+                } catch (err) {
+                    // Undecodable image (HEIC in a browser without its codec…) or a
+                    // corrupt PDF: report it instead of uploading bytes the model
+                    // cannot read. A PDF whose pages alone overflow the route's
+                    // file count is reported the same way, before the upload.
                     if (analysisId.current === run) {
-                        setError(t('budget.custom:receipt.errors.unsupported', { name: file.name }));
+                        const tooManyPages = err instanceof Error && err.message === PDF_TOO_MANY_PAGES;
+                        setError(
+                            tooManyPages
+                                ? t('budget.custom:receipt.errors.tooManyPages', { max: MAX_FILES, name: file.name })
+                                : t('budget.custom:receipt.errors.unsupported', { name: file.name })
+                        );
                         setAnalyzing(false);
                     }
                     return;
                 }
+                // A PDF costs one attachment per page: two scans and a two-page
+                // bill still fit, a five-page bill next to a photo does not.
+                if (attachments.length + encoded.length > MAX_FILES) {
+                    if (analysisId.current === run) {
+                        setError(t('budget.custom:receipt.errors.tooManyPages', { max: MAX_FILES, name: file.name }));
+                        setAnalyzing(false);
+                    }
+                    return;
+                }
+                attachments.push(...encoded);
             }
             // One body carries every document: five big invoices can pass the
             // per-file checks and still make the route refuse the request.

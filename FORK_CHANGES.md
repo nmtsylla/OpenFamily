@@ -41,7 +41,7 @@ explained below.
 |---------|-------|------|
 | Weather, clothing suggestions, screen-free activities. The saved city is the **family's**, not the account's: stored on the owner's row, saved from Settings and read by every member's dashboard, with a `family` WebSocket event fanned out to the whole family on save. The widgets target **today before 18:00 and tomorrow from 18:00 on** (the hour alone picks the day; the school/home rule only labels it), and the payload carries the offset plus the nearer of the next 18:00 and midnight, so the client schedules against the server's boundary and the label cannot stay "tomorrow" past midnight | `server/src/custom/weather/*.custom.ts`, `server/src/custom/routes/weather.custom.ts`, `server/src/custom/lib/{dayContext,familyNotify}.custom.ts`, `server/src/custom/ai/{activityBank,widgets}.custom.ts`, `server/src/custom/routes/aiDashboard.custom.ts`, `client/src/custom/components/{WeatherClothingCard,WeatherDetailsDialog,WeatherLocation,KidsActivitiesCard}.custom.tsx`, `client/src/custom/hooks/useWeather.custom.ts`, `client/src/custom/lib/{weatherCode,dayContextLabel}.custom.ts` | `CUSTOM_FEATURE_WEATHER_ENABLED`, `CUSTOM_FEATURE_AI_WIDGETS_ENABLED` |
 | Object storage for images (S3-compatible) | `server/src/custom/lib/{storage,media,storage-errors}.custom.ts`, `server/src/custom/middleware/media.custom.ts`, `server/src/custom/routes/media.custom.ts` | `CUSTOM_FEATURE_MEDIA_ENABLED` |
-| Receipt / bill import with line detail | `server/src/custom/routes/budgetReceipts.custom.ts`, `server/src/custom/ai/receipt.custom.ts`, `client/src/custom/components/{ReceiptImport,BudgetReceipts}.custom.tsx` | `CUSTOM_FEATURE_BUDGET_RECEIPTS_ENABLED` |
+| Receipt / bill import with line detail. A **PDF is rendered to one JPEG per page in the browser** (pdf.js), never uploaded as a PDF: providers that take a `file` part are unreliable — the fork's OpenCode Zen gateway ingested about one document in five, answered the rest with `file must have a file_id or file_data` or hung until the route's 60 s timeout (the 502), and a failed ingest is then cached for the whole session so every later PDF came back as an empty draft — and Ollama refuses anything but images. A rendered page costs what a photo costs, so a PDF now takes the photo path on every provider, with a 5-page ceiling (more would exceed the route's file count) and the local size limits | `server/src/custom/routes/budgetReceipts.custom.ts`, `server/src/custom/ai/receipt.custom.ts`, `client/src/custom/components/{ReceiptImport,BudgetReceipts}.custom.tsx` | `CUSTOM_FEATURE_BUDGET_RECEIPTS_ENABLED` |
 | Budget analytics page | `server/src/custom/lib/budgetAnalytics.custom.ts`, `server/src/custom/routes/budgetAnalytics.custom.ts`, `client/src/custom/pages/BudgetAnalytics.custom.tsx` | `CUSTOM_FEATURE_BUDGET_ANALYTICS_ENABLED` |
 | Lunchboxes + weekly nutritional read (ported from KeurTonux), with manual and AI drink fields optional and validation/save errors kept inside the form dialog | `server/src/custom/lib/lunchbox.custom.ts`, `server/src/custom/lib/aiSettings.custom.ts`, `server/src/custom/lib/promptLanguage.custom.ts`, `server/src/custom/ai/{lunchbox,nutrition}.custom.ts`, `server/src/custom/routes/lunchbox.custom.ts`, `server/test/lunchbox.custom.test.ts`, `client/src/custom/pages/Lunchboxes.custom.tsx`, `client/src/custom/components/{LunchboxAiDialog,NutritionAnalysisDialog}.custom.tsx` | `CUSTOM_FEATURE_LUNCHBOX_ENABLED` |
 | Smart pantry — what the household has at home (locations, expiry, low stock), bridging the shopping list both ways, Grocy stock in, and the receipt import feeding it: the obviously stockable lines merge in under the brand-free name the AI read off the ticket, the rest wait in a review queue on the page; lunchbox AI and a "cook from what you have" tab out | `server/src/custom/lib/pantry.custom.ts`, `server/src/custom/lib/pantryMerge.custom.ts`, `server/src/custom/lib/validation.custom.ts`, `server/src/custom/routes/pantry.custom.ts`, `client/src/custom/pages/Pantry.custom.tsx`, `client/src/custom/components/PantryExpiryCard.custom.tsx`, `client/src/custom/lib/pantryMatch.custom.ts` | `CUSTOM_FEATURE_PANTRY_ENABLED` |
@@ -125,7 +125,7 @@ existed; the exact count of rewritten upstream lines is the next section's table
 | `client/src/contexts/AuthContext.tsx` | `weather, pantry` | The `DASHBOARD_WIDGETS` line carries the fork's widget keys (weather, activities, pantry); one marker pair wraps that modified line itself, so an upstream change to it is re-applied from here |
 | `client/src/components/app/MagicInput.tsx` | `budget-custom`, `pantry-ai` | Adds the `AI_UNSUPPORTED_MEDIA` error code; `pantry-ai` renders the pantry proposal (own icon and label, quantity and shelf) and confirms it through `POST /api/pantry/upsert` |
 | `client/src/demo/mockApi.ts` | `budget-custom`, `demo-prefs`, `lunchbox`, `pantry`, `outings` | Demo handlers for receipts, receipt extraction, analytics, lunchboxes and the pantry (seeded rows, the shopping-list bridge, the receipt import — which splits its lines exactly like the server: obvious products merged, the rest queued — the review queue with its `confirm`/`ignore` calls, and the two answers the page reacts to: `DUPLICATE_NAME`, `NO_GROCY_INTEGRATION`); plus the two object-shaped endpoints upstream's demo never answers (`dashboard-prefs`, `posts/latest`), whose `ok([])` catch-all crashed the demo's default route. The `demo-prefs` block's default widget order also carries `pantry`; the `outings` block resolves area lookups only for Sint-Niklaas, answers current-position requests with its fixed location-free ideas and no places (the demo has no places database), and never relabels its fixed fixtures for another area |
-| `client/nginx.conf` | `media` | Dedicated `location ^~ /api/media/` block (upstream's `location /api/` line untouched) |
+| `client/nginx.conf` | `media`, `budget-pdf` | Dedicated `location ^~ /api/media/` block (upstream's `location /api/` line untouched); `budget-pdf` is a `.mjs` location serving the pdf.js worker as `text/javascript` — the image's stock `mime.types` has no `.mjs`, so nginx answered `application/octet-stream` and the browser refused to run the worker as a module. Its empty `types` map stays inside that one location, so the rest keeps nginx's own table |
 | `scripts/smoke-api.sh` | `budget-custom`, `lunchbox`, `outings` | Smoke calls for saved, area-resolved, and current-position outing requests, including the temporary-area geocoder endpoint and a comparison that the saved home is unchanged by it |
 | `.env.example` | (section) | `# --- Custom ---` section at the end of the file |
 | `DOCUMENTATION.md`, `ROADMAP.md`, `README.md`, `README.fr.md`, `README.zh-CN.md` | `docs` | Feature documentation |
@@ -211,6 +211,11 @@ paints that in ~200 ms before asking for the model's answer (see
   decoding for the scanner page. `zxing-wasm` was dropped from the plan: it is only
   needed by react-zxing v3 (`barcode-detector`), while v2 decodes in pure JS and
   needs no WASM asset — one less thing to ship to the WebView.
+- `pdfjs-dist@^6.4.299` (client) — renders a picked PDF to one JPEG per page for the
+  receipt/bill import (see the receipt row above). Loaded through a dynamic import,
+  so the budget screen's initial bundle does not pay for it: the parser is a 437 KB
+  chunk and its worker a 1.26 MB asset, both fetched only when a PDF is picked. The
+  worker asset is why `client/nginx.conf` needs the `budget-pdf` `.mjs` location.
 - `server/package.json` — `"test": "tsx --test test/*.test.ts"`
 - `package-lock.json` regenerated for the above; no other version changed. The
   `react-zxing` install was done with `npm install --legacy-peer-deps` (see the
@@ -403,6 +408,18 @@ was verified in a browser instead (see "Verification" below).
   2,009.33 kB. The 2026-10-12 build measured 2,016.64 kB, still below the 2 MiB
   per-file limit. Keep pages and heavy imports behind `React.lazy`, and measure
   `dist/assets/index-*.js` after adding i18n keys — the locale JSON is eager.
+- **The PWA precache limit is overrun again on `develop` (measured 2026-10-21,
+  `fa55a30`): the main chunk is 2,678,868 B against workbox's 2,097,152 B, so
+  `vite build` fails outright ("Assets exceeding the limit") — not caused by the
+  receipt-PDF change, which was verified by stashing it (same 2.68 MB main chunk
+  without it), but by the ~630 kB added to the eager bundle since the 2,016.64 kB
+  measured on 2026-10-12 (market plan and the pages around it). Nothing in this
+  fork can be deployed until it is back under the limit: either move the newest
+  eager custom pages behind `React.lazy` as `df16f56` did, or raise
+  `injectManifest.maximumFileSizeToCacheInBytes` in `client/vite.config.ts` (an
+  upstream file, so a marker-wrapped one-liner and a row in the table above). The
+  `pdfjs` chunk (437 kB) and its worker (1.26 MB) are already lazy and were not
+  part of the overrun.
 - **`custom/0005-pantry-name-unique` used to abort startup on a database that
   already held duplicate pantry rows — closed on 2026-10-11.** `CREATE UNIQUE
   INDEX` raises 23505 if two `source <> 'grocy'` rows share `(user_id, name_key)`
@@ -599,6 +616,44 @@ dotenv never overrides a variable that is already set, so pinning is enough.
   and its link to the family page were checked in the browser, and the deployed
   instance serves the build that was verified (`/tmp/poteto/shot-personal-hint.webp`,
   `/tmp/poteto/shot-family-from-hint.webp`)
+
+### Receipt / bill PDF import (2026-10-21)
+
+- **The fault was the provider, not the route.** `/api/ai/extract-receipt` used to
+  upload a picked PDF verbatim as an OpenAI `file` part. Replayed straight at the
+  configured gateway (`https://opencode.ai/zen/go/v1/chat/completions`,
+  `deepseek-v4.1-flash`, the household's own key), a valid 1-page invoice in that
+  shape failed 4 times out of 5 with `file must have a file_id or file_data` or
+  `Upstream request failed: Endpoint is unavailable`, and roughly one request in
+  five never answered at all — which the route turns into `AI_UNREACHABLE` at its
+  60 s `AI_TIMEOUT_MS`, i.e. the HTTP 502 the budget dialog showed. On the stable
+  `x-opencode-session` the fork derives from the API key, one failed ingest was
+  then cached: every later PDF came back 200 with an **empty** draft
+  (`total: 0`, `items: []`, `prompt_tokens` exactly the text-only count). The same
+  bytes with a non-derived session header were read correctly (Boulangerie Martin,
+  8.45, three lines) — so the payload was right and the document path was not.
+  Images go through `image_url` and never had the problem, which is why only PDFs
+  failed.
+- **Fix: the PDF never leaves the browser as a PDF.** `ReceiptImport.custom.tsx`
+  renders each page with pdf.js to a ≤1600px JPEG and attaches those, so a PDF now
+  takes the photo path on every provider (also the only way Ollama, which refuses
+  `file` parts outright, can read one at all). A page costs what a photo costs, so
+  the 25 MB PDF bound is only a local parse bound, the route's 8 MB/attachment and
+  12 MB/body limits are checked after encoding as before, and a PDF with more than
+  5 pages is refused before the upload with the new
+  `budget.custom:receipt.errors.tooManyPages` key (all six locales).
+- **Verified** in Chromium against a throwaway nginx serving this tree's
+  `vite build --mode native` and proxying `/api` to the live server container, with
+  a real account and the real gateway: a 1-page `ps2pdf` invoice produced
+  `Boulangerie Martin` / `2026-10-18` / `8.45 €` with its three lines (14.1 s); a
+  2-page invoice produced both pages' lines (Marteau 15.00, Clous 3.50); a 6-page
+  PDF was refused with the new message and no request sent; a PNG still produced a
+  draft. The first run also caught the nginx side of the change: the stock
+  `mime.types` has no `.mjs`, so the worker asset left as
+  `application/octet-stream` and the browser refused it as a module — hence the
+  `budget-pdf` block in `client/nginx.conf`.
+- The PWA build still fails on the pre-existing precache overrun above; the
+  native-mode build is what was verified.
 
 ### Smart pantry (2026-10-10)
 

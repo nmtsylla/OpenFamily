@@ -39,7 +39,8 @@
     "successTitle": "Receipt imported",
     "successDescription": "{{count}} entry(ies) added to the budget.",
     "errors": {
-      "unsupported": "{{name}}: unsupported format or too large (JPEG, PNG, WebP up to 25 MB; PDF up to 8 MB).",
+      "unsupported": "{{name}}: unsupported format or too large (JPEG, PNG, WebP, PDF up to 25 MB).",
+      "tooManyPages": "This document has more pages than one import takes ({{max}} in total): send the relevant pages one at a time.",
       "payload": "Too many documents at once: 8 MB maximum in total.",
       "analyze": "The analysis failed. Try again with a sharper photo.",
       "save": "The receipt could not be saved.",

@@ -39,7 +39,8 @@
     "successTitle": "小票已导入",
     "successDescription": "已向预算添加 {{count}} 条记录。",
     "errors": {
-      "unsupported": "{{name}}：格式不支持或文件过大（JPEG、PNG、WebP 最大 25 MB；PDF 最大 8 MB）。",
+      "unsupported": "{{name}}：格式不支持或文件过大（JPEG、PNG、WebP、PDF 最大 25 MB）。",
+      "tooManyPages": "该文档的页数超过单次导入上限（共 {{max}} 页）：请分次发送需要的页面。",
       "payload": "一次发送的文件过多：总计最大 8 MB。",
       "analyze": "识别失败，请换一张更清晰的照片重试。",
       "save": "无法保存该小票。",
