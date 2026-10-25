@@ -83,14 +83,17 @@
   },
   "pending": {
     "title": "{{count}} produtos para arrumar",
-    "subtitle": "Linhas dos seus recibos que a IA não soube nomear: confirme-as ou ignore-as.",
+    "subtitle": "Linhas do talão que a IA não conseguiu nomear, ou cuja quantidade não constava no talão: confirme-as ou ignore-as.",
     "review": "Rever",
     "dialogTitle": "Produtos para arrumar",
-    "dialogHint": "Corrija o nome e a categoria e adicione à despensa — ou ignore o que não for um produto a guardar.",
+    "dialogHint": "Corrija o nome, a categoria e a quantidade, e adicione ao inventário. Ignore o que não for um produto a guardar.",
     "label": "No recibo: {{label}}",
     "add": "Adicionar à despensa",
     "ignore": "Ignorar",
-    "empty": "Já não há nada em espera."
+    "empty": "Já não há nada em espera.",
+    "amountHint": "O talão não diz quanto contém. Indique a quantidade e a unidade.",
+    "amountRequired": "Indique quanto adicionar antes de confirmar.",
+    "unitConflict": "Este produto já está no inventário com outra unidade. Altere primeiro a unidade da sua ficha."
   },
   "cook": {
     "title": "Cozinhar com o que tem",
@@ -113,7 +116,8 @@
     "importedReceipt": "Recibo importado para a despensa",
     "receiptPending": "{{count}} produtos para arrumar na despensa",
     "pendingIgnored": "Linha ignorada",
-    "importedGrocy": "{{count}} produtos importados do Grocy"
+    "importedGrocy": "{{count}} produtos importados do Grocy",
+    "skippedUnits": "{{count}} linha(s) não adicionada(s): a ficha desse produto usa outra unidade."
   },
   "errors": {
     "load": "Não foi possível carregar a despensa.",

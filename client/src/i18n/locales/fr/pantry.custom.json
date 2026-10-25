@@ -83,14 +83,17 @@
   },
   "pending": {
     "title": "{{count}} produits à ranger",
-    "subtitle": "Des lignes de vos tickets que l'IA n'a pas su nommer : confirmez-les ou ignorez-les.",
+    "subtitle": "Des lignes de ticket que l'IA n'a pas su nommer, ou dont le ticket n'indiquait pas la quantité : confirmez-les ou ignorez-les.",
     "review": "Passer en revue",
     "dialogTitle": "Produits à ranger",
-    "dialogHint": "Corrigez le nom et la catégorie, puis ajoutez au garde-manger — ou ignorez ce qui n'est pas un produit à garder.",
+    "dialogHint": "Corrigez le nom, la catégorie et la quantité, puis ajoutez-le au garde-manger. Ignorez ce qui n'est pas un produit à garder.",
     "label": "Sur le ticket : {{label}}",
     "add": "Ajouter au garde-manger",
     "ignore": "Ignorer",
-    "empty": "Plus rien en attente."
+    "empty": "Plus rien en attente.",
+    "amountHint": "Le ticket ne dit pas combien cela contient. Indiquez la quantité et l'unité.",
+    "amountRequired": "Indiquez la quantité à ajouter avant de confirmer.",
+    "unitConflict": "Ce produit est déjà dans le garde-manger avec une autre unité. Changez d'abord l'unité de sa fiche."
   },
   "cook": {
     "title": "Cuisiner avec ce que vous avez",
@@ -113,7 +116,8 @@
     "importedReceipt": "Ticket importé dans le garde-manger",
     "receiptPending": "{{count}} produits à ranger dans le garde-manger",
     "pendingIgnored": "Ligne ignorée",
-    "importedGrocy": "{{count}} produits importés depuis Grocy"
+    "importedGrocy": "{{count}} produits importés depuis Grocy",
+    "skippedUnits": "{{count}} ligne(s) non ajoutée(s) : la fiche de ce produit utilise une autre unité."
   },
   "errors": {
     "load": "Impossible de charger le garde-manger.",

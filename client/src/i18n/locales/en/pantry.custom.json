@@ -83,14 +83,17 @@
   },
   "pending": {
     "title": "{{count}} products to put away",
-    "subtitle": "Receipt lines the AI could not name: confirm them or ignore them.",
+    "subtitle": "Receipt lines the AI could not name, or whose amount the ticket did not print: confirm them or ignore them.",
     "review": "Review them",
     "dialogTitle": "Products to put away",
-    "dialogHint": "Fix the name and the category, then add it to the pantry — or ignore what is not a product to keep.",
+    "dialogHint": "Fix the name, the category and the amount, then add it to the pantry. Ignore what is not a product to keep.",
     "label": "On the receipt: {{label}}",
     "add": "Add to the pantry",
     "ignore": "Ignore",
-    "empty": "Nothing left waiting."
+    "empty": "Nothing left waiting.",
+    "amountHint": "The ticket did not say how much this holds. Set the quantity and the unit.",
+    "amountRequired": "Set how much to add before confirming.",
+    "unitConflict": "This product is already in the pantry with another unit. Change the unit on its row first."
   },
   "cook": {
     "title": "Cook with what you have",
@@ -113,7 +116,8 @@
     "importedReceipt": "Receipt imported into the pantry",
     "receiptPending": "{{count}} products to put away in the pantry",
     "pendingIgnored": "Line ignored",
-    "importedGrocy": "{{count}} products imported from Grocy"
+    "importedGrocy": "{{count}} products imported from Grocy",
+    "skippedUnits": "{{count}} line(s) not added: the pantry row for that product uses another unit."
   },
   "errors": {
     "load": "Unable to load the pantry.",

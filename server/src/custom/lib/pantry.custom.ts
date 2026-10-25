@@ -15,6 +15,7 @@
 // =============================================================================
 
 import { isCalendarDate } from './validation.custom';
+import { inferLineAmount } from './quantityInference.custom';
 
 /** Where the item is stored. The values are the client's Select options. */
 export const PANTRY_LOCATIONS = ['pantry', 'fridge', 'freezer', 'cellar', 'other'] as const;
@@ -249,8 +250,11 @@ export interface PantryLineSeed {
  * Receipt lines (`budget_receipt_items`) as pantry seeds. The name is the AI's
  * brand-free `pantry_item` when the line has one, the label otherwise — a line
  * typed by hand, or archived before the extraction asked for that field, keeps
- * its printed text. Quantity is the number bought (1 when the ticket did not
- * say), the category the line's own, and the unit only what the ticket showed.
+ * its printed text. The amount is how much the line holds: the stored content and
+ * unit, else the size its printed label carries (lib/quantityInference.custom.ts),
+ * else the number bought as a pack count. That last fallback is why a receipt
+ * archived before the amount was stored still lands as 'Broccoli 500 g' instead of
+ * 'Broccoli 1 g'.
  */
 export const mapReceiptItems = (
     rows: {
@@ -259,19 +263,27 @@ export const mapReceiptItems = (
         category: string;
         pantry_item?: string;
         pantry_unit?: string;
+        content?: unknown;
     }[],
 ): PantryLineSeed[] => {
     const seeds: PantryLineSeed[] = [];
     for (const row of rows) {
         if (seeds.length >= MAX_IMPORT_LINES) break;
-        const name = cleanText(row?.pantry_item, MAX_PANTRY_NAME) ?? cleanText(row?.label, MAX_PANTRY_NAME);
+        const label = cleanText(row?.label, MAX_PANTRY_NAME);
+        const name = cleanText(row?.pantry_item, MAX_PANTRY_NAME) ?? label;
         if (!name) continue;
         const quantity = toFinite(row?.quantity);
+        const packs = quantity !== null && quantity > 0 ? quantity : 1;
+        const printedUnit = cleanText(row?.pantry_unit, MAX_PANTRY_UNIT);
+        const content = toFinite(row?.content);
+        const amount = content !== null && content > 0 && printedUnit
+            ? { content, unit: printedUnit }
+            : inferLineAmount({ label: label ?? name, quantity: packs, unit: printedUnit });
         seeds.push({
             name,
-            quantity: quantity !== null && quantity > 0 ? quantity : 1,
+            quantity: amount ? amount.content : packs,
             category: cleanText(row?.category, MAX_PANTRY_CATEGORY) ?? DEFAULT_PANTRY_CATEGORY,
-            unit: cleanText(row?.pantry_unit, MAX_PANTRY_UNIT),
+            unit: amount ? amount.unit : printedUnit,
         });
     }
     return seeds;
@@ -285,21 +297,34 @@ export interface PendingReceiptLine {
     quantity: number;
     unit: string | null;
     category: string;
+    /**
+     * The line IS household stock under a usable name, but neither the model nor
+     * its label says how much it holds: the family must answer before it can be
+     * stocked. A line that is not stock is never asked — it is not a pantry row
+     * in the first place.
+     */
+    needs_amount: boolean;
 }
 
 /**
  * The split every receipt import goes through.
  *
- * `stock` — the lines the model called plainly household stock AND named: they
- * are merged into the pantry without asking, because asking per line is what
- * makes people stop importing tickets.
+ * `stock` — the lines the model called plainly household stock, named, AND whose
+ * amount is known (from the model's `pantry_content`, else from the size the
+ * label prints): they are merged into the pantry without asking, because asking
+ * per line is what makes people stop importing tickets. They are stocked with
+ * `quantity = amount.content` in `amount.unit` — how much product the line holds,
+ * never the number of packs under the pack's own unit (the '500 g broccoli →
+ * Broccoli 1 g' bug).
  * `pending` — everything else: a service, a fee, fuel, an abbreviation nobody
- * can name, or a line the model was unsure about. Those wait on the pantry page
- * for the family to name and categorise them; nothing is stocked silently.
+ * can name, a line the model was unsure about, or a stockable line whose amount
+ * nobody knows (that one carries `needs_amount`, and the pantry page asks for
+ * it). Those wait on the pantry page for the family to name and categorise them;
+ * nothing is stocked silently.
  *
- * The rule is deliberately strict — a boolean AND a usable generic name — so an
- * unreadable line can never be stocked under whatever the ticket happened to
- * print.
+ * The rule is deliberately strict — a boolean, a usable generic name and a
+ * known amount — so an unreadable line can never be stocked under whatever the
+ * ticket happened to print.
  */
 export const splitReceiptLines = (
     rows: {
@@ -308,6 +333,7 @@ export const splitReceiptLines = (
         category: string;
         pantry_item?: string;
         pantry_unit?: string;
+        pantry_content?: number;
         pantry_stock?: boolean;
     }[],
 ): { stock: PantryLineSeed[]; pending: PendingReceiptLine[] } => {
@@ -322,14 +348,32 @@ export const splitReceiptLines = (
         if (!name) continue;
 
         const quantity = toFinite(row?.quantity);
-        const shared = {
-            quantity: quantity !== null && quantity > 0 ? quantity : 1,
-            category: cleanText(row?.category, MAX_PANTRY_CATEGORY) ?? DEFAULT_PANTRY_CATEGORY,
-            unit: cleanText(row?.pantry_unit, MAX_PANTRY_UNIT),
-        };
+        const packCount = quantity !== null && quantity > 0 ? quantity : 1;
+        const printedUnit = cleanText(row?.pantry_unit, MAX_PANTRY_UNIT);
+        const content = toFinite(row?.pantry_content);
 
-        if (item && row?.pantry_stock === true) stock.push({ name: item, ...shared });
-        else pending.push({ label: name, item: item ?? '', ...shared });
+        // How much the line holds: what the model read, else the size its label
+        // prints. Both are in the canonical unit, so what is stocked is 0.5 kg of
+        // broccoli rather than 1 of something.
+        const amount = content !== null && content > 0 && printedUnit
+            ? { content, unit: printedUnit }
+            : inferLineAmount({ label: name, quantity: packCount, unit: printedUnit });
+
+        const category = cleanText(row?.category, MAX_PANTRY_CATEGORY) ?? DEFAULT_PANTRY_CATEGORY;
+        const stockable = item !== null && row?.pantry_stock === true;
+
+        if (stockable && amount) {
+            stock.push({ name: item, quantity: amount.content, category, unit: amount.unit });
+        } else {
+            pending.push({
+                label: name,
+                item: item ?? '',
+                quantity: amount ? amount.content : packCount,
+                unit: amount ? amount.unit : printedUnit,
+                category,
+                needs_amount: stockable && !amount,
+            });
+        }
     }
 
     return { stock, pending };
