@@ -41,8 +41,8 @@ explained below.
 |---------|-------|------|
 | Weather, clothing suggestions, screen-free activities. The saved city is the **family's**, not the account's: stored on the owner's row, saved from Settings and read by every member's dashboard, with a `family` WebSocket event fanned out to the whole family on save. The widgets target **today before 18:00 and tomorrow from 18:00 on** (the hour alone picks the day; the school/home rule only labels it), and the payload carries the offset plus the nearer of the next 18:00 and midnight, so the client schedules against the server's boundary and the label cannot stay "tomorrow" past midnight | `server/src/custom/weather/*.custom.ts`, `server/src/custom/routes/weather.custom.ts`, `server/src/custom/lib/{dayContext,familyNotify}.custom.ts`, `server/src/custom/ai/{activityBank,widgets}.custom.ts`, `server/src/custom/routes/aiDashboard.custom.ts`, `client/src/custom/components/{WeatherClothingCard,WeatherDetailsDialog,WeatherLocation,KidsActivitiesCard}.custom.tsx`, `client/src/custom/hooks/useWeather.custom.ts`, `client/src/custom/lib/{weatherCode,dayContextLabel}.custom.ts` | `CUSTOM_FEATURE_WEATHER_ENABLED`, `CUSTOM_FEATURE_AI_WIDGETS_ENABLED` |
 | Object storage for images (S3-compatible) | `server/src/custom/lib/{storage,media,storage-errors}.custom.ts`, `server/src/custom/middleware/media.custom.ts`, `server/src/custom/routes/media.custom.ts` | `CUSTOM_FEATURE_MEDIA_ENABLED` |
-| Receipt / bill import with line detail | `server/src/custom/routes/budgetReceipts.custom.ts`, `server/src/custom/ai/receipt.custom.ts`, `client/src/custom/components/{ReceiptImport,BudgetReceipts}.custom.tsx` | `CUSTOM_FEATURE_BUDGET_RECEIPTS_ENABLED` |
-| Budget analytics page | `server/src/custom/lib/budgetAnalytics.custom.ts`, `server/src/custom/routes/budgetAnalytics.custom.ts`, `client/src/custom/pages/BudgetAnalytics.custom.tsx` | `CUSTOM_FEATURE_BUDGET_ANALYTICS_ENABLED` |
+| Receipt / bill import with line detail. A **PDF is rendered to one JPEG per page in the browser** (pdf.js), never uploaded as a PDF: providers that take a `file` part are unreliable — the fork's OpenCode Zen gateway ingested about one document in five, answered the rest with `file must have a file_id or file_data` or hung until the route's 60 s timeout (the 502), and a failed ingest is then cached for the whole session so every later PDF came back as an empty draft — and Ollama refuses anything but images. A rendered page costs what a photo costs, so a PDF now takes the photo path on every provider, with a 5-page ceiling (more would exceed the route's file count) and the local size limits | `server/src/custom/routes/budgetReceipts.custom.ts`, `server/src/custom/ai/receipt.custom.ts`, `client/src/custom/components/{ReceiptImport,BudgetReceipts}.custom.tsx` | `CUSTOM_FEATURE_BUDGET_RECEIPTS_ENABLED` |
+| Budget analytics page, including **what the family bought** over the same range (spending per product plus how much of it, inside each printed unit, read from the imported receipt lines: `purchases` in the same response) | `server/src/custom/lib/{budgetAnalytics,productAnalytics}.custom.ts`, `server/src/custom/routes/budgetAnalytics.custom.ts`, `server/test/productAnalytics.custom.test.ts`, `client/src/custom/pages/BudgetAnalytics.custom.tsx` | `CUSTOM_FEATURE_BUDGET_ANALYTICS_ENABLED` |
 | Lunchboxes + weekly nutritional read (ported from KeurTonux), with manual and AI drink fields optional and validation/save errors kept inside the form dialog | `server/src/custom/lib/lunchbox.custom.ts`, `server/src/custom/lib/aiSettings.custom.ts`, `server/src/custom/lib/promptLanguage.custom.ts`, `server/src/custom/ai/{lunchbox,nutrition}.custom.ts`, `server/src/custom/routes/lunchbox.custom.ts`, `server/test/lunchbox.custom.test.ts`, `client/src/custom/pages/Lunchboxes.custom.tsx`, `client/src/custom/components/{LunchboxAiDialog,NutritionAnalysisDialog}.custom.tsx` | `CUSTOM_FEATURE_LUNCHBOX_ENABLED` |
 | Smart pantry — what the household has at home (locations, expiry, low stock), bridging the shopping list both ways, Grocy stock in, and the receipt import feeding it: the obviously stockable lines merge in under the brand-free name the AI read off the ticket, the rest wait in a review queue on the page; lunchbox AI and a "cook from what you have" tab out | `server/src/custom/lib/pantry.custom.ts`, `server/src/custom/lib/pantryMerge.custom.ts`, `server/src/custom/lib/validation.custom.ts`, `server/src/custom/routes/pantry.custom.ts`, `client/src/custom/pages/Pantry.custom.tsx`, `client/src/custom/components/PantryExpiryCard.custom.tsx`, `client/src/custom/lib/pantryMatch.custom.ts` | `CUSTOM_FEATURE_PANTRY_ENABLED` |
 | AI outing planner on the Planning page — real nearby places from OpenStreetMap/Overpass ranked for the selected day, weather, party and relevant family profiles; choose saved home, browser position or a temporary city/area without changing home settings; restaurants require the exact `diet:halal=only` tag; location-free activity ideas never invent venues; the chosen outing is added through upstream's `/api/planning` | `server/src/custom/lib/places.custom.ts`, `server/src/custom/lib/{location,kids}.custom.ts`, `server/src/custom/ai/outings.custom.ts`, `server/src/custom/routes/outings.custom.ts`, `server/test/outings.custom.test.ts`, `client/src/custom/components/OutingPlanner.custom.tsx`, `client/src/custom/hooks/useOutings.custom.ts` | `CUSTOM_FEATURE_OUTINGS_ENABLED` |
@@ -103,7 +103,7 @@ existed; the exact count of rewritten upstream lines is the next section's table
 | `server/src/app.ts` | `custom-routes`, `budget-custom`, `board` | One `registerCustomRoutes(app)` hook (import + call, above the upstream limiters) and one added condition so `/api/ai/extract-receipt` skips the 1 MB default JSON parser; the `board` marker adds the air-quality host to the SPA's CSP (see "The board takes the family city" below) |
 | `server/src/routes/auth.ts` | `custom-features`, `media` | Adds the env-disabled custom modules to `disabled_modules`; accepts an `s3:` avatar reference |
 | `server/src/routes/userSettings.ts` | `weather`, `custom-modules` | Adds the custom dashboard widget keys to `DASHBOARD_WIDGETS` (the list `parseDashboardPrefs` validates against — without it the widgets are silently dropped) and the custom module keys to `TOGGLEABLE_MODULES` (upstream rejects an unknown key in `PUT /api/auth/modules`, so a flag-disabled key reported through `/api/auth/me` would make the next module toggle fail with 400) |
-| `server/src/migrations/registry.ts` | `custom-migrations` | Appends the fork migrations (`custom/0001` … `custom/0009-promo-exclusions`) |
+| `server/src/migrations/registry.ts` | `custom-migrations` | Appends the fork migrations (`custom/0001` … `custom/0010-receipt-item-product`) |
 | `server/src/index.ts` | `media` | Ensures the bucket exists at startup when storage is configured |
 | `server/src/lib/postFields.ts`, `server/src/lib/recipeImage.ts` | `media` | Keeps an `s3:` media reference intact instead of treating it as a data URL |
 | `server/src/routes/dataTransfer.ts` | `media` | Stores inline images on import and answers with JSON instead of rethrowing |
@@ -280,6 +280,16 @@ next migration takes `core/0007`):
   its accent is not a second row. Applied to an existing database and to a fresh
   `postgres:16` in the same pass (see the verification section).
 
+- `custom/0010-receipt-item-product` — three nullable columns on the fork's own
+  `budget_receipt_items`: `product` (the brand-free name the import already reads
+  off the ticket as `pantry_item`), `unit` (`pantry_unit`) and `content` (how much
+  product the line holds in that unit, `pantry_content`, so 'RIJST BASMATI 5KG'
+  stores 5 beside a pack count of 1). The import kept only the printed label
+  before, so what the family bought could not be added up across tickets. No
+  backfill: a line imported earlier keeps NULL, and the analytics groups it by its
+  label and counts packs. Written only by the receipt import; a hand-typed line
+  keeps NULL.
+
 Every statement is idempotent (`IF NOT EXISTS`), and the ids must never be renamed
 or their SQL edited: the runner records `id` + SQL checksum in
 `openfamily_schema_migrations` (`server/src/migrations/runner.ts`).
@@ -316,7 +326,8 @@ upstream locale file:
 - `analytics.custom` (six locales; the `es`, `pt`, `ru`, `zh` files are copies of
   the English strings — placeholders pending translation, required because
   `client/scripts/check-i18n.mjs` fails the build on any namespace missing from a
-  locale)
+  locale — except the `products.*` keys of the purchase analytics, which are
+  translated)
 - `dashboard.custom`, `budget.custom`, `ai.custom` (six locales; `dashboard.custom`
   now carries only the three custom widget labels upstream's own dashboard reads,
   and its `ru`/`zh` files are copies of the English strings, same placeholder rule
@@ -334,7 +345,7 @@ upstream locale file:
 
 ## Tests
 
-`server/test/{weather,aiProvider,budgetAnalytics,aiPrompt,lunchbox,pantry,receipt,outings,productScan,aiPantry,news}.custom.test.ts` — matched by the
+`server/test/{weather,aiProvider,budgetAnalytics,productAnalytics,aiPrompt,lunchbox,pantry,receipt,outings,productScan,aiPantry,news}.custom.test.ts` — matched by the
 server's `tsx --test test/*.test.ts`. `aiPantry` covers the pantry
 half of the two AI prompts: the three states of the stock argument (`null` off,
 `[]` on and empty, values), the `pantry_item` validator (quantity 0 kept,
@@ -390,6 +401,21 @@ was verified in a browser instead (see "Verification" below).
   behind), and FORK_CHANGES repeated the inversion. Both are corrected, and the
   rollback recipe now says what actually survives (the `openfamily-fork-*` images,
   not a directory).
+- **Product quantities start at `custom/0010`.** A receipt line keeps the
+  brand-free name, the printed unit and the content amount only from that
+  migration on. Older lines (and every hand-typed line) carry the printed label
+  and no unit, so the analytics lists them by label and counts packs. Recovering
+  the old values would mean re-reading the tickets: `custom_pantry_pending` only
+  covers the lines the import did not stock, and the pantry itself holds current
+  stock, not purchase history. The fork does not guess.
+- **The pantry still counts packs where the analytics counts content.** A 5 kg bag
+  of rice merges into the pantry as quantity 1 (its pack count), while the
+  analytics page says 5 kg. `splitReceiptLines` (`lib/pantry.custom.ts`) passes
+  `quantity`; making it pass `pantry_content` when the ticket has one would change
+  what pantry stock means (packages vs product), which is its own decision.
+- **A "single" import has no product lines.** A bill imported for its total keeps
+  its spend in the analytics totals but contributes nothing to the product list,
+  by design: there is no line to add up.
 - `analytics.custom.json` exists for all six locales, but its `es`/`pt`/`ru`/`zh`
   files are English placeholders pending translation (required by `check-i18n`).
 - **The main bundle was within ~500 bytes of the PWA's precache limit — closed on
@@ -1666,3 +1692,51 @@ an account with no pantry at all still gets 264 general grocery deals; toggling
 focus off returns the full catalogue. New harness `drive-promo-focus.mjs` (PASS);
 the existing `drive-daily-promos-view.mjs` and `drive-promo-watchlist.mjs` were
 updated for the toggle's new label and still PASS.
+
+### What the family bought (2026-10-25)
+
+The analytics page answered "what did we spend between two dates". It now also
+answers "how much of each product did we buy", which needed data the import was
+throwing away.
+
+- **Why a migration.** `budget_receipt_items` kept the printed label and a
+  quantity, but the AI already reads three better values off every line and the
+  import dropped them: `pantry_item` (brand-free name), `pantry_unit` (the unit
+  the ticket printed) and, with this change, `pantry_content` (how much product
+  the line holds in that unit). A 5 kg bag of rice arrives as quantity 1, so
+  without the content the page could only ever say "1 ×".
+- **Pure aggregation, in the existing response.** `lib/productAnalytics.custom.ts`
+  folds the lines with `pantryNameKey` (the pantry's own merge key), adds content
+  only inside one unit bucket, keeps packs beside it, marks a bucket whose lines
+  did not all say how much they held (`unsized`, shown as `≥ 5 kg`), and picks a
+  display spelling by frequency so the list does not move between loads. The
+  overview route adds one query and one key (`purchases`); the page keeps one
+  request per screen and one date range.
+- **Server**: `migrations/registry.ts` (`custom/0010`), `ai/receipt.custom.ts`
+  (schema field, prompt line, `cleanContent`), `routes/budgetReceipts.custom.ts`
+  (the import insert), `lib/productAnalytics.custom.ts`, `routes/budgetAnalytics.custom.ts`,
+  `test/{receipt,productAnalytics}.custom.test.ts`.
+- **Client**: `pages/BudgetAnalytics.custom.tsx` (one card after the category
+  breakdown), `components/ReceiptImport.custom.tsx` (the draft carries
+  `pantry_content` through to the post), six `analytics.custom.json`.
+
+No upstream file touched, no dependency change.
+
+Verified on the isolated stack (`verify-openfamily`). `npm test` 153/153 (13 new
+pure tests in `productAnalytics`, 3 more in `receipt` for the content field); `tsc` clean on server and
+client; `check:i18n` OK across 6 languages. `custom/0010` applied to a fresh
+database (`db.migrations_complete` → `applied: ["custom/0010-receipt-item-product"]`).
+Three receipts imported through `POST /api/budget/receipts` (8 October Colruyt,
+12 October Delhaize, 20 September Lidl), then `GET /api/budget-analytics/overview`:
+
+- 1–25 October: `Lait demi-écrémé` 16 L / €16.00, `Riz basmati` 5 kg / €12.40,
+  `Pommes de terre` 2 kg / €4.00, `SAC PLASTIQUE` 1 × / €0.20 (4 products, 5 lines,
+  €32.60).
+- 10–25 October: the 8 October receipt is gone (3 products, €10.20, milk 6 L).
+- 13–25 October: empty, as expected.
+
+Driven in Chromium with `scripts/drive-purchase-analytics.mjs` (PASS): a fresh
+account signs up, the three receipts are imported, the page shows the card with
+those rows, changing From to 10 October drops the rice, and the phone layout at
+390 px keeps the card readable. Evidence in
+`artifacts/purchase-analytics-2026-10-25T07-38-50-652Z/`.

@@ -53,6 +53,15 @@
     "title": "Top merchants",
     "empty": "No receipt was imported over this period."
   },
+  "products": {
+    "title": "购买的商品",
+    "note": "来自已导入的小票。没有印刷单位的行按包装数量计算。",
+    "summary": "{{products}} 件商品 · {{amount}}",
+    "noUnit": "{{value}} ×",
+    "atLeast": "≥ {{value}}",
+    "hidden": "还有 {{count}} 个",
+    "empty": "该时段没有导入小票。"
+  },
   "states": {
     "loading": "Loading…",
     "error": "Could not load the analytics.",
