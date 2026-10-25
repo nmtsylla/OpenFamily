@@ -243,7 +243,7 @@ test('mapReceiptItems defaults the quantity and drops unlabelled lines', () => {
 
 // The AI reads the brand off the ticket; the pantry must store what it proposes,
 // or every supermarket creates a second row for the same product.
-test('mapReceiptItems prefers the model pantry name and its unit', () => {
+test('mapReceiptItems prefers the model pantry name and the amount the label prints', () => {
     assert.deepEqual(
         mapReceiptItems([
             { label: 'LAIT DEMI-ECREME BIO VILLAGE 1L', quantity: 2, category: 'Alimentation', pantry_item: 'Lait demi-écrémé', pantry_unit: 'L' },
@@ -254,7 +254,8 @@ test('mapReceiptItems prefers the model pantry name and its unit', () => {
             { label: 'Riz basmati', quantity: 1, category: 'Alimentation', pantry_item: '   ', pantry_unit: '  ' },
         ]),
         [
-            { name: 'Lait demi-écrémé', quantity: 2, category: 'Alimentation', unit: 'L' },
+            // Two 1 L bricks: the amount is 2 l, in the canonical unit.
+            { name: 'Lait demi-écrémé', quantity: 2, category: 'Alimentation', unit: 'l' },
             { name: 'Pain complet', quantity: 1, category: 'Alimentation', unit: null },
             { name: 'Lessive', quantity: 1, category: 'Maison', unit: null },
             { name: 'Riz basmati', quantity: 1, category: 'Alimentation', unit: null },
@@ -284,12 +285,55 @@ test('splitReceiptLines stocks the obvious lines and queues the rest', () => {
     ]);
 
     assert.deepEqual(stock, [
-        { name: 'Lait demi-écrémé', quantity: 2, category: 'Alimentation', unit: 'L' },
+        // The label prints 1L and the line is 2 packs: 2 l of milk, in the
+        // canonical unit — not 2 under the printed 'L'.
+        { name: 'Lait demi-écrémé', quantity: 2, category: 'Alimentation', unit: 'l' },
     ]);
     assert.deepEqual(pending, [
-        { label: 'DOLIPRANE 1000MG', item: 'Paracétamol', quantity: 1, category: 'Santé', unit: null },
-        { label: 'TRUC BIZARRE', item: '', quantity: 1, category: 'Autre', unit: null },
-        { label: 'Yaourts', item: '', quantity: 4, category: 'Alimentation', unit: null },
+        { label: 'DOLIPRANE 1000MG', item: 'Paracétamol', quantity: 1, category: 'Santé', unit: null, needs_amount: false },
+        { label: 'TRUC BIZARRE', item: '', quantity: 1, category: 'Autre', unit: null, needs_amount: false },
+        { label: 'Yaourts', item: '', quantity: 4, category: 'Alimentation', unit: null, needs_amount: false },
+    ]);
+});
+
+test('splitReceiptLines stocks the content, not the pack count', () => {
+    const { stock, pending } = splitReceiptLines([
+        {
+            label: 'RIJST BASMATI 5KG', quantity: 1, category: 'Alimentation',
+            pantry_item: 'Riz basmati', pantry_unit: 'kg', pantry_content: 5, pantry_stock: true,
+        },
+        {
+            // The model left the content at 0: the label prints 500g.
+            label: 'BROCCOLI 500g', quantity: 1, category: 'Alimentation',
+            pantry_item: 'Broccoli', pantry_unit: '', pantry_content: 0, pantry_stock: true,
+        },
+    ]);
+
+    assert.deepEqual(stock, [
+        { name: 'Riz basmati', quantity: 5, category: 'Alimentation', unit: 'kg' },
+        { name: 'Broccoli', quantity: 0.5, category: 'Alimentation', unit: 'kg' },
+    ]);
+    assert.deepEqual(pending, []);
+});
+
+test('a stockable line with no known amount is queued and asks for one', () => {
+    const { stock, pending } = splitReceiptLines([
+        {
+            label: 'FROMAGE BLANC', quantity: 2, category: 'Alimentation',
+            pantry_item: 'Fromage blanc', pantry_unit: '', pantry_content: 0, pantry_stock: true,
+        },
+        {
+            // Not stock, so no amount is needed: the family will not stock it.
+            label: 'SAC PLASTIQUE', quantity: 1, category: 'Maison',
+            pantry_item: 'Sac', pantry_unit: '', pantry_stock: false,
+        },
+    ]);
+
+    assert.deepEqual(stock, []);
+    assert.deepEqual(pending, [
+        // The pack count is kept as a starting point; the family types the amount.
+        { label: 'FROMAGE BLANC', item: 'Fromage blanc', quantity: 2, category: 'Alimentation', unit: null, needs_amount: true },
+        { label: 'SAC PLASTIQUE', item: 'Sac', quantity: 1, category: 'Maison', unit: null, needs_amount: false },
     ]);
 });
 

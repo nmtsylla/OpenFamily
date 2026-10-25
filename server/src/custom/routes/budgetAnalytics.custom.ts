@@ -8,6 +8,7 @@ import {
     type AnalyticsMember,
 } from '../lib/budgetAnalytics.custom';
 import { buildProductPurchases, type PurchaseLine } from '../lib/productAnalytics.custom';
+import { inferLineAmount } from '../lib/quantityInference.custom';
 
 // Fine-grained budget analytics — a SIDECAR to the shipped budget feature.
 //
@@ -110,14 +111,27 @@ router.get('/overview', async (req: AuthRequest, res) => {
 
         // pg returns DECIMAL as a string: coerce here, so the pure module only
         // ever sees numbers.
-        const lines: PurchaseLine[] = itemsResult.rows.map((row) => ({
-            label: String(row.label ?? ''),
-            product: row.product ?? null,
-            unit: row.unit ?? null,
-            quantity: toNumber(row.quantity),
-            content: toNumber(row.content),
-            amount: toNumber(row.amount),
-        }));
+        //
+        // A line imported before the amount was stored (NULL content), or one
+        // whose extractor could not read it (0), gets the size its own label
+        // prints: the analytics page then shows 500 g of broccoli instead of
+        // '1' under a unit that means grams. The inference is the same one the
+        // import uses, so old and new receipts agree.
+        const lines: PurchaseLine[] = itemsResult.rows.map((row) => {
+            const label = String(row.label ?? '');
+            const quantity = toNumber(row.quantity);
+            const unit = row.unit === null || row.unit === undefined ? null : String(row.unit);
+            const content = toNumber(row.content);
+            const inferred = content > 0 ? null : inferLineAmount({ label, quantity, unit });
+            return {
+                label,
+                product: row.product ?? null,
+                unit: inferred ? inferred.unit : unit,
+                quantity,
+                content: inferred ? inferred.content : content,
+                amount: toNumber(row.amount),
+            };
+        });
 
         // Both sides include the end day: `date < end + 1 day` here, and an
         // inclusive range end inside the expansion (see toAnalyticsEntries).

@@ -528,5 +528,21 @@ export const coreMigrations: readonly Migration[] = [
             'ALTER TABLE budget_receipt_items ADD COLUMN IF NOT EXISTS content DECIMAL(10,3)',
         ],
     },
+    {
+        // A queued line whose amount nobody knows must be ASKED FOR, not stocked
+        // as 1. Before, the import stored a pack count under the pack's unit, so
+        // a 500 g broccoli pack became 'Broccoli 1 g'; the fix keeps such a line
+        // in the queue until the family says how much it holds. The flag is the
+        // queue's half of the question: the pantry page reads it and the confirm
+        // route refuses a line that needs an amount but was sent none.
+        //
+        // Existing rows are false: they were queued by an import that could not
+        // know any better, and asking for an amount they already carry (or were
+        // dismissed from) would be a new question for old data.
+        id: 'custom/0011-pantry-pending-amount',
+        statements: [
+            'ALTER TABLE custom_pantry_pending ADD COLUMN IF NOT EXISTS needs_amount BOOLEAN NOT NULL DEFAULT false',
+        ],
+    },
     // FORK-END: custom-migrations
 ];

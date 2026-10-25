@@ -43,6 +43,7 @@ explained below.
 | Object storage for images (S3-compatible) | `server/src/custom/lib/{storage,media,storage-errors}.custom.ts`, `server/src/custom/middleware/media.custom.ts`, `server/src/custom/routes/media.custom.ts` | `CUSTOM_FEATURE_MEDIA_ENABLED` |
 | Receipt / bill import with line detail. A **PDF is rendered to one JPEG per page in the browser** (pdf.js), never uploaded as a PDF: providers that take a `file` part are unreliable — the fork's OpenCode Zen gateway ingested about one document in five, answered the rest with `file must have a file_id or file_data` or hung until the route's 60 s timeout (the 502), and a failed ingest is then cached for the whole session so every later PDF came back as an empty draft — and Ollama refuses anything but images. A rendered page costs what a photo costs, so a PDF now takes the photo path on every provider, with a 5-page ceiling (more would exceed the route's file count) and the local size limits | `server/src/custom/routes/budgetReceipts.custom.ts`, `server/src/custom/ai/receipt.custom.ts`, `client/src/custom/components/{ReceiptImport,BudgetReceipts}.custom.tsx` | `CUSTOM_FEATURE_BUDGET_RECEIPTS_ENABLED` |
 | Budget analytics page, including **what the family bought** over the same range (spending per product plus how much of it, inside each printed unit, read from the imported receipt lines: `purchases` in the same response) | `server/src/custom/lib/{budgetAnalytics,productAnalytics}.custom.ts`, `server/src/custom/routes/budgetAnalytics.custom.ts`, `server/test/productAnalytics.custom.test.ts`, `client/src/custom/pages/BudgetAnalytics.custom.tsx` | `CUSTOM_FEATURE_BUDGET_ANALYTICS_ENABLED` |
+| Receipt amounts: how much product each line holds, as a third value beside the printed label and the pack count. The import reads it off the ticket (the model's `pantry_content`), else off the size the label prints (`RIJST BASMATI 5KG` → 5 kg, `15x8g` → 0.12 kg), else from a weighed quantity. A stockable line with no known amount is not stocked as 1: the import review asks for it, and the pantry queue asks again and refuses to confirm without one. The pantry stocks the amount (0.5 kg of broccoli) instead of the pack count under the pack's unit (the old `Broccoli 1 g`), and a merge never adds two different units. Old receipt lines get the same inference at the analytics read. | `server/src/custom/lib/quantityInference.custom.ts`, `server/src/custom/lib/{pantry,pantryMerge}.custom.ts`, `server/src/custom/ai/receipt.custom.ts`, `server/src/custom/routes/{budgetReceipts,pantry,budgetAnalytics}.custom.ts`, `server/test/quantityInference.custom.test.ts`, `client/src/custom/components/{ReceiptImport,BudgetReceipts}.custom.tsx`, `client/src/custom/pages/Pantry.custom.tsx` | `CUSTOM_FEATURE_BUDGET_RECEIPTS_ENABLED`, `CUSTOM_FEATURE_PANTRY_ENABLED` |
 | Lunchboxes + weekly nutritional read (ported from KeurTonux), with manual and AI drink fields optional and validation/save errors kept inside the form dialog | `server/src/custom/lib/lunchbox.custom.ts`, `server/src/custom/lib/aiSettings.custom.ts`, `server/src/custom/lib/promptLanguage.custom.ts`, `server/src/custom/ai/{lunchbox,nutrition}.custom.ts`, `server/src/custom/routes/lunchbox.custom.ts`, `server/test/lunchbox.custom.test.ts`, `client/src/custom/pages/Lunchboxes.custom.tsx`, `client/src/custom/components/{LunchboxAiDialog,NutritionAnalysisDialog}.custom.tsx` | `CUSTOM_FEATURE_LUNCHBOX_ENABLED` |
 | Smart pantry — what the household has at home (locations, expiry, low stock), bridging the shopping list both ways, Grocy stock in, and the receipt import feeding it: the obviously stockable lines merge in under the brand-free name the AI read off the ticket, the rest wait in a review queue on the page; lunchbox AI and a "cook from what you have" tab out | `server/src/custom/lib/pantry.custom.ts`, `server/src/custom/lib/pantryMerge.custom.ts`, `server/src/custom/lib/validation.custom.ts`, `server/src/custom/routes/pantry.custom.ts`, `client/src/custom/pages/Pantry.custom.tsx`, `client/src/custom/components/PantryExpiryCard.custom.tsx`, `client/src/custom/lib/pantryMatch.custom.ts` | `CUSTOM_FEATURE_PANTRY_ENABLED` |
 | AI outing planner on the Planning page — real nearby places from OpenStreetMap/Overpass ranked for the selected day, weather, party and relevant family profiles; choose saved home, browser position or a temporary city/area without changing home settings; restaurants require the exact `diet:halal=only` tag; location-free activity ideas never invent venues; the chosen outing is added through upstream's `/api/planning` | `server/src/custom/lib/places.custom.ts`, `server/src/custom/lib/{location,kids}.custom.ts`, `server/src/custom/ai/outings.custom.ts`, `server/src/custom/routes/outings.custom.ts`, `server/test/outings.custom.test.ts`, `client/src/custom/components/OutingPlanner.custom.tsx`, `client/src/custom/hooks/useOutings.custom.ts` | `CUSTOM_FEATURE_OUTINGS_ENABLED` |
@@ -290,6 +291,13 @@ next migration takes `core/0007`):
   label and counts packs. Written only by the receipt import; a hand-typed line
   keeps NULL.
 
+- `custom/0011-pantry-pending-amount` — one boolean on `custom_pantry_pending`: the queued
+  line is stockable where the model named it, but no amount is known. The pantry page
+  starts its quantity field empty and the confirm route answers 400 `AMOUNT_REQUIRED`
+  until the family sends one, because stocking it as 1 is the `Broccoli 1 g` bug this
+  change fixes. Existing rows default to false: they were queued before the question
+  existed, and re-asking old data is noise.
+
 Every statement is idempotent (`IF NOT EXISTS`), and the ids must never be renamed
 or their SQL edited: the runner records `id` + SQL checksum in
 `openfamily_schema_migrations` (`server/src/migrations/runner.ts`).
@@ -345,7 +353,7 @@ upstream locale file:
 
 ## Tests
 
-`server/test/{weather,aiProvider,budgetAnalytics,productAnalytics,aiPrompt,lunchbox,pantry,receipt,outings,productScan,aiPantry,news}.custom.test.ts` — matched by the
+`server/test/{weather,aiProvider,budgetAnalytics,productAnalytics,quantityInference,aiPrompt,lunchbox,pantry,receipt,outings,productScan,aiPantry,news}.custom.test.ts` — matched by the
 server's `tsx --test test/*.test.ts`. `aiPantry` covers the pantry
 half of the two AI prompts: the three states of the stock argument (`null` off,
 `[]` on and empty, values), the `pantry_item` validator (quantity 0 kept,
@@ -416,6 +424,25 @@ was verified in a browser instead (see "Verification" below).
 - **A "single" import has no product lines.** A bill imported for its total keeps
   its spend in the analytics totals but contributes nothing to the product list,
   by design: there is no line to add up.
+- **Old pantry rows keep the pack count and the pack's unit.** The import used to stock
+  `1` under the unit the ticket printed, so the owner's live instance holds rows such as
+  `Broccoli 1 g` (a 500 g pack), `Curry 1 g` and `Eau de Javel 0 ml` — measured 14
+  receipt-sourced rows with a small measure and a whole-number quantity. New imports stock
+  the amount instead, and the merge refuses to add two different units, so those rows no
+  longer absorb new purchases until someone fixes their unit on the pantry page. The stock
+  is not rewritten on purpose: what the family bought is not what it still has.
+- **A weighed line is read as kilograms.** A fractional quantity (`CONFERENCE LOS` 1.51) is
+  produce weighed at the counter, so the inference reads it as 1.51 kg. A fractional
+  quantity in litres without a printed unit would be mislabelled, which is why the label
+  size is tried first and a printed `1,5L` wins.
+- **Unit price is not used to recover a quantity.** Measured on the same 108 lines: 15 have
+  `amount / unit_price` different from `quantity`, because the ticket prints a per-kg price
+  or applies a promotion: `LEERDAMMER tranches 350g` has unit_price 4.40 and amount 3.30,
+  `AH Druiven` has 5.99 and 4.99, and `CONFERENCE LOS` has quantity 1.51 at unit_price 2.49
+  for an amount of 2.27. The ratio would invent numbers.
+- **The demo's receipt import still splits lines the old way.** `client/src/demo/mockApi.ts`
+  mirrors `splitReceiptLines` for the static demo; the amount rule is not mirrored there,
+  because the demo has no pantry backend and no real tickets to parse.
 - `analytics.custom.json` exists for all six locales, but its `es`/`pt`/`ru`/`zh`
   files are English placeholders pending translation (required by `check-i18n`).
 - **The main bundle was within ~500 bytes of the PWA's precache limit — closed on
@@ -1448,3 +1475,54 @@ state drives CSS that hides the fixed bottom tab bar and reduces `main.pb-28` to
 1rem plus the safe-area inset when collapsed. Portrait, desktop, and sidebar
 behavior remain unchanged.
 
+### Receipt amounts (2026-10-25)
+
+The import could not answer "how much of this did we buy": a line stored a pack count
+under the unit the ticket printed, so a 500 g broccoli pack became `Broccoli 1 g`, and the
+analytics page could only say "1". The amount is now a first-class value on the line,
+asked for when nobody knows it, and derived for tickets imported earlier.
+
+- **Where it comes from.** The model already read `pantry_content` off the ticket. When it
+  answers 0, `lib/quantityInference.custom.ts` parses the size the label prints
+  (`500g`, `1,5L`, `6x33cl`, `15x8g`, `36ST`) and multiplies it by the packs bought. The
+  unit table is closed, an ambiguous or absurd size answers null, and `50x70cm`, `40WL`,
+  `6%`, `cr2032` and a bare `301` are not sizes. A fractional quantity is produce weighed
+  at the counter and counts as kilograms.
+- **The ask.** The import review shows the amount on a line that has one, and two inputs
+  plus "Not on the ticket. Fill it in, or the pantry will ask." on a line that does not. A
+  stockable line still without an amount is queued in the pantry with `needs_amount`, where
+  the quantity field starts empty, the card shows the same hint, and the confirm route
+  answers 400 `AMOUNT_REQUIRED` until the family sends one.
+- **The pantry stops storing pack counts.** `splitReceiptLines` stocks `amount.content` in
+  `amount.unit`. `mergeIntoPantry` refuses to add a seed whose unit differs from the row's
+  own (it reports the skip instead of turning `1 g` into `1.5 g`), and the confirm route
+  rolls back on that conflict so the queue line is not lost.
+- **Earlier imports.** The analytics read infers the amount for a line whose content is
+  NULL, so old receipts show 1 kg of clementines. The per-receipt "add to pantry" button
+  infers too, so a ticket imported before this change can still stock real amounts.
+
+Server: `lib/quantityInference.custom.ts` (new), `ai/receipt.custom.ts`,
+`lib/{pantry,pantryMerge}.custom.ts`, `routes/{budgetReceipts,pantry,budgetAnalytics}.custom.ts`,
+`migrations/registry.ts` (`custom/0011`), `test/{quantityInference,receipt,pantry}.custom.test.ts`.
+Client: `components/{ReceiptImport,BudgetReceipts}.custom.tsx`, `pages/Pantry.custom.tsx`,
+six `budget.custom.json` and six `pantry.custom.json`. No upstream file touched, no
+dependency change.
+
+Verified on the isolated stack (`verify-openfamily`). `npm test` 164/164; `tsc` clean on
+server and client; `check:i18n` OK across 6 languages. `custom/0010` and `custom/0011`
+applied to a fresh database. API, with three receipts imported through
+`POST /api/budget/receipts`:
+
+- `RIJST BASMATI 5KG` stocked 5 kg; `BROCCOLI 500G` stocked 0.5 kg; `AH Basmati` queued
+  with `needs_amount`, `SAC PLASTIQUE` queued without it.
+- Confirm without a quantity → 400 `AMOUNT_REQUIRED`, the line stayed queued; with 10 kg →
+  stocked.
+- A pantry row `Café 1 g` plus a new `CAFE 250G` import reported `skipped: 1` and left the
+  row unchanged, while the analytics page showed the bought 0.25 kg.
+- A receipt line inserted with no content (`CLEMENTINES 1KG`) → the product card showed 1 kg.
+
+Driven in Chromium with `scripts/drive-receipt-amounts.mjs` (PASS): the review showed
+`6 kg` on a known line and the amount/unit inputs with the hint on the unknown one, the
+filled 10 kg stocked as `Fromage blanc 10 kg`, and the pantry queue showed the empty
+quantity with the hint at 390 px. Evidence in
+`artifacts/receipt-amounts-2026-10-25T08-23-18-479Z/`.
