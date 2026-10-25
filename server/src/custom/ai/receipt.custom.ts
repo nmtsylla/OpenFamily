@@ -22,7 +22,11 @@
 // three, so the analytics page can add up what the family bought. The name is
 // also what makes the next ticket with the same product add up to one pantry row
 // instead of opening a second one under a brand name. The `label` stays the
-// printed text (it describes the budget entry).
+// printed text (it describes the budget entry), and `pantry_item` keeps the
+// ticket's own language: translating it would stop the folded-name merge from
+// meeting the family's existing rows, and it would stop the promo screen's
+// "my products" mode from matching the Dutch and French product names the shops
+// publish.
 //
 // The prompt also receives the names already in the household's pantry, and one
 // rule is added with them: when a line IS one of those products, the model hands

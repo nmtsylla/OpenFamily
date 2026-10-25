@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildKidsActivitiesUserPrompt, kidFactDigest, type ActivityKidInput } from '../src/custom/ai/widgets.custom';
+import { buildParsePrompt, buildRefineRecipePrompt } from '../src/services/ai/assistant';
 import type { WeatherSummary } from '../src/custom/weather/WeatherService.custom';
 
 // =============================================================================
@@ -77,4 +78,27 @@ test('the cache key digest is empty without personal facts and differs when they
     assert.notEqual(withNotes, kidFactDigest(kid({ allergies: ['peanuts'] })));
     // Same facts, same key: the cache has to hit on a dashboard re-render.
     assert.equal(withNotes, kidFactDigest(kid({ notes: ' loves dinosaurs ' })));
+});
+
+// =============================================================================
+// The fork's language rule (prompts in services/ai/assistant.ts): the model
+// reads French notes and French recipes, but what it writes back — parsed free
+// text and a refined recipe — is English. Categories and member names are the
+// family's own values and must be copied, not translated.
+// =============================================================================
+
+test('the note-parse prompt tells the model to write its free text in English', () => {
+    const prompt = buildParsePrompt([], ['Courses'], ['Autre']);
+
+    assert.match(
+        prompt,
+        /- Écris en anglais tout le texte que tu produis \(title, description, location, unit\)/,
+    );
+});
+
+test('the recipe prompt asks for an English recipe, not the recipe language', () => {
+    const prompt = buildRefineRecipePrompt(['Entrées']);
+
+    assert.match(prompt, /traduis la recette en anglais/);
+    assert.doesNotMatch(prompt, /garde la recette dans SA langue/);
 });
