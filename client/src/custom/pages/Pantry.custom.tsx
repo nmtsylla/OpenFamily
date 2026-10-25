@@ -68,7 +68,20 @@ interface PendingLine {
     category: string;
     merchant: string | null;
     date: string | null;
+    /**
+     * The ticket did not say how much this line holds: the pack count the
+     * import read is not an amount, so the field starts empty and the family
+     * must give one (the server refuses the confirm without it).
+     */
+    needs_amount: boolean;
 }
+
+/**
+ * A queued line whose amount the family has not given yet: nothing can be added
+ * until it holds a positive number.
+ */
+const amountMissing = (line: PendingLine): boolean =>
+    line.needs_amount === true && !(Number(line.quantity) > 0);
 
 // Mirrors server/src/custom/lib/pantry.custom.ts: the client never imports server code.
 const LOCATIONS = ['pantry', 'fridge', 'freezer', 'cellar', 'other'] as const;
@@ -334,7 +347,9 @@ const Pantry: React.FC = () => {
             .then((response) => {
                 setPending((response.data?.items ?? []).map((line) => ({
                     ...line,
-                    quantity: String(line.quantity),
+                    // A line whose amount the ticket did not print starts empty:
+                    // the pack count would be read as the amount.
+                    quantity: line.needs_amount ? '' : String(line.quantity),
                     unit: line.unit ?? '',
                 })));
             })
@@ -449,14 +464,24 @@ const Pantry: React.FC = () => {
             await api.post(`/api/pantry/pending/${line.id}/confirm`, {
                 name: line.item.trim(),
                 category: line.category,
-                quantity: line.quantity === '' ? 1 : Number(line.quantity),
+                // An empty field must reach the server as no amount at all (it
+                // answers AMOUNT_REQUIRED when the line needed one).
+                quantity: line.quantity === '' ? '' : Number(line.quantity),
                 unit: line.unit,
             });
             showToast({ title: t('pantry.custom:toasts.created') });
             setPending((previous) => previous.filter((entry) => entry.id !== line.id));
             reload();
         } catch (err) {
-            showToast({ title: t('pantry.custom:errors.pending'), description: err instanceof Error ? err.message : undefined });
+            const message = err instanceof Error ? err.message : '';
+            showToast({
+                title: t('pantry.custom:errors.pending'),
+                description: message.includes('AMOUNT_REQUIRED')
+                    ? t('pantry.custom:pending.amountRequired')
+                    : message.includes('UNIT_CONFLICT')
+                        ? t('pantry.custom:pending.unitConflict')
+                        : message || undefined,
+            });
         } finally {
             setPendingBusy(null);
         }
@@ -871,6 +896,11 @@ const Pantry: React.FC = () => {
                                         }
                                     />
                                 </div>
+                                {amountMissing(line) && (
+                                    <p className="text-micro text-muted-foreground">
+                                        {t('pantry.custom:pending.amountHint')}
+                                    </p>
+                                )}
                                 <div className="flex justify-end gap-2">
                                     <Button
                                         variant="secondary"
@@ -881,7 +911,7 @@ const Pantry: React.FC = () => {
                                     </Button>
                                     <Button
                                         onClick={() => void confirmPending(line)}
-                                        disabled={pendingBusy === line.id || line.item.trim() === ''}
+                                        disabled={pendingBusy === line.id || line.item.trim() === '' || amountMissing(line)}
                                     >
                                         {t('pantry.custom:pending.add')}
                                     </Button>

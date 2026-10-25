@@ -83,14 +83,17 @@
   },
   "pending": {
     "title": "{{count}} productos por guardar",
-    "subtitle": "Líneas de tus tickets que la IA no supo nombrar: confírmalas o ignóralas.",
+    "subtitle": "Líneas del ticket que la IA no pudo nombrar, o cuya cantidad no aparecía en el ticket: confírmelas o ignóralas.",
     "review": "Revisarlas",
     "dialogTitle": "Productos por guardar",
-    "dialogHint": "Corrige el nombre y la categoría y añádelo a la despensa — o ignora lo que no sea un producto que guardar.",
+    "dialogHint": "Corrige el nombre, la categoría y la cantidad, y añádelo al inventario. Ignora lo que no sea un producto que guardar.",
     "label": "En el ticket: {{label}}",
     "add": "Añadir a la despensa",
     "ignore": "Ignorar",
-    "empty": "Ya no queda nada pendiente."
+    "empty": "Ya no queda nada pendiente.",
+    "amountHint": "El ticket no dice cuánto contiene. Indica la cantidad y la unidad.",
+    "amountRequired": "Indica cuánto añadir antes de confirmar.",
+    "unitConflict": "Este producto ya está en el inventario con otra unidad. Cambie primero la unidad de su ficha."
   },
   "cook": {
     "title": "Cocinar con lo que tienes",
@@ -113,7 +116,8 @@
     "importedReceipt": "Ticket importado a la despensa",
     "receiptPending": "{{count}} productos por guardar en la despensa",
     "pendingIgnored": "Línea ignorada",
-    "importedGrocy": "{{count}} productos importados desde Grocy"
+    "importedGrocy": "{{count}} productos importados desde Grocy",
+    "skippedUnits": "{{count}} línea(s) no añadida(s): la ficha de ese producto usa otra unidad."
   },
   "errors": {
     "load": "No se pudo cargar la despensa.",
