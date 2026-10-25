@@ -25,6 +25,13 @@ export const Dialog: React.FC<DialogProps> = ({
             <DialogPrimitive.Portal>
                 <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/35 backdrop-blur-sm animate-fade-in" />
                 <DialogPrimitive.Content
+                    // FORK-START: stable-dialogs
+                    // An outside tap lands on the scrim with the page's own chrome showing
+                    // through it, and on a phone or tablet that read as the dialog closing
+                    // itself mid-use: the tap did nothing else. The X, Escape, and every
+                    // explicit action still close it.
+                    onPointerDownOutside={(event) => event.preventDefault()}
+                    // FORK-END: stable-dialogs
                     className={cn(
                         'fixed inset-x-0 bottom-0 z-50 w-full border border-border bg-card shadow-surface-hover animate-slide-up',
                         'max-h-[90vh] overflow-y-auto rounded-t-[20px] p-0',

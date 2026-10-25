@@ -115,7 +115,11 @@ const Sheet: React.FC<{ open: boolean; onClose: () => void; title: string; child
 }) => {
     if (!open) return null;
     return (
-        <div className="fixed inset-0 z-50 flex flex-col justify-end" onClick={onClose}>
+        // FORK-START: stable-dialogs
+        // No close on the backdrop: same reason as components/ui/Dialog.tsx. The X
+        // below is this sheet's exit.
+        <div className="fixed inset-0 z-50 flex flex-col justify-end">
+        // FORK-END: stable-dialogs
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
             <div
                 className="relative bg-background rounded-t-2xl shadow-2xl max-h-[90vh] overflow-y-auto"
