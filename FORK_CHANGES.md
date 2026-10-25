@@ -41,27 +41,28 @@ explained below.
 |---------|-------|------|
 | Weather, clothing suggestions, screen-free activities. The saved city is the **family's**, not the account's: stored on the owner's row, saved from Settings and read by every member's dashboard, with a `family` WebSocket event fanned out to the whole family on save. The widgets target **today before 18:00 and tomorrow from 18:00 on** (the hour alone picks the day; the school/home rule only labels it), and the payload carries the offset plus the nearer of the next 18:00 and midnight, so the client schedules against the server's boundary and the label cannot stay "tomorrow" past midnight | `server/src/custom/weather/*.custom.ts`, `server/src/custom/routes/weather.custom.ts`, `server/src/custom/lib/{dayContext,familyNotify}.custom.ts`, `server/src/custom/ai/{activityBank,widgets}.custom.ts`, `server/src/custom/routes/aiDashboard.custom.ts`, `client/src/custom/components/{WeatherClothingCard,WeatherDetailsDialog,WeatherLocation,KidsActivitiesCard}.custom.tsx`, `client/src/custom/hooks/useWeather.custom.ts`, `client/src/custom/lib/{weatherCode,dayContextLabel}.custom.ts` | `CUSTOM_FEATURE_WEATHER_ENABLED`, `CUSTOM_FEATURE_AI_WIDGETS_ENABLED` |
 | Object storage for images (S3-compatible) | `server/src/custom/lib/{storage,media,storage-errors}.custom.ts`, `server/src/custom/middleware/media.custom.ts`, `server/src/custom/routes/media.custom.ts` | `CUSTOM_FEATURE_MEDIA_ENABLED` |
-| Receipt / bill import with line detail | `server/src/custom/routes/budgetReceipts.custom.ts`, `server/src/custom/ai/receipt.custom.ts`, `client/src/custom/components/{ReceiptImport,BudgetReceipts}.custom.tsx` | `CUSTOM_FEATURE_BUDGET_RECEIPTS_ENABLED` |
-| Budget analytics page | `server/src/custom/lib/budgetAnalytics.custom.ts`, `server/src/custom/routes/budgetAnalytics.custom.ts`, `client/src/custom/pages/BudgetAnalytics.custom.tsx` | `CUSTOM_FEATURE_BUDGET_ANALYTICS_ENABLED` |
+| Receipt / bill import with line detail. A **PDF is rendered to one JPEG per page in the browser** (pdf.js), never uploaded as a PDF: providers that take a `file` part are unreliable — the fork's OpenCode Zen gateway ingested about one document in five, answered the rest with `file must have a file_id or file_data` or hung until the route's 60 s timeout (the 502), and a failed ingest is then cached for the whole session so every later PDF came back as an empty draft — and Ollama refuses anything but images. A rendered page costs what a photo costs, so a PDF now takes the photo path on every provider, with a 5-page ceiling (more would exceed the route's file count) and the local size limits | `server/src/custom/routes/budgetReceipts.custom.ts`, `server/src/custom/ai/receipt.custom.ts`, `client/src/custom/components/{ReceiptImport,BudgetReceipts}.custom.tsx` | `CUSTOM_FEATURE_BUDGET_RECEIPTS_ENABLED` |
+| Budget analytics page, including **what the family bought** over the same range (spending per product plus how much of it, inside each printed unit, read from the imported receipt lines: `purchases` in the same response) | `server/src/custom/lib/{budgetAnalytics,productAnalytics}.custom.ts`, `server/src/custom/routes/budgetAnalytics.custom.ts`, `server/test/productAnalytics.custom.test.ts`, `client/src/custom/pages/BudgetAnalytics.custom.tsx` | `CUSTOM_FEATURE_BUDGET_ANALYTICS_ENABLED` |
 | Lunchboxes + weekly nutritional read (ported from KeurTonux), with manual and AI drink fields optional and validation/save errors kept inside the form dialog | `server/src/custom/lib/lunchbox.custom.ts`, `server/src/custom/lib/aiSettings.custom.ts`, `server/src/custom/lib/promptLanguage.custom.ts`, `server/src/custom/ai/{lunchbox,nutrition}.custom.ts`, `server/src/custom/routes/lunchbox.custom.ts`, `server/test/lunchbox.custom.test.ts`, `client/src/custom/pages/Lunchboxes.custom.tsx`, `client/src/custom/components/{LunchboxAiDialog,NutritionAnalysisDialog}.custom.tsx` | `CUSTOM_FEATURE_LUNCHBOX_ENABLED` |
 | Smart pantry — what the household has at home (locations, expiry, low stock), bridging the shopping list both ways, Grocy stock in, and the receipt import feeding it: the obviously stockable lines merge in under the brand-free name the AI read off the ticket, the rest wait in a review queue on the page; lunchbox AI and a "cook from what you have" tab out | `server/src/custom/lib/pantry.custom.ts`, `server/src/custom/lib/pantryMerge.custom.ts`, `server/src/custom/lib/validation.custom.ts`, `server/src/custom/routes/pantry.custom.ts`, `client/src/custom/pages/Pantry.custom.tsx`, `client/src/custom/components/PantryExpiryCard.custom.tsx`, `client/src/custom/lib/pantryMatch.custom.ts` | `CUSTOM_FEATURE_PANTRY_ENABLED` |
 | AI outing planner on the Planning page — real nearby places from OpenStreetMap/Overpass ranked for the selected day, weather, party and relevant family profiles; choose saved home, browser position or a temporary city/area without changing home settings; restaurants require the exact `diet:halal=only` tag; location-free activity ideas never invent venues; the chosen outing is added through upstream's `/api/planning` | `server/src/custom/lib/places.custom.ts`, `server/src/custom/lib/{location,kids}.custom.ts`, `server/src/custom/ai/outings.custom.ts`, `server/src/custom/routes/outings.custom.ts`, `server/test/outings.custom.test.ts`, `client/src/custom/components/OutingPlanner.custom.tsx`, `client/src/custom/hooks/useOutings.custom.ts` | `CUSTOM_FEATURE_OUTINGS_ENABLED` |
 | Barcode scanning, product lookup and promo watchlist | `server/src/custom/lib/{openFoodFacts,product}.custom.ts`, `server/src/custom/routes/productScan.custom.ts`, `server/test/productScan.custom.test.ts`, `client/src/custom/pages/{ProductScanner,PromoWatchlist}.custom.tsx`, `client/src/custom/components/{BarcodeScanner,ProductCard}.custom.tsx`, `client/src/custom/hooks/{useProductScan,usePromoWatchlist}.custom.ts`, `client/src/custom/lib/product.custom.ts` | `CUSTOM_FEATURE_SCANNER_ENABLED` |
-| Live supermarket promotions (PrijsProfeet, free plan): the promo screen's daily list with product pictures, filtered by store / category / discount / text and paginated, the family's own "never show me this" terms, and the watch list's deals pane | `server/src/custom/lib/{prijsprofeet,promoExclusions}.custom.ts`, `client/src/custom/components/{DailyPromos,PromoOfferRow,PrijsProfeetCredit,PromoWatchlistPanel}.custom.tsx`, `client/src/custom/hooks/useDailyPromos.custom.ts` (routes, page, hooks and translations shared with the row above) | `CUSTOM_FEATURE_SCANNER_ENABLED` |
-| Family dashboard — a chrome-less full-screen page for a wall tablet whose layout follows the time of day (morning / day / evening / night, cycleable by swipe or badge tap), reading the family's own appointments, tasks, meal plans and shopping list, and driving Home Assistant devices both ways through `/api/custom/ha` | `server/src/custom/lib/homeAssistantDevices.custom.ts`, `server/src/custom/routes/homeAssistantDevices.custom.ts`, `server/test/homeAssistantDevices.custom.test.ts`, `client/src/custom/pages/FamilyDashboard.custom.tsx`, `client/src/custom/hooks/useHomeAssistant.custom.ts`, `client/src/custom/lib/familyPhase.custom.ts` (keys in `dashboard.custom`) | `CUSTOM_FEATURE_FAMILY_DASHBOARD_ENABLED` |
+| Live supermarket promotions (PrijsProfeet, free plan): the promo screen's daily list with product pictures, filtered by store / category / discount / text and paginated, a **"my groceries" focus** that leads with the pantry's stock and every imported receipt line and then fills with the shops' general grocery deals (food categories only; on by default, with its own toggle), the family's own "never show me this" terms, and the watch list's deals pane | `server/src/custom/lib/{prijsprofeet,promoExclusions,promoFocus}.custom.ts`, `client/src/custom/components/{DailyPromos,PromoOfferRow,PrijsProfeetCredit,PromoWatchlistPanel}.custom.tsx`, `client/src/custom/hooks/useDailyPromos.custom.ts` (routes, page, hooks and translations shared with the row above) | `CUSTOM_FEATURE_SCANNER_ENABLED` |
+| Board — a full-screen wall-display page, the pastel tile grid of the reference mock: clock + greeting, today's agenda as a **clock view** (the event occupying the current time at full weight with a "now" badge, the two past ones faded, struck through and compressed, the next two full weight, the overflow counted in the footer), weather with hourly rain-probability bars **and the air quality folded in as its secondary line** (muted `Air {n} · {band}`), meals, shopping, **a Belgian news tile** (VRT NWS headlines, scored server-side for the family's fixed interest set: software/tech, healthcare, school-and-parenting, working-parent economics, plus a base tier of Binnenland/Politiek; see `routes/news.custom.ts`), over a full-width chores strip whose chips are tapped to complete (inline 5 s undo, Kiosk.tsx's pattern). Reads the upstream lists (appointments / tasks / meal plans / shopping), `/api/news`, and Open-Meteo directly for weather and air quality (no key, public CORS); the weather side follows the **family's** saved city (`GET /api/weather/location`, the coordinates a parent saves in Settings), so every account and every device shows one city and a change reaches the open boards over the `family` WebSocket. Chrome-less (`fixed inset-0` layer), so no upstream edit | `client/src/custom/pages/Board.custom.tsx`, `client/src/custom/lib/board.custom.css`, `server/src/custom/{routes/news,lib/news}.custom.ts`, `server/test/news.custom.test.ts` (keys in `board.custom`) | `CUSTOM_FEATURE_BOARD_ENABLED` |
 | Feature flags / registration point | `server/src/custom/features.custom.ts`, `server/src/custom/register.custom.ts`, `server/src/custom/middleware/rateLimit.custom.ts` | — |
 | Client hooks for custom code | `client/src/custom/{nav.custom.ts,routes.custom.tsx}` | — |
 | Deploy assets | `deploy/README.md`, `deploy/up.sh`, `docker-compose.override.yml` | — |
 | Maintenance: clear the Budget / Meals / Pantry domains (dry run by default, `--yes` to delete) | `scripts/clean-custom-data.mjs` | — |
-| Translations | `client/src/i18n/locales/<lng>/{weather,activities,analytics,dashboard,budget,ai,lunchbox,pantry,outings,scan,layout}.custom.json` | — |
-| Screen wake lock — the app keeps the screen awake while it is the visible page, which is what makes a wall tablet or a phone left on the kitchen counter usable as a display; the lock is re-asked for on every return to visible (the browser drops it itself when the page hides) and released on unmount, and it exists once, in a hook shared by the app-wide mount and by the family dashboard's own inline effect it replaced, which had the idempotence bug of stacking a second lock on a mount followed by a visible event | `client/src/custom/hooks/useScreenWakeLock.custom.ts`, `client/src/custom/components/ScreenWakeLock.custom.tsx` (mounted from `client/src/main.tsx`) | — (no flag: client-only, no server route and no API surface, so there is nothing for a `CUSTOM_FEATURE_*` variable to unmount; its scope is the installed display mode, which `isStandalonePwa` holds — `matchMedia('(display-mode: standalone)')` or `navigator.standalone` — because a browser tab's screen is the browser's business, while the dashboard holds the lock whatever the display mode, a wall tablet being a display) |
+| Translations | `client/src/i18n/locales/<lng>/{weather,activities,analytics,dashboard,budget,ai,lunchbox,pantry,outings,scan,market,layout,board}.custom.json` | — |
+| Screen wake lock — the app keeps the screen awake while it is the visible page, which is what makes a wall tablet or a phone left on the kitchen counter usable as a display; the lock is re-asked for on every return to visible (the browser drops it itself when the page hides) and released on unmount, and it exists once, in a hook the app-wide mount uses (it absorbed the family dashboard's own inline effect, which had the idempotence bug of stacking a second lock on a mount followed by a visible event) | `client/src/custom/hooks/useScreenWakeLock.custom.ts`, `client/src/custom/components/ScreenWakeLock.custom.tsx` (mounted from `client/src/main.tsx`) | — (no flag: client-only, no server route and no API surface, so there is nothing for a `CUSTOM_FEATURE_*` variable to unmount; its scope is the installed display mode, which `isStandalonePwa` holds — `matchMedia('(display-mode: standalone)')` or `navigator.standalone` — because a browser tab's screen is the browser's business, while the dashboard holds the lock whatever the display mode, a wall tablet being a display) |
 | Landscape mobile tab-bar collapse | `client/src/custom/components/LandscapeTabsToggle.custom.tsx`, `client/src/custom/lib/landscapeTabs.custom.css`, `client/src/i18n/locales/<lng>/layout.custom.json` | — (no flag: client-only, no server route and no API surface) |
+| Where-to-buy plan on the shopping list: for each pending line, the cheapest running promotion at the configured Belgian chains (Albert Heijn BE, Colruyt, ALDI BE, Lidl BE by default), then three candidate plans — one store, two stores, everywhere — ranked against the household's own reference price (the newest matching receipt line, else the lowest crossed-out price). Names may be French or English: the search tries the typed name and the pantry's declared aliases first, and when nothing matches asks the family's configured model for Dutch search words (`Mangue` → `mango`, measured on the verify stack) and for a verdict on which found rows are the same kind of product — a verdict is only as good as the configured model (a 1.5B local model was measured erratic on multi-entry batches; with no model configured the card stays deterministic). Prices and every sum stay deterministic; the model proposes words and filters candidate rows only, fails open (a missing or empty verdict keeps every row), and its verdicts are cached per day. Free PrijsProfeet tier: promotions and crossed-out prices only | `server/src/custom/lib/{marketPlan,marketAi}.custom.ts`, `server/src/custom/routes/market.custom.ts`, `server/test/marketPlan.custom.test.ts`, `client/src/custom/lib/market.custom.ts`, `client/src/custom/hooks/useMarketPlan.custom.ts`, `client/src/custom/components/{MarketPlanCard,MarketPriceBadge,MarketOfferSheet}.custom.tsx`. The badge is the door to a per-row detail sheet: the suggested product with its picture, pack size, store, promo and crossed-out price against the household's usual price, the same item's cheapest running offer at every configured store (one row each, the suggestion marked, rendered through the shared `PromoOfferRow`), and the Dutch words when the fallback is what matched. `PromoOfferRow.custom.tsx` gained one optional `badge` prop (additive; absent everywhere else) | `CUSTOM_FEATURE_MARKET_PLAN_ENABLED`, `CUSTOM_MARKET_STORES` |
 
 Gating: a feature's `CUSTOM_FEATURE_*_ENABLED=false` unmounts its API routes and
 adds its module keys to `disabled_modules` in `/api/auth/me`, which hides the
 matching nav entry, page and dashboard widget through the client's existing module
 filter. Module keys: `weather`, `activities`, `budgetReceipts`, `budgetAnalytics`,
-`lunchbox`, `pantry`, `outings`, `productScan`, `familyDashboard`.
+`lunchbox`, `pantry`, `outings`, `productScan`, `marketPlan`, `board`.
 
 ## Ported from KeurTonux (`tonux/KeurTonux`, local checkout `/home/bsylla/keurtonux`)
 
@@ -99,14 +100,14 @@ existed; the exact count of rewritten upstream lines is the next section's table
 
 | File | Marker | Why |
 |------|--------|-----|
-| `server/src/app.ts` | `custom-routes`, `budget-custom` | One `registerCustomRoutes(app)` hook (import + call, above the upstream limiters) and one added condition so `/api/ai/extract-receipt` skips the 1 MB default JSON parser |
+| `server/src/app.ts` | `custom-routes`, `budget-custom`, `board` | One `registerCustomRoutes(app)` hook (import + call, above the upstream limiters) and one added condition so `/api/ai/extract-receipt` skips the 1 MB default JSON parser; the `board` marker adds the air-quality host to the SPA's CSP (see "The board takes the family city" below) |
 | `server/src/routes/auth.ts` | `custom-features`, `media` | Adds the env-disabled custom modules to `disabled_modules`; accepts an `s3:` avatar reference |
 | `server/src/routes/userSettings.ts` | `weather`, `custom-modules` | Adds the custom dashboard widget keys to `DASHBOARD_WIDGETS` (the list `parseDashboardPrefs` validates against — without it the widgets are silently dropped) and the custom module keys to `TOGGLEABLE_MODULES` (upstream rejects an unknown key in `PUT /api/auth/modules`, so a flag-disabled key reported through `/api/auth/me` would make the next module toggle fail with 400) |
-| `server/src/migrations/registry.ts` | `custom-migrations` | Appends the fork migrations (`custom/0001` … `custom/0009-promo-exclusions`) |
+| `server/src/migrations/registry.ts` | `custom-migrations` | Appends the fork migrations (`custom/0001` … `custom/0010-receipt-item-product`) |
 | `server/src/index.ts` | `media` | Ensures the bucket exists at startup when storage is configured |
 | `server/src/lib/postFields.ts`, `server/src/lib/recipeImage.ts` | `media` | Keeps an `s3:` media reference intact instead of treating it as a data URL |
 | `server/src/routes/dataTransfer.ts` | `media` | Stores inline images on import and answers with JSON instead of rethrowing |
-| `server/src/routes/ai.ts` | `ai`, `pantry-ai` | Adds the `extract-receipt` endpoint and the attachment type; `pantry-ai` hands the household's stock to the two prompts (`loadPantryForAi`) and drops a pantry proposal the model returns while the pantry is switched off |
+| `server/src/routes/ai.ts` | `ai`, `pantry-ai` | Adds the `extract-receipt` endpoint and the attachment type; `pantry-ai` hands the household's stock to the two prompts (`loadPantryForAi`) and drops a pantry proposal the model returns while the pantry is switched off; `extract-receipt` also reads the pantry's own names (`source <> 'grocy'`) and passes them to `buildReceiptPrompt`, so a ticket line that is already a household product comes back under that name instead of opening a near-copy of the row |
 | `server/src/services/ai/assistant.ts` | `pantry-ai`, `ai-english` | Adds the `pantry_item` proposal (schema enum, parse-prompt section, validator case) and the pantry/ingredient halves of the meals prompt; imports `PANTRY_LOCATIONS` from `custom/lib/pantry.custom` so the validator and the table share one vocabulary. `ai-english` adds the parse prompt's English-output rule |
 | `server/src/services/ai/index.ts` | `ai`, `ai-no-deliberation` | Adds the `AiAttachment` type and the `AI_UNSUPPORTED_MEDIA` code; appends one no-deliberation line to every completion's system prompt (a JSON-only call, and a reasoning model left alone spent most of its completion tokens thinking, see "Measured latency" below) |
 | `server/src/services/ai/{openai,anthropic,gemini,ollama}.ts` | `ai` | Sends attachments to each provider; OpenAI-compatible gateways that need a session |
@@ -116,8 +117,10 @@ existed; the exact count of rewritten upstream lines is the next section's table
 | `client/src/pages/Dashboard.tsx` | `weather`, `pantry` | Renders the custom dashboard widgets; the pantry expiry card has its own three `pantry` blocks, the weather blocks are untouched |
 | `client/src/pages/Settings.tsx` | `weather`, `budget-custom` | Weather location card, vision-model hint |
 | `client/src/pages/Budget.tsx` | `budget-custom` | Mounts the receipt import button and the imported-receipts section |
+| `client/src/components/ui/Dialog.tsx` | `stable-dialogs` | One added attribute, `onPointerDownOutside={(event) => event.preventDefault()}`. An outside tap lands on the scrim with the page's own chrome showing through it, and on a phone or tablet that read as the dialog closing itself mid-use: the tap did nothing else. The X, Escape, and every explicit action still close it |
+| `client/src/pages/Budget.tsx`, `client/src/pages/Integrations.tsx` | `stable-dialogs` | Each had a hand-rolled backdrop that closed on tap: the budget limits `Sheet` and the Integrations connect modal. Both keep their own X button, so their backdrop no longer closes them either |
 | `client/src/pages/Planning.tsx` | `outings` | Renders the custom outing planner below the week grid (one import + one element, both marker-wrapped); the outcome is added through the page's own `/api/planning` endpoint |
-| `client/src/pages/ShoppingList.tsx` | `product-scan` | Adds the "scan a barcode" button (navigates to `/scanner`) and the per-row barcode badge that opens the promo watchlist; purely additive (2 imports, one hook block, 2 JSX blocks) and it reads `productScan` through a second `useAuth()` call so upstream reshaping its own destructure cannot collide |
+| `client/src/pages/ShoppingList.tsx` | `product-scan`, `market-plan` | `product-scan` adds the "scan a barcode" button (navigates to `/scanner`) and the per-row barcode badge that opens the promo watchlist; `market-plan` mounts the "where to buy" card above the add-item form and the per-row price badge (3 blocks: imports, one `useMarketPlan` call after the `pendingItems` memo, card + badge in the row), both additive. Each block reads its module through a second `useAuth()` call so upstream reshaping its own destructure cannot collide |
 | `server/src/lib/safeFetch.ts` | `safeFetch-credentials` | Drops `Authorization` / `X-API-Key` / `x-goog-api-key` / `Cookie` on a redirect hop that leaves the original hostname (the guard only blocks internal/metadata targets, not third parties); a same-host hop — including an `http` → `https` upgrade — keeps them |
 | `client/src/contexts/AuthContext.tsx` | `weather, pantry` | The `DASHBOARD_WIDGETS` line carries the fork's widget keys (weather, activities, pantry); one marker pair wraps that modified line itself, so an upstream change to it is re-applied from here |
 | `client/src/components/app/MagicInput.tsx` | `budget-custom`, `pantry-ai` | Adds the `AI_UNSUPPORTED_MEDIA` error code; `pantry-ai` renders the pantry proposal (own icon and label, quantity and shelf) and confirms it through `POST /api/pantry/upsert` |
@@ -133,11 +136,13 @@ existed; the exact count of rewritten upstream lines is the next section's table
 
 ### Modified (non-additive) upstream lines — the complete list
 
-41 lines in 17 files (45 with `package-lock.json`), all wrapped in markers. The
+44 lines in 20 files (48 with `package-lock.json`), all wrapped in markers. The
 per-file counts were re-measured 2026-10-11 with `git diff --numstat
 upstream/main...develop -- <file>` (the deleted column — not `grep -c '^-[^-]'`,
 which misses a deleted line that itself starts with `-`, as `ROADMAP.md`'s does);
 two rows were wrong before (`routes/auth.ts` 2 → 6, `routes/userSettings.ts` 2 → 1).
+The last two rows are the 2026-10-12 dialog pass; `components/ui/Dialog.tsx`'s one
+line is an added attribute, so it appears in the additive table above instead.
 
 | File | Lines | What |
 |------|-------|------|
@@ -156,6 +161,9 @@ two rows were wrong before (`routes/auth.ts` 2 → 6, `routes/userSettings.ts` 2
 | `server/src/lib/safeFetch.ts` | 1 | the `fetch` call passes `requestInit` (the credentials-stripped headers) instead of `init` |
 | `server/src/routes/ai.ts` | 5 | the parse prompt's 4th argument and the proposal filter; the recipes `SELECT` (adds `ingredients`) and the row mapping that keeps only its string lines; the `buildMealsPrompt` call passes `pantryItems` |
 | `client/src/components/app/MagicInput.tsx` | 3 | the `AiProposal` union carries `PantryProposal`; the card's title chain and its type label know that type |
+| `client/src/pages/Budget.tsx` | 1 | the limits `Sheet`'s backdrop loses its `onClick={onClose}` |
+| `client/src/pages/Integrations.tsx` | 1 | the connect modal's backdrop loses its `onClick={closeModal}` |
+| `server/src/app.ts` | 1 | the SPA CSP's `connect-src` line gains the board's air-quality host; the array line itself is rewritten (added 2026-10-14) |
 
 ## Measured latency of the AI dashboard widgets
 
@@ -272,6 +280,16 @@ next migration takes `core/0007`):
   its accent is not a second row. Applied to an existing database and to a fresh
   `postgres:16` in the same pass (see the verification section).
 
+- `custom/0010-receipt-item-product` — three nullable columns on the fork's own
+  `budget_receipt_items`: `product` (the brand-free name the import already reads
+  off the ticket as `pantry_item`), `unit` (`pantry_unit`) and `content` (how much
+  product the line holds in that unit, `pantry_content`, so 'RIJST BASMATI 5KG'
+  stores 5 beside a pack count of 1). The import kept only the printed label
+  before, so what the family bought could not be added up across tickets. No
+  backfill: a line imported earlier keeps NULL, and the analytics groups it by its
+  label and counts packs. Written only by the receipt import; a hand-typed line
+  keeps NULL.
+
 Every statement is idempotent (`IF NOT EXISTS`), and the ids must never be renamed
 or their SQL edited: the runner records `id` + SQL checksum in
 `openfamily_schema_migrations` (`server/src/migrations/runner.ts`).
@@ -288,7 +306,7 @@ instance from the earlier fork tree, rename these in your `.env`:
 | `MINIO_ENDPOINT` / `_ACCESS_KEY` / `_SECRET_KEY` / `_BUCKET` / `_REGION` | `CUSTOM_MINIO_*` |
 | `OPEN_METEO_BASE_URL` / `OPEN_METEO_GEOCODING_URL` | `CUSTOM_OPEN_METEO_*` |
 | `WEATHER_DEFAULT_LANG` / `_CACHE_TTL_MS` / `_REQUEST_TIMEOUT_MS` | `CUSTOM_WEATHER_*` |
-| — (new) | `CUSTOM_FEATURE_{WEATHER,MEDIA,BUDGET_RECEIPTS,BUDGET_ANALYTICS,LUNCHBOX,PANTRY,OUTINGS,SCANNER,AI_WIDGETS,FAMILY_DASHBOARD}_ENABLED` |
+| — (new) | `CUSTOM_FEATURE_{WEATHER,MEDIA,BUDGET_RECEIPTS,BUDGET_ANALYTICS,LUNCHBOX,PANTRY,OUTINGS,SCANNER,AI_WIDGETS,BOARD}_ENABLED` |
 | — (new) | `CUSTOM_OVERPASS_URL`, `CUSTOM_OVERPASS_TIMEOUT_MS`, `CUSTOM_OUTINGS_RADIUS_KM`, `CUSTOM_OUTINGS_CACHE_TTL_MS` |
 | — (new) | `CUSTOM_PRIJSPROFEET_API_KEY` (optional — the free plan works key-less), `CUSTOM_PRIJSPROFEET_COUNTRIES` (default `be`) |
 
@@ -308,21 +326,26 @@ upstream locale file:
 - `analytics.custom` (six locales; the `es`, `pt`, `ru`, `zh` files are copies of
   the English strings — placeholders pending translation, required because
   `client/scripts/check-i18n.mjs` fails the build on any namespace missing from a
-  locale)
+  locale — except the `products.*` keys of the purchase analytics, which are
+  translated)
 - `dashboard.custom`, `budget.custom`, `ai.custom` (six locales; `dashboard.custom`
-  also carries the family dashboard's keys, and its `ru`/`zh` files are copies of
-  the English strings, same placeholder rule as `analytics.custom`)
+  now carries only the three custom widget labels upstream's own dashboard reads,
+  and its `ru`/`zh` files are copies of the English strings, same placeholder rule
+  as `analytics.custom`)
 - `lunchbox.custom`, `pantry.custom` (six locales). `pantry.custom` also carries
   the magic-input label of a pantry proposal (`magic.types.pantry_item`): the
   card's label is read from the feature's own namespace rather than from a key
-  added to upstream's `ai.json`, which this fork does not touch.
+  added to upstream's `ai.json`, which this fork does not touch. Its `dashboard.*`
+  keys stay: the pantry expiry card on upstream's dashboard reads them.
 - `outings.custom` (six locales)
 - `scan.custom` (six locales; `es`, `pt`, `ru`, `zh` are copies of the English
   strings, same placeholder rule as `analytics.custom`)
+- `board.custom` (six locales; the news tile's title, chip labels and its two
+  empty states, plus the clock agenda's "now" badge and empty-next text)
 
 ## Tests
 
-`server/test/{weather,aiProvider,budgetAnalytics,aiPrompt,lunchbox,pantry,receipt,outings,productScan,homeAssistantDevices,aiPantry}.custom.test.ts` — matched by the
+`server/test/{weather,aiProvider,budgetAnalytics,productAnalytics,aiPrompt,lunchbox,pantry,receipt,outings,productScan,aiPantry,news}.custom.test.ts` — matched by the
 server's `tsx --test test/*.test.ts`. `aiPantry` covers the pantry
 half of the two AI prompts: the three states of the stock argument (`null` off,
 `[]` on and empty, values), the `pantry_item` validator (quantity 0 kept,
@@ -345,12 +368,7 @@ day (offset 0 before it, 1 from it), an evening on a home day targets tomorrow
 with mode `home`, and the picked `date` always equals `toDateKey(now + dayOffset)`
 for hours 0, 8, 17, 18 and 23; `flipsAt` is the nearer of the next 18:00 and
 midnight.
-`homeAssistantDevices` covers the rules that decide what the family dashboard may
-read and drive (domain whitelist, attribute trimming, entity/domain match,
-service-name shape) and how a non-2xx from Home Assistant is classified: a 4xx is
-that HA rejected the call and must never read as an outage, and HA's own 401/403
-must never surface as a 401, which is what the client's API layer treats as an
-expired session. The client
+The client
 has no test runner; the custom UI
 was verified in a browser instead (see "Verification" below).
 
@@ -361,12 +379,8 @@ was verified in a browser instead (see "Verification" below).
   reads it back, so the client no longer needs `city`/`latitude`/… on the user object.
 - Everything else keeps its path: `/api/weather`, `/api/ai/dashboard`,
   `/api/media`, `/api/budget/receipts`, `/api/budget-analytics`.
-- `/api/custom/ha` (family dashboard only) is new, and is the second custom mount
-  that reaches a host outside this server — the family's own Home Assistant, which
-  `safeFetch` re-vets on every redirect hop. It therefore takes the per-minute
-  `customRateLimiter` like the product scan rather than upstream's
-  30-per-15-minutes outbound budget, which a 30 s state poll would exhaust in
-  seven minutes.
+- `/api/custom/ha` existed for the family dashboard only and went with it
+  (2026-10-14).
 
 ## Known gaps and inherited issues
 
@@ -387,11 +401,27 @@ was verified in a browser instead (see "Verification" below).
   behind), and FORK_CHANGES repeated the inversion. Both are corrected, and the
   rollback recipe now says what actually survives (the `openfamily-fork-*` images,
   not a directory).
+- **Product quantities start at `custom/0010`.** A receipt line keeps the
+  brand-free name, the printed unit and the content amount only from that
+  migration on. Older lines (and every hand-typed line) carry the printed label
+  and no unit, so the analytics lists them by label and counts packs. Recovering
+  the old values would mean re-reading the tickets: `custom_pantry_pending` only
+  covers the lines the import did not stock, and the pantry itself holds current
+  stock, not purchase history. The fork does not guess.
+- **The pantry still counts packs where the analytics counts content.** A 5 kg bag
+  of rice merges into the pantry as quantity 1 (its pack count), while the
+  analytics page says 5 kg. `splitReceiptLines` (`lib/pantry.custom.ts`) passes
+  `quantity`; making it pass `pantry_content` when the ticket has one would change
+  what pantry stock means (packages vs product), which is its own decision.
+- **A "single" import has no product lines.** A bill imported for its total keeps
+  its spend in the analytics totals but contributes nothing to the product list,
+  by design: there is no line to add up.
 - `analytics.custom.json` exists for all six locales, but its `es`/`pt`/`ru`/`zh`
   files are English placeholders pending translation (required by `check-i18n`).
 - **The main bundle was within ~500 bytes of the PWA's precache limit — closed on
   2026-10-11 by `df16f56` (the four remaining eager custom pages moved into their
-  own chunks, −87 kB).** Recorded because it shaped the kiosk rework: the branch it
+  own chunks, −87 kB).** Recorded because it shaped the family dashboard's kiosk
+  rework (that page has since been removed, see its section): the branch it
   was measured on (`6ce1c4e`) built a 2,096.76 kB main chunk against workbox's 2 MiB
   `maximumFileSizeToCacheInBytes` (2,097,152 B), i.e. a few hundred bytes of
   headroom, so the rework deleted as many `dashboard.custom` keys as it added
@@ -1146,6 +1176,16 @@ with the watchlist as its second tab:
 
 ### Family dashboard (2026-10-11)
 
+> **Removed 2026-10-14.** The page, its route and its two nav entries, its module
+> key and `CUSTOM_FEATURE_FAMILY_DASHBOARD_ENABLED`, the phase engine
+> (`lib/familyPhase.custom.ts`), the Home Assistant device proxy under
+> `/api/custom/ha` with the `useHomeAssistant` hook and
+> `homeAssistantDevices.custom.test.ts`, and its locale keys are all gone: the
+> board is the wall display now, and it reads the household's own lists plus
+> Open-Meteo for the family's saved city. Everything below, in this section and in
+> "The tablet becomes a kiosk", is the record of what the page was and why it was
+> built that way, not the state of the tree.
+
 A full-screen, chrome-less page for a wall tablet (`/family-dashboard`): a
 time-of-day phase (morning 06–09, day 09–17, evening 17–22, night 22–06) decides
 which widgets are on screen, the phase is cycleable by swiping the content or
@@ -1408,36 +1448,3 @@ state drives CSS that hides the fixed bottom tab bar and reduces `main.pb-28` to
 1rem plus the safe-area inset when collapsed. Portrait, desktop, and sidebar
 behavior remain unchanged.
 
-### AI content is English, product names excepted (2026-10-13)
-
-The family asked for English AI output, then drew one line: no product name is
-translated. Two surfaces changed, and two deliberately did not.
-
-- the note-parse assistant (`services/ai/assistant.ts`, marker `ai-english`) tells
-  the model to write the free text of every proposal in English even from a French
-  note, while copying member names and the category, priority and frequency values
-  verbatim, because those are database values;
-- recipe refinement (`buildRefineRecipePrompt`, same file) translates the recipe
-  into English instead of keeping its source language, quantities, units and
-  proper nouns aside. Recipe import runs on this prompt.
-
-Left alone, and why:
-
-- receipt extraction (`custom/ai/receipt.custom.ts`) keeps the ticket's own
-  language for both the `label` on the budget line and the generic `pantry_item`
-  name the import merges into the pantry. Translating the pantry name would stop
-  the folded-name merge from meeting the family's existing rows, and it would stop
-  the promo screen's "my products" mode from matching the Dutch and French product
-  names the Belgian shops publish;
-- the UI-embedded AI copy (lunchbox, nutrition, outings, weather widgets, meal
-  suggestions) follows the reader's interface language through
-  `lib/promptLanguage.custom.ts`, and its output sits inside a French interface.
-
-Verified 2026-10-13 against the family's own configured provider (`openai` gateway,
-`deepseek-v4.1-flash`), one call per surface. A French courgette-gratin recipe came
-back as "Creamy Zucchini Gratin" with English description and steps, while
-quantities and "crème fraîche" stayed. A French note ("J'ai acheté 2 kg de riz et
-il faut aussi du café, et sortir les poubelles demain soir") produced "Rice",
-"Coffee" and "Take out the trash", with the family's own `Courses` category copied
-through. A French ticket came back with `Lait demi-écrémé`, `Lessive` and `Poulet`
-as pantry names next to its untouched labels, which is the rule this change keeps.

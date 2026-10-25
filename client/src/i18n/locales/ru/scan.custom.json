@@ -4,6 +4,11 @@
     "promoWatchlist": "Promos",
     "mobileScanner": "Scan"
   },
+  "display": {
+    "viewMode": "Отображение",
+    "viewList": "Список",
+    "viewGrid": "Сетка"
+  },
   "scanner": {
     "title": "Scan a product",
     "subtitle": "Point the camera at a food barcode to get the product.",
@@ -80,6 +85,8 @@
     "tab": "Today’s deals",
     "watchlistTab": "My watchlist",
     "subtitle": "What the supermarkets are promoting today.",
+    "focus": "Groceries",
+    "focusHint": "Your pantry and receipts first, then the shops' grocery deals.",
     "search": "Product",
     "searchPlaceholder": "Search a product",
     "store": "Store",

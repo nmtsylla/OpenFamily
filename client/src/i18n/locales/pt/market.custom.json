@@ -1,0 +1,45 @@
+{
+  "card": {
+    "title": "Onde comprar",
+    "promosFrom": "promoções de {{date}}",
+    "summary": "<covered>{{covered}} dos seus {{total}} artigos</covered> estão em promoção. Em {{mode}}: <stores>{{stores}}</stores>, <totalPrice>{{totalPrice}}</totalPrice> a pagar, ou seja <savings>{{savings}}</savings> face ao seu preço habitual.",
+    "modeSingle": "uma só loja",
+    "modePair": "duas lojas",
+    "modeAll": "todas as lojas",
+    "planSingle": "1 loja",
+    "planPair": "2 lojas",
+    "planAll": "Todas",
+    "planNoStore": "nenhuma loja",
+    "stops_one": "{{count}} paragem",
+    "stops_other": "{{count}} paragens",
+    "articles_one": "{{covered}}/{{count}} artigo",
+    "articles_other": "{{covered}}/{{count}} artigos",
+    "footerArticles_one": "{{count}} art.",
+    "footerArticles_other": "{{count}} art.",
+    "referenceNote_one": "Preço habitual = último talão pago, senão o preço rasurado mais baixo ({{count}} artigo de {{total}}).",
+    "referenceNote_other": "Preço habitual = último talão pago, senão o preço rasurado mais baixo ({{count}} artigos de {{total}}).",
+    "missing_one": "{{count}} artigo sem promoção esta semana, compre-o onde costuma.",
+    "missing_other": "{{count}} artigos sem promoção esta semana, compre-os onde costuma.",
+    "caveat": "Três lojas ou mais: a proposta “Todas” só poupa se já ia passar por lá."
+  },
+  "badge": {
+    "alsoAt": "Também na {{store}} {{price}}",
+    "validUntil": "até {{date}}",
+    "usualPrice": "Preço habitual: {{price}}",
+    "lastPaid": "Último preço pago: {{price}} ({{receipt}})"
+  },
+  "sheet": {
+    "openHint": "Ver o detalhe do produto sugerido para {{name}}",
+    "storesCount_one": "{{count}} loja tem em promoção esta semana",
+    "storesCount_other": "{{count}} lojas têm em promoção esta semana",
+    "seeAt": "Ver em {{store}}",
+    "usualReceipt": "Costuma pagar {{price}} ({{details}})",
+    "receiptMerchant": "em {{merchant}}",
+    "usualRegular": "Preço habitual {{price}} (preço rasurado mais baixo)",
+    "lessThan": "{{amount}} a menos do que costuma pagar",
+    "moreThan": "{{amount}} a mais do que costuma pagar",
+    "everyStore": "Todas as lojas, da mais barata à mais cara",
+    "suggested": "Sugerido",
+    "matchedDutch": "Encontrado pelo nome neerlandês: {{terms}}"
+  }
+}

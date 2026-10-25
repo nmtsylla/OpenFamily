@@ -33,12 +33,10 @@ const PromoWatchlist = React.lazy(() => import('./pages/PromoWatchlist.custom'))
 // fetched the first time someone opens /scanner.
 const ProductScanner = React.lazy(() => import('./pages/ProductScanner.custom'));
 
-// Same ceiling, same treatment: the family dashboard is a full screen of its own
-// (four phases) and pushes the main bundle back over the 2 MiB limit when it is
-// imported eagerly — measured at 2.12 MB. It is a wall tablet's home page, so its
-// chunk is fetched once and then lives in the service worker's cache like the
-// rest.
-const FamilyDashboard = React.lazy(() => import('./pages/FamilyDashboard.custom'));
+// Same ceiling, same treatment: the board is a full-screen display (its
+// own tile layout) and lives on a wall tablet, so its chunk is fetched once and
+// then lives in the service worker's cache like the rest.
+const Board = React.lazy(() => import('./pages/Board.custom'));
 
 export const customRoutes = (isModuleEnabled: (key: string) => boolean): React.ReactElement[] => [
     <Route
@@ -109,12 +107,12 @@ export const customRoutes = (isModuleEnabled: (key: string) => boolean): React.R
         }
     />,
     <Route
-        key="family-dashboard"
-        path="/family-dashboard"
+        key="board"
+        path="/board"
         element={
-            isModuleEnabled('familyDashboard') ? (
+            isModuleEnabled('board') ? (
                 <Suspense fallback={null}>
-                    <FamilyDashboard />
+                    <Board />
                 </Suspense>
             ) : (
                 <Navigate to="/" replace />

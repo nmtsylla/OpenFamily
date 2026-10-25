@@ -24,6 +24,8 @@ interface PromoOfferRowProps {
     showProduct?: boolean;
     /** Hides this product from the family's lists, when the surface offers it. */
     onHide?: (offer: PromoOffer) => void;
+    /** A short chip before the deal line; the market plan marks its suggested store with it. */
+    badge?: string;
     className?: string;
 }
 
@@ -33,6 +35,7 @@ export const PromoOfferRow: React.FC<PromoOfferRowProps> = ({
     showCountry,
     showProduct,
     onHide,
+    badge,
     className,
 }) => {
     const { t } = useTranslation('scan.custom');
@@ -107,6 +110,12 @@ export const PromoOfferRow: React.FC<PromoOfferRowProps> = ({
                             className="h-12 w-12 object-contain"
                         />
                     ) : null}
+                </span>
+            ) : null}
+
+            {badge ? (
+                <span className="flex-shrink-0 self-center rounded-input bg-primary-soft px-1.5 py-0.5 text-micro font-semibold text-primary">
+                    {badge}
                 </span>
             ) : null}
 

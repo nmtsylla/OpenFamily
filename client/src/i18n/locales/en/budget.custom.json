@@ -11,6 +11,7 @@
     "pickHint": "Snap a receipt or attach a bill (PDF): the amounts are read, then split by category.",
     "reviewHint": "Check the amounts and categories, untick what you don't want, then confirm.",
     "pick": "Choose documents",
+    "takePhoto": "Take a photo",
     "filesHint": "JPEG, PNG, WebP or PDF — 5 documents maximum",
     "analyze": "Analyze",
     "analyzing": "Analyzing…",

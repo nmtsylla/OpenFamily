@@ -6,9 +6,12 @@
 // number, an expiry date that is a date, and the folded `name_key` every merge
 // (receipt import, shopping bridge, Grocy import) compares on.
 //
-// The merge key is the folded name ONLY. Two rows for the same product in two
-// locations (one in the fridge, one in the cellar) therefore merge into one on
-// the next import — accepted ceiling, noted on the page, split manually.
+// The merge key is the folded name, with one deliberate exception: a name the
+// household's own row declares is one of its names ('Uien' and 'Oignon' both
+// land on 'Uien - Oignon') instead of opening a second row — see
+// pantryKeyResolver. Two rows for the same product in two locations (one in the
+// fridge, one in the cellar) still merge into one on the next import — accepted
+// ceiling, noted on the page, split manually.
 // =============================================================================
 
 import { isCalendarDate } from './validation.custom';
@@ -49,6 +52,69 @@ export const pantryNameKey = (name: string): string =>
         .trim()
         .replace(/\s+/g, ' ')
         .slice(0, MAX_PANTRY_NAME);
+
+/** The characters a pantry name uses to hang a qualifier on its product. */
+const QUALIFIER_SEPARATOR = /[-–—,;:•·|/()[\]{}«»]/;
+
+/**
+ * The names a pantry name declares for its product, folded: 'Uien - Oignon' →
+ * ['uien', 'oignon']. A family that writes both languages on one row is saying
+ * the product answers to either name, whatever the ticket prints.
+ *
+ * A multi-word segment stays whole: 'Pommes de terre (sac)' → ['pommes de
+ * terre', 'sac'], so 'Pommes' never reaches the potatoes.
+ */
+export const pantryAliasKeys = (name: string): string[] => {
+    const key = pantryNameKey(name);
+    if (key.length === 0) return [];
+    const segments = key.split(QUALIFIER_SEPARATOR).map((part) => part.trim()).filter((part) => part.length > 0);
+    return segments.length > 0 ? segments : [key];
+};
+
+/**
+ * The folded name up to its first qualifier: 'uien' for 'Uien - Oignon',
+ * 'pommes de terre' for 'Pommes de terre (sac)'. Equal to the key above when the
+ * name carries no qualifier, which is the common case.
+ */
+export const pantryHeadKey = (name: string): string => pantryAliasKeys(name)[0] ?? '';
+
+/**
+ * What an incoming name adds up to. The folded name itself, or one of the names
+ * an EXISTING row declares: a ticket that says 'Uien' — or 'Oignon' — lands on
+ * the household's 'Uien - Oignon' row instead of opening a second one, which is
+ * the duplicate the family could not unsee.
+ *
+ * Only a row that is already stored gets to declare aliases, and it declares
+ * them by being written: its own text is the family's word that those names are
+ * one product. An incoming name declares nothing, so 'Tomates - cerises' or
+ * 'Lait - demi-écrémé' opens its own row and stays in it, even when a bare
+ * 'Tomates' or 'Lait' is imported alongside — a ticket's qualifier says it is a
+ * more precise product, and two lines of the same import are not evidence that
+ * they are one.
+ *
+ * Whole names only, and never just their words: 'Riz' against 'Riz basmati' is
+ * two products that look alike, and telling them apart needs the model (the
+ * extraction is offered the family's names, ai/receipt.custom.ts) or the family
+ * itself. Edit distance is deliberately absent: 'poisson' and 'boisson' are one
+ * letter apart.
+ */
+export const pantryKeyResolver = (existingKeys: readonly string[]) => {
+    const rows = new Set(existingKeys);
+    // declared name → the row that answers to it. First row wins, so the winner
+    // does not depend on the order the caller happened to read them in.
+    const declared = new Map<string, string>();
+    for (const key of existingKeys) {
+        for (const alias of pantryAliasKeys(key)) {
+            if (alias !== key && !declared.has(alias)) declared.set(alias, key);
+        }
+    }
+
+    return (name: string): string => {
+        const own = pantryNameKey(name);
+        if (own.length === 0) return own;
+        return rows.has(own) ? own : declared.get(own) ?? own;
+    };
+};
 
 const cleanText = (value: unknown, max: number): string | null => {
     if (typeof value !== 'string') return null;

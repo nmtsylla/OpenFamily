@@ -30,6 +30,7 @@ import {
     RECEIPT_MEDIA_TYPES,
     MAX_RECEIPT_FILES,
     MAX_RECEIPT_FILE_BYTES,
+    MAX_RECEIPT_PANTRY_NAMES,
     buildReceiptPrompt,
     receiptFingerprint,
     validateReceipt,
@@ -540,8 +541,26 @@ router.post('/extract-receipt', requireParent, receiptBodyParser, async (req: Au
         const currencyResult = await query('SELECT currency FROM users WHERE id = $1', [req.userId]);
         const currency = (currencyResult.rows[0] as { currency?: string } | undefined)?.currency || 'EUR';
 
+        // The names already in the household's pantry, so a ticket line that IS
+        // one of them comes back under that exact name and the import adds up to
+        // the row instead of opening a near-copy of it
+        // (custom/ai/receipt.custom.ts). Grocy's rows stay out: the merge never
+        // adds a receipt line to one, so reusing its name would create the
+        // duplicate this is meant to avoid.
+        const pantryNames = isCustomFeatureEnabled('pantry')
+            ? (
+                  await query(
+                      `SELECT name FROM custom_pantry_items
+                        WHERE user_id = $1 AND source <> 'grocy'
+                        ORDER BY name
+                        LIMIT $2`,
+                      [req.userId, MAX_RECEIPT_PANTRY_NAMES]
+                  )
+              ).rows.map((row) => String((row as { name: string }).name))
+            : [];
+
         const { data: raw, usage } = await aiCompleteWithUsage(settings, {
-            system: buildReceiptPrompt(familyCategories.budget, localToday().iso, currency),
+            system: buildReceiptPrompt(familyCategories.budget, localToday().iso, currency, pantryNames),
             user: 'Analyse le document ci-joint et réponds uniquement avec le JSON demandé.',
             jsonSchema: RECEIPT_SCHEMA,
             attachments,

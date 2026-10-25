@@ -5,7 +5,7 @@
 // key: the family-level module setting and the CUSTOM_FEATURE_*_ENABLED flag
 // (reported as disabled through /api/auth/me) hide it without any extra work.
 
-import { BarChart3, Home, Package, Sandwich, ScanLine, Tag } from 'lucide-react';
+import { BarChart3, LayoutGrid, Package, Sandwich, ScanLine, Tag } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 export interface CustomNavEntry {
@@ -24,9 +24,10 @@ export const customNavigation: CustomNavEntry[] = [
     { labelKey: 'pantry.custom:nav.pantry', href: '/pantry', icon: Package, module: 'pantry' },
     { labelKey: 'scan.custom:nav.scanner', href: '/scanner', icon: ScanLine, module: 'productScan' },
     { labelKey: 'scan.custom:nav.promoWatchlist', href: '/promo-watchlist', icon: Tag, module: 'productScan' },
-    // Same reason again for the dashboard: no upstream entry matches
-    // /family-dashboard, and the page hides Layout's chrome anyway.
-    { labelKey: 'dashboard.custom:nav.familyDashboard', href: '/family-dashboard', icon: Home, module: 'familyDashboard' },
+    // The board: a full-screen display, reached from here once (it is then opened
+    // from the tablet's home screen). Sidebar only — the mobile tab bar is already
+    // full and this page is not a phone page.
+    { labelKey: 'board.custom:nav.board', href: '/board', icon: LayoutGrid, module: 'board' },
 ];
 
 export const customMobileTabs: CustomNavEntry[] = [
@@ -37,5 +38,4 @@ export const customMobileTabs: CustomNavEntry[] = [
     // so it earns a tab. The watchlist does not: the bar renders its grid from
     // this list's length, and a seventh tab is a crowd on a phone.
     { labelKey: 'scan.custom:nav.mobileScanner', href: '/scanner', icon: ScanLine, module: 'productScan' },
-    { labelKey: 'dashboard.custom:nav.familyDashboard', href: '/family-dashboard', icon: Home, module: 'familyDashboard' },
 ];

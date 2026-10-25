@@ -6,14 +6,17 @@
 // server/src/custom/lib/prijsprofeet.custom.ts), so this is the day's list, not a
 // snapshot that drifts.
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Search, X } from 'lucide-react';
 import { Button, Input, Select, useToast } from '../../components/ui';
 import { useAuth } from '../../contexts/AuthContext';
 import { PrijsProfeetCredit } from './PrijsProfeetCredit.custom';
 import { PromoOfferRow } from './PromoOfferRow.custom';
+import { PromoOfferTile } from './PromoOfferTile.custom';
+import DisplayViewToggle from './DisplayViewToggle.custom';
 import { useDailyPromos } from '../hooks/useDailyPromos.custom';
+import { useDisplayView } from '../hooks/useDisplayView.custom';
 import type { PromoCountry, PromoSort } from '../lib/product.custom';
 import { EXCLUDE_TERM_MIN_LENGTH } from '../lib/product.custom';
 
@@ -45,6 +48,15 @@ const DailyPromos: React.FC = () => {
         hideOffer,
     } = useDailyPromos();
     const [excludeTerm, setExcludeTerm] = useState('');
+    const { view, setView } = useDisplayView('openfamily.promoDaily.view.v1');
+    // The count line above the offers: its top is where a page flip should land.
+    // Without this the new page renders while the viewport stays at the pagination
+    // buttons at the bottom, and the user scrolls up by hand.
+    const listTopRef = useRef<HTMLParagraphElement>(null);
+    const goToPage = (page: number) => {
+        setPageNumber(page);
+        listTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
 
     const sortLabels: Record<PromoSort, string> = {
         savings: t('dailyPromos.sortSavings'),
@@ -60,6 +72,27 @@ const DailyPromos: React.FC = () => {
 
     return (
         <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="flex-1 text-body text-muted-foreground">{t('dailyPromos.subtitle')}</p>
+                <div className="flex items-center gap-2">
+                    {/* "My groceries": the pantry and the receipts first, then the
+                        shops' general grocery deals — not the whole catalogue.
+                        On by default; a household's own shopping is the better
+                        starting point. */}
+                    <Button
+                        size="sm"
+                        variant={query.focus ? 'secondary' : 'ghost'}
+                        onClick={() => update({ focus: !query.focus })}
+                        aria-pressed={query.focus}
+                        title={t('dailyPromos.focusHint')}
+                        className="whitespace-nowrap"
+                    >
+                        {t('dailyPromos.focus')}
+                    </Button>
+                    <DisplayViewToggle view={view} onChange={setView} />
+                </div>
+            </div>
+
             <div className="space-y-3 rounded-card border border-border bg-card p-4">
                 <Input
                     label={t('dailyPromos.search')}
@@ -230,29 +263,49 @@ const DailyPromos: React.FC = () => {
                 </div>
             ) : (
                 <>
-                    <p className="text-caption text-muted-foreground">
+                    <p ref={listTopRef} className="scroll-mt-24 text-caption text-muted-foreground">
                         {t('dailyPromos.count', { count: page.total })}
                         {page.hidden ? ` · ${t('dailyPromos.hidden', { count: page.hidden })}` : ''}
                     </p>
-                    <ul
-                        className={`divide-y divide-border overflow-hidden rounded-card border border-border bg-card ${loading ? 'opacity-60' : ''}`}
-                    >
-                        {page.offers.map((offer, index) => (
-                            <PromoOfferRow
-                                key={`${offer.retailer}-${offer.product_url ?? offer.quantity ?? index}-${index}`}
-                                offer={offer}
-                                currency={currency}
-                                showCountry={countries.length > 1}
-                                showProduct
-                                onHide={(hidden) =>
-                                    hideOffer(hidden).catch(() =>
-                                        showToast({ title: t('dailyPromos.excludeFailed') })
-                                    )
-                                }
-                                className="px-3 py-2"
-                            />
-                        ))}
-                    </ul>
+                    {view === 'grid' ? (
+                        <ul
+                            className={`grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 ${loading ? 'opacity-60' : ''}`}
+                        >
+                            {page.offers.map((offer, index) => (
+                                <PromoOfferTile
+                                    key={`${offer.retailer}-${offer.product_url ?? offer.quantity ?? index}-${index}`}
+                                    offer={offer}
+                                    currency={currency}
+                                    showCountry={countries.length > 1}
+                                    onHide={(hidden) =>
+                                        hideOffer(hidden).catch(() =>
+                                            showToast({ title: t('dailyPromos.excludeFailed') })
+                                        )
+                                    }
+                                />
+                            ))}
+                        </ul>
+                    ) : (
+                        <ul
+                            className={`divide-y divide-border overflow-hidden rounded-card border border-border bg-card ${loading ? 'opacity-60' : ''}`}
+                        >
+                            {page.offers.map((offer, index) => (
+                                <PromoOfferRow
+                                    key={`${offer.retailer}-${offer.product_url ?? offer.quantity ?? index}-${index}`}
+                                    offer={offer}
+                                    currency={currency}
+                                    showCountry={countries.length > 1}
+                                    showProduct
+                                    onHide={(hidden) =>
+                                        hideOffer(hidden).catch(() =>
+                                            showToast({ title: t('dailyPromos.excludeFailed') })
+                                        )
+                                    }
+                                    className="px-3 py-2"
+                                />
+                            ))}
+                        </ul>
+                    )}
                     <PrijsProfeetCredit countries={offerCountries} />
 
                     {lastPage > 1 ? (
@@ -261,7 +314,7 @@ const DailyPromos: React.FC = () => {
                                 size="sm"
                                 variant="ghost"
                                 disabled={pageNumber <= 1 || loading}
-                                onClick={() => setPageNumber(pageNumber - 1)}
+                                onClick={() => goToPage(pageNumber - 1)}
                             >
                                 {t('dailyPromos.previous')}
                             </Button>
@@ -272,7 +325,7 @@ const DailyPromos: React.FC = () => {
                                 size="sm"
                                 variant="ghost"
                                 disabled={pageNumber >= lastPage || loading}
-                                onClick={() => setPageNumber(pageNumber + 1)}
+                                onClick={() => goToPage(pageNumber + 1)}
                             >
                                 {t('dailyPromos.next')}
                             </Button>

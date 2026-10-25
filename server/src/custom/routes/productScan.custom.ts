@@ -26,7 +26,8 @@ import { query } from '../../db';
 import { authMiddleware, AuthRequest } from '../../middleware/auth';
 import { lookupProduct, type OpenFoodFactsProduct } from '../lib/openFoodFacts.custom';
 import { addExclusion, applyExclusions, exclusionsOf, normalizeTerm, removeExclusion, termsOf } from '../lib/promoExclusions.custom';
-import { dealsForBarcode, promoCountryOf, promoFilters, promoQueryOf, searchPromos } from '../lib/prijsprofeet.custom';
+import { dealsForBarcode, focusedOffers, promoCountryOf, promoFilters, promoQueryOf, searchPromos } from '../lib/prijsprofeet.custom';
+import { focusTermsOf } from '../lib/promoFocus.custom';
 import { barcodeOf, optionalPrice } from '../lib/product.custom';
 
 const router = Router();
@@ -40,6 +41,32 @@ const CACHE_TTL = '7 days';
 const optionalText = (value: unknown, maxLength: number): string | null => {
     const text = typeof value === 'string' ? value.trim() : '';
     return text ? text.slice(0, maxLength) : null;
+};
+
+/**
+ * Every product name the household has bought or keeps: the pantry's stock and
+ * the lines of every imported receipt, newest first. Free text both ways — no
+ * barcode — which is why the focus search joins on the name
+ * (lib/promoFocus.custom.ts).
+ */
+const householdProductNames = async (userId: string): Promise<string[]> => {
+    const result = await query(
+        `SELECT name FROM (
+             SELECT name, updated_at AS seen_at
+               FROM custom_pantry_items
+              WHERE user_id = $1
+             UNION ALL
+             SELECT i.label AS name, r.date::timestamp AS seen_at
+               FROM budget_receipt_items i
+               JOIN budget_receipts r ON r.id = i.receipt_id
+              WHERE r.user_id = $1
+         ) items
+         WHERE btrim(name) <> ''
+         ORDER BY seen_at DESC
+         LIMIT 200`,
+        [userId]
+    );
+    return result.rows.map((row) => String(row.name));
 };
 
 const upsertProduct = async (product: OpenFoodFactsProduct): Promise<void> => {
@@ -280,10 +307,33 @@ router.get('/promo-watchlist/:barcode/offers', async (req: AuthRequest, res) => 
 // publishes, not what this household wants to see.
 router.get('/promos', async (req: AuthRequest, res) => {
     try {
-        const [page, terms] = await Promise.all([
-            searchPromos(promoQueryOf(req.query as Record<string, unknown>)),
-            termsOf(req.userId!),
-        ]);
+        const query = promoQueryOf(req.query as Record<string, unknown>);
+        const terms = await termsOf(req.userId!);
+
+        // "My groceries": the family's own pantry and receipt names first, then
+        // the shops' general grocery deals — not the country's whole catalogue,
+        // candles and toothpaste included. The names ARE the search; the answers
+        // are verified locally and paged here, since the API cannot join an
+        // assortment it does not carry on the free plan.
+        if (req.query.focus === '1') {
+            const names = await householdProductNames(req.userId!);
+            const focusTerms = focusTermsOf(names, query.q === '*' ? '' : query.q);
+            const offers = await focusedOffers(req.userId!, query, focusTerms);
+            const { offers: kept, hidden } = applyExclusions(offers, terms);
+            const start = (query.page - 1) * query.pageSize;
+            return res.json({
+                success: true,
+                data: {
+                    offers: kept.slice(start, start + query.pageSize),
+                    total: kept.length,
+                    page: query.page,
+                    pageSize: query.pageSize,
+                    hidden,
+                },
+            });
+        }
+
+        const page = await searchPromos(query);
         res.json({ success: true, data: { ...page, ...applyExclusions(page.offers, terms) } });
     } catch (error) {
         console.error('PrijsProfeet promo list error:', error);

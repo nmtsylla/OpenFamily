@@ -1,0 +1,80 @@
+{
+  "common": {
+    "loading": "Carregando…"
+  },
+  "nav": {
+    "board": "Quadro"
+  },
+  "greet": {
+    "morning": "Bom dia,",
+    "afternoon": "Boa tarde,",
+    "evening": "Boa noite,",
+    "night": "Boa noite,",
+    "sub": "Aqui está o seu dia."
+  },
+  "agenda": {
+    "title": "Hoje",
+    "empty": "Nada planejado para hoje",
+    "more": "mais {{count}}",
+    "now": "Agora",
+    "upNext": "A seguir",
+    "nothingAfter": "Nada a seguir",
+    "tomorrow": "Amanhã"
+  },
+  "weather": {
+    "noCity": "Sem cidade",
+    "noCityHint": "Defina a cidade da família em Configurações",
+    "unavailable": "Meteorologia indisponível",
+    "rainNow": "Aguaceiros agora",
+    "rainFrom": "Aguaceiros a partir das {{time}}",
+    "air": "Ar"
+  },
+  "meals": {
+    "title": "Refeições",
+    "empty": "Nada planejado"
+  },
+  "shopping": {
+    "title": "Compras",
+    "left": "{{count}} por comprar",
+    "empty": "Lista vazia",
+    "more": "+{{count}}",
+    "check": "Marcar {{name}}"
+  },
+  "aqi": {
+    "bands": {
+      "good": "Bom",
+      "fair": "Razoável",
+      "moderate": "Moderado",
+      "poor": "Mau",
+      "veryPoor": "Muito mau",
+      "extremelyPoor": "Extremamente mau"
+    }
+  },
+  "chores": {
+    "title": "Tarefas",
+    "leftToday": "{{count}} por fazer hoje",
+    "allDone": "Tudo feito",
+    "today": "hoje",
+    "dueOn": "até {{day}}",
+    "overdue": "atrasada",
+    "undo": "Desfazer",
+    "complete": "Concluir {{title}}",
+    "more": "+{{count}}"
+  },
+  "actions": {
+    "exit": "Sair",
+    "fullscreen": "Tela cheia",
+    "exitFullscreen": "Sair da tela cheia"
+  },
+  "news": {
+    "title": "Bélgica hoje",
+    "unavailable": "Notícias indisponíveis",
+    "nothingRelevant": "Nada de relevante hoje",
+    "close": "Fechar",
+    "readArticle": "Ler o artigo completo",
+    "tech": "Tecnologia",
+    "health": "Saúde",
+    "family": "Família",
+    "work": "Trabalho"
+  }
+}

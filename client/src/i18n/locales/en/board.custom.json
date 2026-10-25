@@ -1,0 +1,80 @@
+{
+  "common": {
+    "loading": "Loading…"
+  },
+  "nav": {
+    "board": "Board"
+  },
+  "greet": {
+    "morning": "Good morning,",
+    "afternoon": "Good afternoon,",
+    "evening": "Good evening,",
+    "night": "Good night,",
+    "sub": "Here's your day."
+  },
+  "agenda": {
+    "title": "Today",
+    "empty": "Nothing planned today",
+    "more": "{{count}} more",
+    "now": "Now",
+    "upNext": "Coming up",
+    "nothingAfter": "Nothing after",
+    "tomorrow": "Tomorrow"
+  },
+  "weather": {
+    "noCity": "No city set",
+    "noCityHint": "Set the family city in Settings",
+    "unavailable": "Weather unavailable",
+    "rainNow": "Showers right now",
+    "rainFrom": "Showers from {{time}}",
+    "air": "Air"
+  },
+  "meals": {
+    "title": "Meals",
+    "empty": "Nothing planned"
+  },
+  "shopping": {
+    "title": "Shopping",
+    "left": "{{count}} left",
+    "empty": "List is empty",
+    "more": "+{{count}}",
+    "check": "Check off {{name}}"
+  },
+  "aqi": {
+    "bands": {
+      "good": "Good",
+      "fair": "Fair",
+      "moderate": "Moderate",
+      "poor": "Poor",
+      "veryPoor": "Very poor",
+      "extremelyPoor": "Extremely poor"
+    }
+  },
+  "chores": {
+    "title": "Chores",
+    "leftToday": "{{count}} left today",
+    "allDone": "All done",
+    "today": "today",
+    "dueOn": "due {{day}}",
+    "overdue": "late",
+    "undo": "Undo",
+    "complete": "Complete {{title}}",
+    "more": "+{{count}}"
+  },
+  "actions": {
+    "exit": "Exit",
+    "fullscreen": "Fullscreen",
+    "exitFullscreen": "Exit fullscreen"
+  },
+  "news": {
+    "title": "Belgium today",
+    "unavailable": "News unavailable",
+    "nothingRelevant": "Nothing relevant today",
+    "close": "Close",
+    "readArticle": "Read the full article",
+    "tech": "Tech",
+    "health": "Health",
+    "family": "Family",
+    "work": "Work"
+  }
+}

@@ -9,8 +9,8 @@ import { useScreenWakeLock } from '../hooks/useScreenWakeLock.custom';
 // business, and waking a desktop was never the point of this. The installed
 // display mode is the whole scope of the feature.
 //
-// The family dashboard calls the hook directly and unconditionally — a wall
-// tablet is a display, so it locks the screen whatever the display mode.
+// Nothing else calls the hook: it is this component's only job, so the lock
+// follows the same installed-only rule as the rest of the app.
 // =============================================================================
 
 const isStandalonePwa = (): boolean =>

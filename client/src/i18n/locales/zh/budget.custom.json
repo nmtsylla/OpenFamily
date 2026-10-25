@@ -11,6 +11,7 @@
     "pickHint": "拍摄小票照片或附上账单（PDF）：自动读取金额并按分类拆分。",
     "reviewHint": "请核对金额与分类，取消不需要的项目后确认。",
     "pick": "选择文件",
+    "takePhoto": "拍照",
     "filesHint": "JPEG、PNG、WebP 或 PDF — 最多 5 个文件",
     "analyze": "识别",
     "analyzing": "识别中…",

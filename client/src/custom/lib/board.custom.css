@@ -1,0 +1,74 @@
+/* Pastel skin of the board page (`pages/Board.custom.tsx`).
+ *
+ * Fixed colours on purpose, not theme tokens: the board reproduces a
+ * printed-style reference — a light, warm canvas with one tinted tile per
+ * subject — and it is a wall display first. Every other custom page follows the
+ * app theme; this one is a deliberate exception, so a dark-theme household still
+ * gets the board the reference shows. Nothing here is used outside the board.
+ */
+
+.board-surface {
+    background: #fbfaf7;
+    color: #2c2a33;
+}
+
+.board-tile {
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+    overflow: hidden;
+    border-radius: 1.75rem;
+    padding: 1.15rem 1.3rem;
+}
+
+.board-tile--clock {
+    background: #ece6f7;
+}
+
+.board-tile--agenda {
+    background: #e4eefb;
+}
+
+.board-tile--weather {
+    background: #f7f0e2;
+}
+
+.board-tile--meals {
+    background: #e7f3e6;
+}
+
+.board-tile--shopping {
+    background: #f9e7ef;
+}
+
+.board-tile--news {
+    background: #eaf3e0;
+}
+
+.board-strip {
+    background: #fdf6d9;
+    border-radius: 1.75rem;
+}
+
+/* Round chrome on a tile (fullscreen / exit). Kept faint by
+ * default so a wall display does not look like it has buttons; a mouse or a
+ * deliberate tap brings them back. */
+.board-icon-btn {
+    display: inline-flex;
+    height: 2.25rem;
+    width: 2.25rem;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    background: rgb(255 255 255 / 0.72);
+    color: #5c5669;
+    opacity: 0.55;
+    transition: opacity 150ms ease, background-color 150ms ease;
+}
+
+.board-icon-btn:hover,
+.board-icon-btn:focus-visible {
+    background: #ffffff;
+    opacity: 1;
+}

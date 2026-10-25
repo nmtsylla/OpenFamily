@@ -53,6 +53,15 @@
     "title": "Top merchants",
     "empty": "No receipt was imported over this period."
   },
+  "products": {
+    "title": "Купленные продукты",
+    "note": "По импортированным чекам. Строка без напечатанной единицы считается в упаковках.",
+    "summary": "{{products}} продуктов · {{amount}}",
+    "noUnit": "{{value}} ×",
+    "atLeast": "≥ {{value}}",
+    "hidden": "ещё +{{count}}",
+    "empty": "За этот период чеки не импортированы."
+  },
   "states": {
     "loading": "Loading…",
     "error": "Could not load the analytics.",

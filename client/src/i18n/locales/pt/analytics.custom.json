@@ -53,6 +53,15 @@
     "title": "Top merchants",
     "empty": "No receipt was imported over this period."
   },
+  "products": {
+    "title": "Produtos comprados",
+    "note": "A partir dos talões importados. Uma linha sem unidade impressa conta em embalagens.",
+    "summary": "{{products}} produtos · {{amount}}",
+    "noUnit": "{{value}} ×",
+    "atLeast": "≥ {{value}}",
+    "hidden": "+{{count}} mais",
+    "empty": "Nenhum talão foi importado neste período."
+  },
   "states": {
     "loading": "Loading…",
     "error": "Could not load the analytics.",

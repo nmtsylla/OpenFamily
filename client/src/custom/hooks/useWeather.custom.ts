@@ -207,11 +207,15 @@ function useCachedQuery<T>(cacheKey: string, fetcher: () => Promise<T>, enabled:
             })
             .catch((error: unknown) => {
                 if (active) {
-                    setState({
-                        data: null,
+                    setState((prev) => ({
+                        // A failed refetch does not invalidate what is on screen: the
+                        // widgets keep the last payload, and so does a dialog opened
+                        // from it. A phone loses a refetch often enough that blanking
+                        // on one reads as the dialog closing itself.
+                        data: prev.data,
                         error: error instanceof Error ? error : new Error(String(error)),
                         loading: false,
-                    });
+                    }));
                 }
             })
             .finally(() => {
@@ -431,7 +435,7 @@ const isSavedLocation = (value: unknown): value is SavedLocationDTO =>
  * card pre-fills.
  */
 export function useSavedLocation(): AsyncResult<SavedLocationDTO | null> {
-    const result = useCachedQuery(
+    const { data, error, loading, refetch } = useCachedQuery(
         'weather-location',
         async () => {
             const response = await api.get<{ success: boolean; data: SavedLocationDTO }>(
@@ -441,6 +445,9 @@ export function useSavedLocation(): AsyncResult<SavedLocationDTO | null> {
         },
         true,
     );
-    useWebSocketUpdates('family', result.refetch);
-    return result;
+    useWebSocketUpdates('family', refetch);
+    // `loading` reports a first load, not a refetch: `useCachedQuery` is in flight
+    // again on every saved-city change while it still holds the city, and a widget
+    // that blanked on that took an open dialog down with it.
+    return { data, error, loading: loading && data === null, refetch };
 }

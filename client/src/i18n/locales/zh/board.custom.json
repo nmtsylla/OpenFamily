@@ -1,0 +1,80 @@
+{
+  "common": {
+    "loading": "加载中…"
+  },
+  "nav": {
+    "board": "面板"
+  },
+  "greet": {
+    "morning": "早上好，",
+    "afternoon": "下午好，",
+    "evening": "晚上好，",
+    "night": "晚安，",
+    "sub": "这是你家今天的安排。"
+  },
+  "agenda": {
+    "title": "今天",
+    "empty": "今天没有安排",
+    "more": "还有 {{count}} 项",
+    "now": "现在",
+    "upNext": "即将到来",
+    "nothingAfter": "之后没有安排",
+    "tomorrow": "明天"
+  },
+  "weather": {
+    "noCity": "未设置城市",
+    "noCityHint": "在设置中配置家庭城市",
+    "unavailable": "天气不可用",
+    "rainNow": "正在下雨",
+    "rainFrom": "{{time}}起有阵雨",
+    "air": "空气"
+  },
+  "meals": {
+    "title": "用餐",
+    "empty": "暂无安排"
+  },
+  "shopping": {
+    "title": "购物",
+    "left": "还剩 {{count}} 项",
+    "empty": "清单为空",
+    "more": "+{{count}}",
+    "check": "勾选{{name}}"
+  },
+  "aqi": {
+    "bands": {
+      "good": "优",
+      "fair": "良",
+      "moderate": "中等",
+      "poor": "较差",
+      "veryPoor": "很差",
+      "extremelyPoor": "极差"
+    }
+  },
+  "chores": {
+    "title": "家务",
+    "leftToday": "今天还剩 {{count}} 项",
+    "allDone": "全部完成",
+    "today": "今天",
+    "dueOn": "{{day}}到期",
+    "overdue": "已逾期",
+    "undo": "撤销",
+    "complete": "完成{{title}}",
+    "more": "+{{count}}"
+  },
+  "actions": {
+    "exit": "退出",
+    "fullscreen": "全屏",
+    "exitFullscreen": "退出全屏"
+  },
+  "news": {
+    "title": "今日比利时",
+    "unavailable": "新闻不可用",
+    "nothingRelevant": "今天没有相关新闻",
+    "close": "关闭",
+    "readArticle": "阅读全文",
+    "tech": "科技",
+    "health": "健康",
+    "family": "家庭",
+    "work": "工作"
+  }
+}

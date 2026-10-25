@@ -15,15 +15,26 @@
 // their own category. A bill with no itemised lines (rent, electricity,
 // subscription) yields items: [] and a single entry for its total.
 //
-// Every line also carries `pantry_item` / `pantry_unit`: the same purchase with
-// the brand, the format and the promo text dropped, plus the unit the document
-// shows. That is what the pantry import stores, so the next ticket with the same
-// product adds up to the same row instead of opening a second one under a brand
-// name. The `label` stays the printed text (it describes the budget entry), and
-// `pantry_item` keeps the ticket's own language: translating it would stop the
-// folded-name merge from meeting the family's existing rows, and it would stop
-// the promo screen's "my products" mode from matching the Dutch and French
-// product names the shops publish.
+// Every line also carries `pantry_item` / `pantry_unit` / `pantry_content`: the
+// same purchase with the brand, the format and the promo text dropped, plus the
+// unit the document shows and how much product the line holds in that unit.
+// The pantry import stores the name and the unit; the receipt line keeps all
+// three, so the analytics page can add up what the family bought. The name is
+// also what makes the next ticket with the same product add up to one pantry row
+// instead of opening a second one under a brand name. The `label` stays the
+// printed text (it describes the budget entry), and `pantry_item` keeps the
+// ticket's own language: translating it would stop the folded-name merge from
+// meeting the family's existing rows, and it would stop the promo screen's
+// "my products" mode from matching the Dutch and French product names the shops
+// publish.
+//
+// The prompt also receives the names already in the household's pantry, and one
+// rule is added with them: when a line IS one of those products, the model hands
+// back that name unchanged. It is how 'Tomaten los' lands on 'Tomates' and 'Uien'
+// on 'Uien - Oignon'. Naming alone cannot do it — dropping the brand leaves
+// strings, and no string rule tells 'Riz' from 'Riz basmati' or 'poisson' from
+// 'boisson' (lib/pantry.custom.ts, pantryKeyResolver, is the half that still runs
+// with no model in the loop).
 //
 // `pantry_stock` is the model's verdict on whether that line is plainly
 // household stock: only those lines are stocked automatically, the rest wait on
@@ -42,6 +53,13 @@ export const MAX_RECEIPT_FILE_BYTES = 8 * 1024 * 1024;
 
 /** Line items kept from one document (a long supermarket ticket fits). */
 export const MAX_RECEIPT_ITEMS = 60;
+
+/**
+ * Pantry names offered to the model as the names to reuse. A household with
+ * more products than this keeps the ones that sort first; the rest only costs a
+ * missed match, never a wrong one (the merge falls back to the folded name).
+ */
+export const MAX_RECEIPT_PANTRY_NAMES = 150;
 
 const MAX_MERCHANT = 120;
 const MAX_LABEL = 160;
@@ -63,7 +81,7 @@ export const RECEIPT_SCHEMA: Record<string, unknown> = {
             items: {
                 type: 'object',
                 additionalProperties: false,
-                required: ['label', 'quantity', 'unit_price', 'amount', 'category', 'pantry_item', 'pantry_unit', 'pantry_stock'],
+                required: ['label', 'quantity', 'unit_price', 'amount', 'category', 'pantry_item', 'pantry_unit', 'pantry_content', 'pantry_stock'],
                 properties: {
                     label: { type: 'string' },
                     quantity: { type: 'number' },
@@ -72,6 +90,7 @@ export const RECEIPT_SCHEMA: Record<string, unknown> = {
                     category: { type: 'string' },
                     pantry_item: { type: 'string' },
                     pantry_unit: { type: 'string' },
+                    pantry_content: { type: 'number' },
                     pantry_stock: { type: 'boolean' },
                 },
             },
@@ -97,6 +116,12 @@ export interface ReceiptLine {
     pantry_item: string;
     /** Packaging/content unit the document shows ('L', 'kg', 'pièce'…), else ''. */
     pantry_unit: string;
+    /**
+     * Total content of the line in `pantry_unit`: 5 for 'RIJST BASMATI 5KG',
+     * 1.25 for 'POMMES 1,250 KG'. 0 when the document does not say how much
+     * product the line holds — `quantity` is then only a pack count.
+     */
+    pantry_content: number;
     /**
      * True only when this line is clearly household stock with an unambiguous
      * generic name: those go straight into the pantry. Everything else (a
@@ -130,11 +155,28 @@ export function buildReceiptPrompt(
     categories: readonly string[],
     todayIso: string,
     currency: string,
+    pantryNames: readonly string[] = [],
 ): string {
+    // Family-typed names go into the prompt: one line each, whitespace flattened
+    // so a name carrying a newline cannot pose as another line of instructions.
+    const pantryList = pantryNames
+        .map((name) => String(name ?? '').replace(/\s+/g, ' ').trim().slice(0, MAX_PANTRY_NAME))
+        .filter((name) => name.length > 0)
+        .slice(0, MAX_RECEIPT_PANTRY_NAMES)
+        .map((name) => `- ${name}`)
+        .join('\n');
+
     return [
         `Tu analyses la photo ou le PDF d'un ticket de caisse ou d'une facture, pour l'application de budget familial d'un foyer.`,
         ``,
         `Date du jour : ${todayIso}. Devise habituelle du foyer : ${currency || 'EUR'}.`,
+        ...(pantryList
+            ? [
+                  ``,
+                  `Produits DÉJÀ dans le garde-manger de ce foyer (liste exhaustive) :`,
+                  pantryList,
+              ]
+            : []),
         ``,
         `Réponds UNIQUEMENT avec un objet JSON, sans texte autour, avec exactement ces champs :`,
         `- "document_type" : "receipt" pour un ticket de caisse (achats détaillés), "invoice" pour une facture (abonnement, énergie, loyer, téléphone…).`,
@@ -150,7 +192,11 @@ export function buildReceiptPrompt(
         `  "amount" = montant total de la ligne, remises déjà déduites,`,
         `  "category" = EXACTEMENT l'une de : ${categories.join(', ')}.`,
         `  "pantry_item" = le MÊME article réduit à ce qu'on stocke à la maison : enlève la marque, l'enseigne, le format, le poids, le volume et tout texte promotionnel ("LAIT DEMI-ECREME BIO VILLAGE 1L" → "Lait demi-écrémé", "POULET FERMIER S/O PESEE" → "Poulet", "LESSIVE LIQUIDE X 40D" → "Lessive"). Garde la langue du ticket et un nom court et générique : c'est ce qui sera additionné au garde-manger quand un autre ticket contiendra le même produit. "" si le libellé est déjà ce nom générique.`,
+        `    SAUF si ce produit est DÉJÀ dans le garde-manger ci-dessus sous un autre nom : recopie alors EXACTEMENT le nom du garde-manger, caractère pour caractère, même s'il est dans une autre langue, au singulier ou au pluriel, ou accompagné d'un mot de plus ("Tomaten los" pour "Tomates", "Uien" pour "Uien - Oignon"). Deux noms pour un même produit créent deux lignes dans le garde-manger : le nom déjà présent a toujours la priorité.`,
+        `    Un nom du garde-manger peut lui-même en contenir plusieurs, séparés par un tiret : "Uien - Oignon" veut dire que ce produit s'appelle uien ou oignon, et une ligne "UIEN" comme une ligne "OIGNON" doivent renvoyer exactement "Uien - Oignon" — c'est tout l'intérêt de cette liste.`,
+        `    La liste est celle des produits du foyer, pas celle du ticket : ne l'utilise jamais pour inventer une ligne que le ticket ne porte pas, et ignore les produits du foyer qui ne sont pas sur ce ticket.`,
         `  "pantry_unit" = l'unité de conditionnement ou de contenu que le ticket précise ("L", "kg", "pièce", "pot", "paquet"…), "" sinon.`,
+        `  "pantry_content" = la quantité totale de produit de cette ligne, exprimée dans "pantry_unit", en nombre (0 si le ticket ne permet pas de la calculer) : "RIJST BASMATI 5KG" → 5, "2 x LAIT 1L" → 2, "POMMES 1,250 KG" → 1.25.`,
         `  "pantry_stock" = true UNIQUEMENT si cette ligne est clairement un produit que le foyer garde chez lui (alimentaire, boisson, entretien, hygiène…) ET que "pantry_item" est un nom générique net. false pour un service, une taxe, une consigne, du carburant, une ligne illisible ou abrégée, et dès que tu as un doute : ces lignes seront proposées à la famille, qui décidera elle-même.`,
         ``,
         `Règles :`,
@@ -248,6 +294,7 @@ export function validateReceiptImport(
             category: resolveCategory(line.category, categories),
             pantry_item: cleanString(line.pantry_item, MAX_PANTRY_NAME),
             pantry_unit: cleanString(line.pantry_unit, MAX_PANTRY_UNIT),
+            pantry_content: cleanContent(line.pantry_content),
             pantry_stock: line.pantry_stock === true,
         });
     }
@@ -334,6 +381,18 @@ const cleanQuantity = (value: unknown): number => {
 };
 
 /**
+ * Content of a line in its printed unit: number or numeric string with a comma,
+ * positive, capped, 3 decimals. 0 = unknown, and 0 is a real answer here ("the
+ * ticket did not say how much the line holds"), so it never falls back to 1.
+ */
+const cleanContent = (value: unknown): number => {
+    const raw = typeof value === 'number' ? value : typeof value === 'string' ? value.replace(',', '.') : NaN;
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed) || parsed <= 0 || parsed > 10000) return 0;
+    return Math.round(parsed * 1000) / 1000;
+};
+
+/**
  * Maps a model-proposed category onto the family's list (case-insensitive).
  * Unknown → "Autre" when the list has it, else the last entry (the family's
  * own catch-all, historically "Autre").
@@ -375,6 +434,7 @@ export function validateReceipt(
             category: resolveCategory(line.category, categories),
             pantry_item: cleanString(line.pantry_item, MAX_PANTRY_NAME),
             pantry_unit: cleanString(line.pantry_unit, MAX_PANTRY_UNIT),
+            pantry_content: cleanContent(line.pantry_content),
             pantry_stock: line.pantry_stock === true,
         });
     }
@@ -432,6 +492,8 @@ export function validateReceiptLine(
         category: resolveCategory(raw.category, categories),
         pantry_item: '',
         pantry_unit: '',
+        // Nothing was read off a document: how much the line holds is unknown.
+        pantry_content: 0,
         pantry_stock: false,
     };
 }

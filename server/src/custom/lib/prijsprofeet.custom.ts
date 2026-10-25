@@ -31,6 +31,7 @@
 // one extra request is nothing.
 
 import { safeFetch, readCappedText } from '../../lib/safeFetch';
+import { focusMatches, comparable, GENERAL_GROCERY_CATEGORIES, MAX_FOCUS_TERMS } from './promoFocus.custom';
 
 export type PromoCountry = 'nl' | 'be';
 
@@ -436,7 +437,180 @@ export async function searchPromos(query: PromoQuery): Promise<PromoPage> {
     return cached(key, msUntilRefresh(), () => fetchPage(query));
 }
 
+// How many offers one household name — or one grocery category — is asked for.
+// A family wants the good deals on its own products, not every shelf of them.
+const FOCUS_PAGE_SIZE = 24;
+
+/** One search page for the focus list: a household term, or a whole category. */
+const fetchFocusPage = async (query: PromoQuery, q: string, category: string | null): Promise<PromoOffer[]> => {
+    const payload = await requestJson(`${HOSTS[query.country]}/api/v1/search`, {
+        q,
+        promotion_status: 'active',
+        retailer: query.retailer ?? undefined,
+        // The category the user picked still applies; the grocery pass names its own.
+        category: category ?? query.category ?? undefined,
+        min_savings: query.minSavings ?? undefined,
+        sort_by: PROMO_SORTS[query.sort],
+        page: 1,
+        page_size: FOCUS_PAGE_SIZE,
+    });
+    return normalizeOffers(query.country, '', payload);
+};
+
+/** What makes two rows the same deal: one shop, one pack, one price. */
+const offerKey = (offer: PromoOffer): string =>
+    [offer.country, offer.retailer, offer.name ?? '', offer.quantity ?? '', offer.price ?? ''].join('|');
+
+/** One deduplicated list out of several searches' answers, first list winning. */
+const mergeOffers = (lists: readonly PromoOffer[][]): PromoOffer[] => {
+    const seen = new Set<string>();
+    const merged: PromoOffer[] = [];
+    for (const list of lists) {
+        for (const offer of list) {
+            const offerId = offerKey(offer);
+            if (seen.has(offerId)) continue;
+            seen.add(offerId);
+            merged.push(offer);
+        }
+    }
+    return merged;
+};
+
+/** The discount, whether the API published it or it has to be derived. */
+const discountOf = (offer: PromoOffer): number => {
+    if (offer.savings_percentage !== null) return offer.savings_percentage;
+    if (offer.original_price && offer.price !== null && offer.original_price > 0) {
+        return ((offer.original_price - offer.price) / offer.original_price) * 100;
+    }
+    return -1;
+};
+
+const sortOffers = (offers: PromoOffer[], sort: PromoSort): PromoOffer[] => {
+    if (sort === 'price_asc') {
+        return offers.sort((left, right) => (left.price ?? Number.POSITIVE_INFINITY) - (right.price ?? Number.POSITIVE_INFINITY));
+    }
+    if (sort === 'price_desc') {
+        return offers.sort((left, right) => (right.price ?? Number.NEGATIVE_INFINITY) - (left.price ?? Number.NEGATIVE_INFINITY));
+    }
+    return offers.sort((left, right) => discountOf(right) - discountOf(left));
+};
+
+/**
+ * The household's own products: one search per pantry/receipt name, the answers
+ * verified against the name that produced them (the API's `q` is fuzzy — see
+ * lib/promoFocus.custom.ts). Cached for the day like the rest of the day's data.
+ */
+const personalOffers = async (userId: string, query: PromoQuery, terms: readonly string[]): Promise<PromoOffer[]> => {
+    const wanted = terms.slice(0, MAX_FOCUS_TERMS);
+    if (!wanted.length) return [];
+
+    const key = `focus:${userId}:${query.country}:${query.retailer ?? ''}:${query.category ?? ''}:${query.minSavings ?? ''}:${[...wanted].sort().join('|')}`;
+    const offers = await cached(key, msUntilRefresh(), async () => {
+        const settled = await Promise.allSettled(wanted.map((term) => fetchFocusPage(query, term, null)));
+        // One name the API could not answer must not sink the whole list; only
+        // every name failing means the check itself could not happen.
+        if (!settled.some((result) => result.status === 'fulfilled')) {
+            throw (settled[0] as PromiseRejectedResult).reason;
+        }
+        return mergeOffers(
+            settled.map((result) =>
+                result.status === 'fulfilled' ? result.value.filter((offer) => focusMatches(offer, wanted)) : []
+            )
+        );
+    });
+
+    return sortOffers([...offers], query.sort);
+};
+
+/**
+ * General groceries: the shops' top deals in every food category, so the list is
+ * a household's shopping list rather than the whole catalogue. One request per
+ * category — unless the user picked one, which is then the whole of it.
+ */
+const groceryOffers = async (userId: string, query: PromoQuery): Promise<PromoOffer[]> => {
+    const categories = query.category ? [query.category] : GENERAL_GROCERY_CATEGORIES;
+    const key = `grocery:${userId}:${query.country}:${query.retailer ?? ''}:${query.minSavings ?? ''}:${categories.join(',')}`;
+
+    const offers = await cached(key, msUntilRefresh(), async () => {
+        const settled = await Promise.allSettled(categories.map((category) => fetchFocusPage(query, '*', category)));
+        if (!settled.some((result) => result.status === 'fulfilled')) {
+            throw (settled[0] as PromiseRejectedResult).reason;
+        }
+        return mergeOffers(settled.map((result) => (result.status === 'fulfilled' ? result.value : [])));
+    });
+
+    return sortOffers([...offers], query.sort);
+};
+
+/**
+ * The focus list: the family's own products first (what the pantry holds, what a
+ * receipt bought), then the general grocery deals that fill the rest — deduped,
+ * so a product that is both stays in the personal block. Each block keeps the
+ * requested order; the API cannot sort the union of many searches as one.
+ */
+export async function focusedOffers(
+    userId: string,
+    query: PromoQuery,
+    terms: readonly string[]
+): Promise<PromoOffer[]> {
+    const [personal, grocery] = await Promise.all([
+        personalOffers(userId, query, terms),
+        groceryOffers(userId, query),
+    ]);
+
+    const seen = new Set(personal.map(offerKey));
+    return [...personal, ...grocery.filter((offer) => !seen.has(offerKey(offer)))];
+}
+
 /** The filter choices and their counts for one country, cached for the day. */
 export async function promoFilters(country: PromoCountry): Promise<PromoFilters> {
     return cached(`filters:${country}`, msUntilRefresh(), () => fetchFilters(country));
+}
+
+// ---------------------------------------------------------------------------
+// The shopping list's "where to buy" plan: one search per household term, kept
+// only when the offer really names that term (the same verification the focus
+// list uses — the API's `q` is fuzzy).
+// ---------------------------------------------------------------------------
+
+/** One search for one term, verified against it. Same call shape as fetchFocusPage,
+ *  minus every filter: the plan compares the four chains itself. */
+const fetchTermOffers = async (country: PromoCountry, term: string): Promise<PromoOffer[]> => {
+    const payload = await requestJson(`${HOSTS[country]}/api/v1/search`, {
+        q: term,
+        promotion_status: 'active',
+        page: 1,
+        page_size: FOCUS_PAGE_SIZE,
+    });
+    return normalizeOffers(country, '', payload).filter((offer) => focusMatches(offer, [term]));
+};
+
+/**
+ * The running promotions for a list of household terms, verified and deduped.
+ *
+ * Cached one entry per term (the term and its country are the whole query), so a
+ * family whose list repeats a product pays one request a day for it. The terms
+ * are asked one after the other on purpose: the shopping list searches many items
+ * at once, and keeping each call at one request lets the caller's own pool be the
+ * only limit on how many requests are in flight.
+ *
+ * A term the API cannot answer is a failure for that term alone; only when no
+ * term could be answered — none live, none from the cache — is the caller told
+ * the search could not happen at all.
+ */
+export async function offersForTerms(country: PromoCountry, terms: readonly string[]): Promise<PromoOffer[]> {
+    const wanted = terms.map((term) => String(term ?? '').trim()).filter((term) => term.length > 0);
+    const lists: PromoOffer[][] = [];
+    let failure: unknown = null;
+
+    for (const term of wanted) {
+        try {
+            lists.push(await cached(`market:${country}:${comparable(term)}`, msUntilRefresh(), () => fetchTermOffers(country, term)));
+        } catch (error) {
+            failure ??= error;
+        }
+    }
+
+    if (wanted.length > 0 && lists.length === 0) throw failure;
+    return mergeOffers(lists);
 }

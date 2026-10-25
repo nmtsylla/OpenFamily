@@ -6,8 +6,8 @@
 //
 // Position matters: the hook sits above the upstream rate limiters, because
 // these routes do not need upstream's 30-per-15-minutes outbound budget — the
-// weather and widget surfaces read a fixed public API, and the Home Assistant
-// proxy polls a device on a 30 s timer. Each carries its own limiter below.
+// weather and widget surfaces read a fixed public API. Each carries its own
+// limiter below.
 
 import type { Express } from 'express';
 import { isCustomFeatureEnabled } from './features.custom';
@@ -16,9 +16,10 @@ import customRateLimiter from './middleware/rateLimit.custom';
 import aiDashboardRoutes from './routes/aiDashboard.custom';
 import budgetAnalyticsRoutes from './routes/budgetAnalytics.custom';
 import budgetReceiptsRoutes from './routes/budgetReceipts.custom';
-import homeAssistantDevicesRoutes from './routes/homeAssistantDevices.custom';
 import lunchboxRoutes from './routes/lunchbox.custom';
+import marketRoutes from './routes/market.custom';
 import mediaRoutes from './routes/media.custom';
+import newsRoutes from './routes/news.custom';
 import outingsRoutes from './routes/outings.custom';
 import pantryRoutes from './routes/pantry.custom';
 import productScanRoutes from './routes/productScan.custom';
@@ -36,6 +37,11 @@ export const registerCustomRoutes = (app: Express): void => {
 
     if (isCustomFeatureEnabled('weather')) {
         app.use('/api/weather', customRateLimiter, weatherRoutes);
+    }
+
+    if (isCustomFeatureEnabled('board')) {
+        // Read-only public Belgium feed (VRT NWS) for the board's news tile.
+        app.use('/api/news', customRateLimiter, newsRoutes);
     }
 
     if (isCustomFeatureEnabled('aiWidgets')) {
@@ -82,11 +88,11 @@ export const registerCustomRoutes = (app: Express): void => {
         app.use('/api/products', customRateLimiter, productScanRoutes);
     }
 
-    if (isCustomFeatureEnabled('familyDashboard')) {
-        // Like the product scan above, this one DOES reach a host outside this
-        // server — the family's own Home Assistant, re-vetted by safeFetch on
-        // every hop. It polls on a 30 s timer, far past upstream's
-        // 30-per-15-minutes outbound budget, so it takes the per-minute limiter.
-        app.use('/api/custom/ha', customRateLimiter, homeAssistantDevicesRoutes);
+    if (isCustomFeatureEnabled('marketPlan')) {
+        // One inbound call fans out to the FIXED PrijsProfeet host (a search per
+        // list item, cached per term until the morning boundary) plus the family's
+        // own configured model, so it rides the shared fixed-host limiter rather
+        // than upstream's 30-per-15-minutes outbound budget.
+        app.use('/api/market', customRateLimiter, marketRoutes);
     }
 };

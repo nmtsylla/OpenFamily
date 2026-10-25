@@ -1,0 +1,39 @@
+{
+  "card": {
+    "title": "去哪儿买",
+    "promosFrom": "{{date}} 的优惠",
+    "summary": "<covered>{{total}} 件商品中有 {{covered}} 件在促销</covered>。{{mode}}：<stores>{{stores}}</stores>，共付 <totalPrice>{{totalPrice}}</totalPrice>，与平时的价格相比 <savings>{{savings}}</savings>。",
+    "modeSingle": "只去一家店",
+    "modePair": "去两家店",
+    "modeAll": "全部顺路买",
+    "planSingle": "1 家店",
+    "planPair": "2 家店",
+    "planAll": "都去",
+    "planNoStore": "没有商店",
+    "stops_other": "{{count}} 站",
+    "articles_other": "{{covered}}/{{count}} 件",
+    "footerArticles_other": "{{count}} 件",
+    "referenceNote_other": "平常价格 = 最近一次付款的价格，否则取最低的划线价（共 {{total}} 件，{{count}} 件有参照价）。",
+    "missing_other": "{{count}} 件本周没有促销，按平时的店买。",
+    "caveat": "三家店以上：“都去”只有在本来就顺路时才省钱。"
+  },
+  "badge": {
+    "alsoAt": "{{store}} 也有 {{price}}",
+    "validUntil": "截至 {{date}}",
+    "usualPrice": "平常价格：{{price}}",
+    "lastPaid": "上次付款价：{{price}}（{{receipt}}）"
+  },
+  "sheet": {
+    "openHint": "查看 {{name}} 的推荐商品详情",
+    "storesCount_other": "本周有 {{count}} 家店在促销",
+    "seeAt": "去 {{store}} 看看",
+    "usualReceipt": "你平时付 {{price}}（{{details}}）",
+    "receiptMerchant": "在 {{merchant}}",
+    "usualRegular": "平常价格 {{price}}（最低划线价）",
+    "lessThan": "比平时少 {{amount}}",
+    "moreThan": "比平时多 {{amount}}",
+    "everyStore": "所有商店，从最便宜到最贵",
+    "suggested": "推荐",
+    "matchedDutch": "通过荷兰语名称匹配：{{terms}}"
+  }
+}

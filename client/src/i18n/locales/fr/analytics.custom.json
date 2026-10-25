@@ -53,6 +53,15 @@
     "title": "Principaux commerces",
     "empty": "Aucun reçu importé sur cette période."
   },
+  "products": {
+    "title": "Produits achetés",
+    "note": "D'après les tickets importés. Une ligne sans unité imprimée compte en paquets.",
+    "summary": "{{products}} produits · {{amount}}",
+    "noUnit": "{{value}} ×",
+    "atLeast": "≥ {{value}}",
+    "hidden": "+{{count}} de plus",
+    "empty": "Aucun ticket importé sur cette période."
+  },
   "states": {
     "loading": "Chargement…",
     "error": "Impossible de charger l'analyse.",

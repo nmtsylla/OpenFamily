@@ -1,0 +1,80 @@
+{
+  "common": {
+    "loading": "Cargando…"
+  },
+  "nav": {
+    "board": "Panel"
+  },
+  "greet": {
+    "morning": "Buenos días,",
+    "afternoon": "Buenas tardes,",
+    "evening": "Buenas tardes,",
+    "night": "Buenas noches,",
+    "sub": "Aquí tienes tu día."
+  },
+  "agenda": {
+    "title": "Hoy",
+    "empty": "Nada previsto para hoy",
+    "more": "{{count}} más",
+    "now": "Ahora",
+    "upNext": "Próximamente",
+    "nothingAfter": "Nada después",
+    "tomorrow": "Mañana"
+  },
+  "weather": {
+    "noCity": "Sin ciudad",
+    "noCityHint": "Configura la ciudad de la familia en Ajustes",
+    "unavailable": "Tiempo no disponible",
+    "rainNow": "Chubascos ahora mismo",
+    "rainFrom": "Chubascos a partir de las {{time}}",
+    "air": "Aire"
+  },
+  "meals": {
+    "title": "Comidas",
+    "empty": "Nada previsto"
+  },
+  "shopping": {
+    "title": "Compra",
+    "left": "{{count}} por comprar",
+    "empty": "Lista vacía",
+    "more": "+{{count}}",
+    "check": "Marcar {{name}}"
+  },
+  "aqi": {
+    "bands": {
+      "good": "Bueno",
+      "fair": "Aceptable",
+      "moderate": "Moderado",
+      "poor": "Malo",
+      "veryPoor": "Muy malo",
+      "extremelyPoor": "Extremadamente malo"
+    }
+  },
+  "chores": {
+    "title": "Tareas",
+    "leftToday": "{{count}} pendientes hoy",
+    "allDone": "Todo hecho",
+    "today": "hoy",
+    "dueOn": "para el {{day}}",
+    "overdue": "atrasada",
+    "undo": "Deshacer",
+    "complete": "Completar {{title}}",
+    "more": "+{{count}}"
+  },
+  "actions": {
+    "exit": "Salir",
+    "fullscreen": "Pantalla completa",
+    "exitFullscreen": "Salir de pantalla completa"
+  },
+  "news": {
+    "title": "Bélgica hoy",
+    "unavailable": "Noticias no disponibles",
+    "nothingRelevant": "Nada relevante hoy",
+    "close": "Cerrar",
+    "readArticle": "Leer el artículo completo",
+    "tech": "Tecnología",
+    "health": "Salud",
+    "family": "Familia",
+    "work": "Trabajo"
+  }
+}

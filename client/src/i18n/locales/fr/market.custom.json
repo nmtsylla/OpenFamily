@@ -1,0 +1,45 @@
+{
+  "card": {
+    "title": "Où acheter",
+    "promosFrom": "promos du {{date}}",
+    "summary": "<covered>{{covered}} de vos {{total}} articles</covered> sont en promo. En {{mode}} : <stores>{{stores}}</stores>, <totalPrice>{{totalPrice}}</totalPrice> à payer, soit <savings>{{savings}}</savings> par rapport à votre prix habituel.",
+    "modeSingle": "un seul magasin",
+    "modePair": "deux magasins",
+    "modeAll": "en passant partout",
+    "planSingle": "1 magasin",
+    "planPair": "2 magasins",
+    "planAll": "Partout",
+    "planNoStore": "aucun magasin",
+    "stops_one": "{{count}} arrêt",
+    "stops_other": "{{count}} arrêts",
+    "articles_one": "{{covered}}/{{count}} article",
+    "articles_other": "{{covered}}/{{count}} articles",
+    "footerArticles_one": "{{count}} art.",
+    "footerArticles_other": "{{count}} art.",
+    "referenceNote_one": "Prix habituel = dernier ticket payé, sinon prix barré le plus bas ({{count}} article sur {{total}}).",
+    "referenceNote_other": "Prix habituel = dernier ticket payé, sinon prix barré le plus bas ({{count}} articles sur {{total}}).",
+    "missing_one": "{{count}} article sans promo cette semaine, à prendre au magasin habituel.",
+    "missing_other": "{{count}} articles sans promo cette semaine, à prendre au magasin habituel.",
+    "caveat": "Trois magasins et plus : la proposition « Partout » n’économise que si le détour est déjà prévu."
+  },
+  "badge": {
+    "alsoAt": "Aussi chez {{store}} {{price}}",
+    "validUntil": "jusqu’au {{date}}",
+    "usualPrice": "Prix habituel : {{price}}",
+    "lastPaid": "Dernier prix payé : {{price}} ({{receipt}})"
+  },
+  "sheet": {
+    "openHint": "Voir le détail du produit suggéré pour {{name}}",
+    "storesCount_one": "{{count}} magasin le propose en promo cette semaine",
+    "storesCount_other": "{{count}} magasins le proposent en promo cette semaine",
+    "seeAt": "Voir chez {{store}}",
+    "usualReceipt": "Vous payez d’habitude {{price}} ({{details}})",
+    "receiptMerchant": "chez {{merchant}}",
+    "usualRegular": "Prix habituel {{price}} (prix barré le plus bas)",
+    "lessThan": "{{amount}} de moins que d’habitude",
+    "moreThan": "{{amount}} de plus que d’habitude",
+    "everyStore": "Tous les magasins, du moins cher au plus cher",
+    "suggested": "Suggéré",
+    "matchedDutch": "Trouvé via le nom néerlandais : {{terms}}"
+  }
+}
