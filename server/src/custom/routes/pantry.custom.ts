@@ -29,13 +29,16 @@ import logger from '../../lib/logger';
 import { integrationRateLimiter } from '../middleware/rateLimit.custom';
 import { isUniqueViolation, isUuid } from '../lib/validation.custom';
 import {
+    DEFAULT_PANTRY_CATEGORY,
     MAX_STOCK_LINES,
     MAX_PANTRY_NAME,
     PANTRY_LOCATIONS,
+    composeProductName,
     mapGrocyStock,
     mapReceiptItems,
     pantryNameKey,
     sanitizePantryItem,
+    unitsAgree,
     type GrocyStockLine,
     type PantryLineSeed,
     type PantryLocation,
@@ -298,6 +301,109 @@ router.post('/missing', async (req: AuthRequest, res) => {
 });
 
 // PUT /api/pantry/:id — the client sends the full item back.
+// POST /api/pantry/merge — several products become one.
+//
+// Body: { name, aliases: string[], target_id?: string | null, source_ids: string[] }.
+// The target keeps its stock, each source's stock is added when the units agree and
+// its row removed. A source with another unit (or a Grocy row, which the sync owns)
+// stays put and is counted in `skipped`, never added to a wrong total. The merged
+// name carries every alias, which is what makes the receipt labels resolve to the
+// one product from then on.
+router.post('/merge', async (req: AuthRequest, res) => {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const name = typeof body.name === 'string' ? body.name : '';
+    const aliases = Array.isArray(body.aliases)
+        ? body.aliases.filter((alias): alias is string => typeof alias === 'string').slice(0, 50)
+        : [];
+    const targetId = typeof body.target_id === 'string' && isUuid(body.target_id) ? body.target_id : null;
+    const sourceIds = Array.isArray(body.source_ids)
+        ? body.source_ids.filter((id): id is string => typeof id === 'string' && isUuid(id)).slice(0, 50)
+        : [];
+    const composed = composeProductName(name, aliases);
+    if (composed.length === 0) {
+        return res.status(400).json({ success: false, error: 'INVALID_ITEM' });
+    }
+
+    const client = await getClient();
+    try {
+        await client.query('BEGIN');
+
+        let row: PantryRow | null = null;
+        if (targetId) {
+            const found = await client.query(
+                'SELECT * FROM custom_pantry_items WHERE id = $1 AND user_id = $2 FOR UPDATE',
+                [targetId, req.userId],
+            );
+            row = (found.rows[0] as PantryRow | undefined) ?? null;
+        }
+
+        // A Grocy row belongs to the sync: never rename it, never delete it.
+        if (row && row.source === 'grocy') row = null;
+
+        if (row) {
+            const renamed = await client.query(
+                `UPDATE custom_pantry_items
+                    SET name = $2, name_key = $3, updated_at = CURRENT_TIMESTAMP
+                  WHERE id = $1
+                  RETURNING *`,
+                [row.id, composed, pantryNameKey(composed)],
+            );
+            row = renamed.rows[0] as PantryRow;
+        } else {
+            const created = await client.query(
+                `INSERT INTO custom_pantry_items
+                    (user_id, name, name_key, category, quantity, unit, location, source)
+                 VALUES ($1, $2, $3, $4, 0, NULL, 'pantry', 'manual')
+                 RETURNING *`,
+                [req.userId, composed, pantryNameKey(composed), DEFAULT_PANTRY_CATEGORY],
+            );
+            row = created.rows[0] as PantryRow;
+        }
+
+        let merged = 0;
+        let skipped = 0;
+        for (const id of sourceIds) {
+            if (id === row.id) continue;
+            const found = await client.query(
+                'SELECT id, quantity, unit, source FROM custom_pantry_items WHERE id = $1 AND user_id = $2 FOR UPDATE',
+                [id, req.userId],
+            );
+            const source = found.rows[0] as { id: string; quantity: unknown; unit: string | null; source: string } | undefined;
+            if (!source) continue;
+            if (source.source === 'grocy' || !unitsAgree(row.unit, source.unit)) {
+                skipped += 1;
+                continue;
+            }
+            const added = Number(source.quantity);
+            const updated = await client.query(
+                `UPDATE custom_pantry_items
+                    SET quantity = quantity + $2, unit = COALESCE(unit, $3), updated_at = CURRENT_TIMESTAMP
+                  WHERE id = $1
+                  RETURNING *`,
+                [row.id, Number.isFinite(added) ? added : 0, source.unit],
+            );
+            row = updated.rows[0] as PantryRow;
+            await client.query('DELETE FROM custom_pantry_items WHERE id = $1 AND user_id = $2', [id, req.userId]);
+            merged += 1;
+        }
+
+        await client.query('COMMIT');
+        broadcast(req.userId!, { type: 'update', entity: 'shopping', action: 'updated' });
+        res.json({ success: true, data: { item: toItem(row), merged, skipped } });
+    } catch (error) {
+        await client.query('ROLLBACK').catch(() => {});
+        if (isUniqueViolation(error)) {
+            return res.status(409).json({ success: false, error: 'DUPLICATE_NAME' });
+        }
+        logger.error('pantry.merge_failed', {
+            error: error instanceof Error ? error.message : String(error),
+        });
+        res.status(500).json({ success: false, error: 'Internal server error' });
+    } finally {
+        client.release();
+    }
+});
+
 // PUT /api/pantry/:id/name — rename a product, aliases included, without touching
 // its stock. The products page groups a product by editing this; the full PUT
 // would reset category, location, notes and expiry to their defaults.

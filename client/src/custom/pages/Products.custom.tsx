@@ -70,6 +70,11 @@ const ProductsPage: React.FC = () => {
     const [form, setForm] = useState<Questions>({ name: '', alsoCalled: '' });
     const [saving, setSaving] = useState(false);
     const [saveError, setSaveError] = useState(false);
+    // Multi-select for the merge: keys of the products ticked in the list.
+    const [selected, setSelected] = useState<Set<string>>(new Set());
+    const [mergeOpen, setMergeOpen] = useState(false);
+    const [mergeName, setMergeName] = useState('');
+    const [merging, setMerging] = useState(false);
 
     const cur = useCallback((value: number) => formatCurrency(value, currency), [currency]);
 
@@ -153,6 +158,84 @@ const ProductsPage: React.FC = () => {
         }
     };
 
+    const toggleSelected = (key: string) => {
+        setSelected((previous) => {
+            const next = new Set(previous);
+            if (next.has(key)) next.delete(key);
+            else next.add(key);
+            return next;
+        });
+    };
+
+    const chosen = products.filter((product) => selected.has(product.key));
+
+    const openMerge = () => {
+        // The target is the tracked product that spends the most, so its stock and
+        // its row survive; the rest become names on it.
+        const tracked = chosen
+            .filter((product) => product.pantryItemId !== null)
+            .sort((a, b) => b.amount - a.amount);
+        const lead = tracked[0] ?? [...chosen].sort((a, b) => b.amount - a.amount)[0];
+        setMergeName(lead?.name ?? '');
+        setMergeOpen(true);
+    };
+
+    const merge = async () => {
+        const name = mergeName.trim();
+        if (name === '' || chosen.length < 2) return;
+
+        const target = chosen
+            .filter((product) => product.pantryItemId !== null)
+            .sort((a, b) => b.amount - a.amount)[0] ?? null;
+        const aliases: string[] = [];
+        for (const product of chosen) {
+            const split = product.pantryName
+                ? splitAliases(product.pantryName)
+                : { name: product.name, aliases: '' };
+            aliases.push(
+                split.name,
+                ...split.aliases.split(',').map((part) => part.trim()).filter(Boolean),
+                ...product.names,
+                product.name,
+            );
+        }
+        const folded = name.toLowerCase();
+        const unique = aliases.filter((alias, index) =>
+            alias.trim() !== ''
+            && alias.trim().toLowerCase() !== folded
+            && aliases.findIndex((other) => other.trim().toLowerCase() === alias.trim().toLowerCase()) === index
+        );
+        const sources = chosen
+            .map((product) => product.pantryItemId)
+            .filter((id): id is string => id !== null && id !== target?.pantryItemId);
+
+        setMerging(true);
+        try {
+            const response = await api.post<{ success: boolean; data: { merged: number; skipped: number } }>(
+                '/api/pantry/merge',
+                { name, aliases: unique, target_id: target?.pantryItemId ?? null, source_ids: sources },
+            );
+            showToast({ title: t('analytics.custom:page.merged', { name }) });
+            if ((response.data?.skipped ?? 0) > 0) {
+                showToast({
+                    title: t('analytics.custom:page.mergeSkipped', { count: response.data.skipped }),
+                });
+            }
+            setMergeOpen(false);
+            setSelected(new Set());
+            await load();
+        } catch (err) {
+            const message = err instanceof Error ? err.message : '';
+            showToast({
+                title: message.includes('DUPLICATE_NAME')
+                    ? t('pantry.custom:errors.duplicateName')
+                    : t('analytics.custom:page.mergeError'),
+            });
+        } finally {
+            setMerging(false);
+        }
+    };
+
     if (!isModuleEnabled('budgetAnalytics')) return null;
 
     return (
@@ -197,6 +280,21 @@ const ProductsPage: React.FC = () => {
                     <p className="text-caption text-muted-foreground">
                         {t('analytics.custom:page.count', { count: visible.length })}
                     </p>
+                    {selected.size > 0 && (
+                        <div className="flex items-center justify-between gap-2 rounded-input bg-surface-2 px-3 py-2">
+                            <span className="text-caption font-medium">
+                                {t('analytics.custom:page.selected', { count: selected.size })}
+                            </span>
+                            <div className="flex gap-2">
+                                <Button type="button" variant="secondary" size="sm" onClick={() => setSelected(new Set())}>
+                                    {t('analytics.custom:page.clear')}
+                                </Button>
+                                <Button type="button" size="sm" onClick={openMerge} disabled={selected.size < 2}>
+                                    {t('analytics.custom:page.merge')}
+                                </Button>
+                            </div>
+                        </div>
+                    )}
 
                     {loading && products.length === 0 ? (
                         <div className="flex items-center justify-center py-16">
@@ -210,7 +308,14 @@ const ProductsPage: React.FC = () => {
                         <ul className="divide-y divide-border">
                             {visible.map((product) => (
                                 <li key={product.key} className="flex items-start justify-between gap-3 py-2.5">
-                                    <div className="min-w-0">
+                                    <input
+                                        type="checkbox"
+                                        checked={selected.has(product.key)}
+                                        onChange={() => toggleSelected(product.key)}
+                                        aria-label={t('analytics.custom:page.select', { name: product.name })}
+                                        className="mt-1 h-4 w-4 shrink-0 rounded border-border text-primary focus:ring-primary"
+                                    />
+                                    <div className="min-w-0 flex-1">
                                         <p className="truncate text-sm font-medium">{product.name}</p>
                                         <p className="text-caption text-muted-foreground">
                                             {product.lines > 0
@@ -252,6 +357,38 @@ const ProductsPage: React.FC = () => {
                     )}
                 </CardContent>
             </Card>
+
+            <Dialog
+                open={mergeOpen}
+                onOpenChange={setMergeOpen}
+                title={t('analytics.custom:page.mergeTitle')}
+                description={t('analytics.custom:page.mergeHint')}
+            >
+                <div className="space-y-3">
+                    <Input
+                        label={t('pantry.custom:form.name')}
+                        value={mergeName}
+                        onChange={(event) => setMergeName(event.target.value)}
+                    />
+                    <p className="text-caption text-muted-foreground">
+                        {t('analytics.custom:page.mergeNames', {
+                            names: chosen.map((product) => product.name).join(' · '),
+                        })}
+                    </p>
+                    <div className="flex justify-end gap-2">
+                        <Button type="button" variant="secondary" onClick={() => setMergeOpen(false)}>
+                            {t('common:actions.cancel')}
+                        </Button>
+                        <Button
+                            type="button"
+                            onClick={() => void merge()}
+                            disabled={merging || mergeName.trim() === '' || chosen.length < 2}
+                        >
+                            {merging ? t('pantry.custom:form.saving') : t('analytics.custom:page.merge')}
+                        </Button>
+                    </div>
+                </div>
+            </Dialog>
 
             <Dialog
                 open={editing !== null}

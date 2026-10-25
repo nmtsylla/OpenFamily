@@ -89,7 +89,17 @@
     "dialogTitle": "名称与分组",
     "dialogHint": "名称是商品显示的名称。添加小票或商店使用的其他名称，即可将它们归入这个商品。",
     "saveError": "保存失败，请重试。",
-    "seeAll": "查看所有商品"
+    "seeAll": "查看所有商品",
+    "select": "选择 {{name}}",
+    "selected": "已选择 {{count}} 项",
+    "clear": "清除",
+    "merge": "合并所选",
+    "mergeTitle": "合并商品",
+    "mergeHint": "它们将成为这个名字下的一个商品。所有名称都会保留，单位一致时库存会相加。",
+    "mergeNames": "将归入的名称：{{names}}",
+    "merged": "已合并为 {{name}}",
+    "mergeSkipped": "{{count}} 行库存单独保留：单位不同。",
+    "mergeError": "合并失败，请重试。"
   },
   "states": {
     "loading": "Loading…",

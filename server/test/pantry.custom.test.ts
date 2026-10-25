@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
     MAX_PANTRY_NAME,
+    composeProductName,
     isExpiringSoon,
     isLowStock,
     mapGrocyStock,
@@ -11,6 +12,7 @@ import {
     pantryHeadName,
     pantryKeyResolver,
     pantryNameKey,
+    unitsAgree,
     sanitizePantryItem,
     splitReceiptLines,
 } from '../src/custom/lib/pantry.custom';
@@ -373,4 +375,30 @@ test('pantryHeadName keeps the name before the first qualifier', () => {
     assert.equal(pantryHeadName('Pommes de terre (sac)'), 'Pommes de terre');
     assert.equal(pantryHeadName('Broccoli'), 'Broccoli');
     assert.equal(pantryHeadName('  '), '');
+});
+
+
+// A merge writes one name carrying every name the product answers to, which is
+// what makes the receipt labels resolve to the one product.
+test('composeProductName folds one head and its aliases into one name', () => {
+    assert.equal(
+        composeProductName('Rijst', ['AH Basmati', 'Basmati rijst']),
+        'Rijst - AH Basmati - Basmati rijst',
+    );
+    // Case and spacing do not make a name twice; accents are one product too.
+    assert.equal(composeProductName('Riz', ['riz', 'RIZ ', 'Ris']), 'Riz - Ris');
+    assert.equal(composeProductName('Rijst', []), 'Rijst');
+    assert.equal(composeProductName('  ', ['  ']), '');
+    assert.equal(composeProductName('Rijst', ['x'.repeat(200)]).length, MAX_PANTRY_NAME);
+});
+
+// Stock is only added up when the units can be.
+test('unitsAgree answers for the units the merge adds up', () => {
+    assert.equal(unitsAgree(null, 'kg'), true);
+    assert.equal(unitsAgree('kg', null), true);
+    assert.equal(unitsAgree('L', 'l'), true);
+    assert.equal(unitsAgree(' kg ', 'kg'), true);
+    assert.equal(unitsAgree('', 'kg'), true);
+    assert.equal(unitsAgree('kg', 'pièce'), false);
+    assert.equal(unitsAgree('paquet', 'pièce'), false);
 });

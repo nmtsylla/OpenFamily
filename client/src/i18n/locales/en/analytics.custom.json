@@ -89,7 +89,17 @@
     "dialogTitle": "Name and group",
     "dialogHint": "The name is what the product shows as. Add the other names a receipt or a shop uses to group them into this one.",
     "saveError": "Could not save. Try again.",
-    "seeAll": "See all products"
+    "seeAll": "See all products",
+    "select": "Select {{name}}",
+    "selected": "{{count}} selected",
+    "clear": "Clear",
+    "merge": "Merge selected",
+    "mergeTitle": "Merge products",
+    "mergeHint": "They become one product under this name. Every name stays attached, and stock is added up when the units match.",
+    "mergeNames": "Names grouped: {{names}}",
+    "merged": "Merged into {{name}}",
+    "mergeSkipped": "{{count}} stock row(s) kept apart: another unit.",
+    "mergeError": "Could not merge. Try again."
   },
   "states": {
     "loading": "Loading…",
