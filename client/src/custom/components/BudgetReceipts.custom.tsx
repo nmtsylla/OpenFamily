@@ -136,8 +136,18 @@ const ReceiptRow: React.FC<{
     const addToPantry = async () => {
         setImporting(true);
         try {
-            await api.post('/api/pantry/import/receipt', { receiptId: receipt.id });
+            const response = await api.post<{
+                success: boolean;
+                data: { created: number; updated: number; skipped: number };
+            }>('/api/pantry/import/receipt', { receiptId: receipt.id });
             showToast({ title: t('pantry.custom:toasts.importedReceipt') });
+            // A receipt line whose amount is known but whose unit contradicts the
+            // pantry row is reported, not merged into a wrong total.
+            if ((response.data?.skipped ?? 0) > 0) {
+                showToast({
+                    title: t('pantry.custom:toasts.skippedUnits', { count: response.data.skipped }),
+                });
+            }
         } catch (err) {
             const message = err instanceof Error ? err.message : '';
             showToast({
