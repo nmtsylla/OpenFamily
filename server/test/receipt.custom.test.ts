@@ -323,6 +323,21 @@ test('receiptFingerprint: non-Latin shop names stay distinct', () => {
 });
 
 // =============================================================================
+// The fork's language rule: the receipt keeps its own words, both the `label` on
+// the budget line and the generic `pantry_item` name. Translating the pantry name
+// would stop the folded-name merge from meeting the family's existing rows, and
+// it would stop the promo screen's "my products" mode from matching the Dutch and
+// French product names the Belgian shops publish.
+// =============================================================================
+
+test("the receipt prompt keeps the ticket's language for the pantry name", () => {
+    const prompt = buildReceiptPrompt(CATEGORIES, '2026-10-10', 'EUR');
+
+    assert.match(prompt, /Garde la langue du ticket/);
+    assert.doesNotMatch(prompt, /Écris ce nom en anglais/);
+});
+
+// =============================================================================
 // The pantry names handed to the model: reusing the household's own name is what
 // keeps a second ticket from opening a second row. A name that never reaches the
 // prompt, or a prompt that does not say what to do with it, is a duplicate the
