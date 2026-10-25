@@ -92,11 +92,14 @@ const mapReceipt = (row: ReceiptRow, items: ReceiptItemRow[]) => ({
     items: items.map(mapItem),
 });
 
-/** What the pantry side of an import did: rows merged, lines left to review. */
+/** What the pantry side of an import did: rows merged, lines left to review, seeds refused. */
 interface PantryImportResult {
     created: number;
     updated: number;
+    /** Lines left in the review queue (some of them asking for an amount). */
     pending: number;
+    /** Seeds not merged because their unit contradicts the pantry row's own. */
+    skipped: number;
 }
 
 /** SQLSTATE of a pg error, '' for anything else ("23505" = unique_violation). */
@@ -188,6 +191,10 @@ const insertReceipt = async (
         // before, even if its receipt was deleted since) the products are already
         // counted, so nothing is merged or queued again.
         //
+        // A pantry line with no known amount is NOT stocked as 1: it waits in the
+        // queue with `needs_amount`, and the family answers on the pantry page
+        // (custom/0011-pantry-pending-amount).
+        //
         // A receipt with no usable line (a bill whose breakdown is useless — the
         // family may add its lines by hand afterwards) takes NO guard: there is
         // nothing to record, and the guard would both hide the manual "add to
@@ -208,9 +215,9 @@ const insertReceipt = async (
                     for (const line of pending) {
                         await client.query(
                             `INSERT INTO custom_pantry_pending
-                                (user_id, receipt_id, label, item, quantity, unit, category)
-                             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-                            [userId, receiptId, line.label, line.item, line.quantity, line.unit, line.category]
+                                (user_id, receipt_id, label, item, quantity, unit, category, needs_amount)
+                             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                            [userId, receiptId, line.label, line.item, line.quantity, line.unit, line.category, line.needs_amount]
                         );
                     }
                     pantry = { ...merged, pending: pending.length };
@@ -298,7 +305,7 @@ router.post('/', requireParent, async (req: AuthRequest, res) => {
                     items: payload.items.map((item, index) => ({ id: String(index), ...item })),
                 },
                 entry_count: payload.entries.length,
-                // { created, updated, pending } when this import also fed the
+                // { created, updated, pending, skipped } when this import also fed the
                 // pantry, null when the pantry feature is off or this ticket was
                 // already processed (see insertReceipt).
                 pantry: imported.pantry,
