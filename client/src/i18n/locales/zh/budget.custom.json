@@ -45,6 +45,10 @@
       "save": "无法保存该小票。",
       "duplicate": "这张小票已经导入过了。",
       "nothingSelected": "请至少选择一行。"
-    }
+    },
+    "contentLabel": "总共多少？",
+    "unitLabel": "单位",
+    "contentHint": "小票上没有。请填写，否则储藏室会询问。",
+    "contentNeedsUnit": "请填写该数量的单位，或清除该数量。"
   }
 }
