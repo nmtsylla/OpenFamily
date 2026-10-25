@@ -8,7 +8,7 @@ import { ArrowLeft, RefreshCw } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatCurrency } from '../../lib/utils';
-import { dateLocale } from '../../i18n/format';
+import { dateLocale, intlLocale } from '../../i18n/format';
 import { format } from 'date-fns';
 import ChartCard from '../../components/app/ChartCard';
 import { Card, CardContent, DatePicker } from '../../components/ui';
@@ -29,6 +29,28 @@ interface DayBucket {
     cumulativeBalance: number;
 }
 
+interface PurchaseUnit {
+    unit: string | null;
+    /** Total content in that unit, 0 when no line said how much it held. */
+    content: number;
+    /** Lines that printed the unit but not the content: `content` is then a floor. */
+    unsized: number;
+    /** Packs bought, always counted. */
+    packs: number;
+}
+
+interface PurchasedProduct {
+    name: string;
+    amount: number;
+    lines: number;
+    units: PurchaseUnit[];
+}
+
+interface ProductPurchases {
+    byProduct: PurchasedProduct[];
+    totals: { amount: number; lines: number; products: number; hidden: number };
+}
+
 interface BudgetAnalytics {
     range: { start: string; end: string };
     totals: { income: number; expenses: number; balance: number; count: number };
@@ -40,6 +62,8 @@ interface BudgetAnalytics {
     byMember: Array<{ id: string; name: string; color: string | null; expenses: number; income: number; count: number }>;
     byMerchant: Array<{ merchant: string; expenses: number; count: number }>;
     pace: { daysTotal: number; daysElapsed: number; dailyAverage: number; projectedExpenses: number } | null;
+    /** Optional: a payload without it (a demo, an older server) just hides the card. */
+    purchases?: ProductPurchases;
 }
 
 // The API type is a promise, not a guarantee: a 200 carrying anything else (a
@@ -65,6 +89,10 @@ const yearStart = () => `${today().slice(0, 4)}-01-01`;
 // a Monday, so index 0..6 walks the week.
 const weekdayLabel = (isoWeekday: number) =>
     format(new Date(2024, 0, isoWeekday), 'EEE', { locale: dateLocale() });
+
+/** Quantities are small and may be fractional (0.5 kg): up to three decimals. */
+const quantityText = (value: number) =>
+    new Intl.NumberFormat(intlLocale(), { maximumFractionDigits: 3 }).format(value);
 
 const BudgetAnalyticsPage: React.FC = () => {
     const { t } = useTranslation(['analytics.custom', 'budget', 'common']);
@@ -287,6 +315,52 @@ const BudgetAnalyticsPage: React.FC = () => {
                             </div>
                         )}
                     </ChartCard>
+
+                    {data.purchases && (
+                        <ChartCard
+                            title={t('analytics.custom:products.title')}
+                            subtitle={t('analytics.custom:products.note')}
+                        >
+                            {data.purchases.byProduct.length === 0 ? (
+                                <p className="py-6 text-center text-sm text-muted-foreground">{t('analytics.custom:products.empty')}</p>
+                            ) : (
+                                <div className="space-y-2">
+                                    <p className="text-sm text-muted-foreground">
+                                        {t('analytics.custom:products.summary', {
+                                            products: data.purchases.totals.products,
+                                            amount: cur(data.purchases.totals.amount),
+                                        })}
+                                    </p>
+                                    {data.purchases.byProduct.map((product) => (
+                                        <div key={product.name} className="flex items-baseline justify-between gap-3 text-sm">
+                                            <span className="truncate font-medium">{product.name}</span>
+                                            <span className="flex-shrink-0 text-muted-foreground">
+                                                {product.units
+                                                    .map((bucket) => {
+                                                        if (!bucket.unit || bucket.content <= 0) {
+                                                            return t('analytics.custom:products.noUnit', { value: quantityText(bucket.packs) });
+                                                        }
+                                                        const amount = `${quantityText(bucket.content)} ${bucket.unit}`;
+                                                        // One unsized line and the sum is a floor, not a total.
+                                                        return bucket.unsized > 0
+                                                            ? t('analytics.custom:products.atLeast', { value: amount })
+                                                            : amount;
+                                                    })
+                                                    .join(' · ')}
+                                                {' · '}
+                                                <strong className="text-foreground">{cur(product.amount)}</strong>
+                                            </span>
+                                        </div>
+                                    ))}
+                                    {data.purchases.totals.hidden > 0 && (
+                                        <p className="text-sm text-muted-foreground">
+                                            {t('analytics.custom:products.hidden', { count: data.purchases.totals.hidden })}
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+                        </ChartCard>
+                    )}
 
                     <div className="grid gap-6 lg:grid-cols-2">
                         <ChartCard title={t('analytics.custom:members.title')} subtitle={t('analytics.custom:members.note')}>

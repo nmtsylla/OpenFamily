@@ -510,5 +510,39 @@ export const coreMigrations: readonly Migration[] = [
             )`,
         ],
     },
+    {
+        // Three values per receipt line, so the analytics page can add up what the
+        // family bought instead of only what it spent: `product` is the brand-free
+        // name, `unit` the unit the ticket printed, and `content` how much product
+        // the line holds in that unit ('RIJST BASMATI 5KG' → 5, quantity 1). The
+        // import already reads all three off the ticket (`pantry_item`,
+        // `pantry_unit`, `pantry_content` in ai/receipt.custom.ts) and used to drop
+        // them. `content` is NULL when the ticket does not say how much the line
+        // holds; the quantity is then a pack count. Nullable: lines imported before
+        // this migration keep NULL, and the aggregation falls back to the label and
+        // to a pack count.
+        id: 'custom/0010-receipt-item-product',
+        statements: [
+            'ALTER TABLE budget_receipt_items ADD COLUMN IF NOT EXISTS product VARCHAR(160)',
+            'ALTER TABLE budget_receipt_items ADD COLUMN IF NOT EXISTS unit VARCHAR(50)',
+            'ALTER TABLE budget_receipt_items ADD COLUMN IF NOT EXISTS content DECIMAL(10,3)',
+        ],
+    },
+    {
+        // A queued line whose amount nobody knows must be ASKED FOR, not stocked
+        // as 1. Before, the import stored a pack count under the pack's unit, so
+        // a 500 g broccoli pack became 'Broccoli 1 g'; the fix keeps such a line
+        // in the queue until the family says how much it holds. The flag is the
+        // queue's half of the question: the pantry page reads it and the confirm
+        // route refuses a line that needs an amount but was sent none.
+        //
+        // Existing rows are false: they were queued by an import that could not
+        // know any better, and asking for an amount they already carry (or were
+        // dismissed from) would be a new question for old data.
+        id: 'custom/0011-pantry-pending-amount',
+        statements: [
+            'ALTER TABLE custom_pantry_pending ADD COLUMN IF NOT EXISTS needs_amount BOOLEAN NOT NULL DEFAULT false',
+        ],
+    },
     // FORK-END: custom-migrations
 ];

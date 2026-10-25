@@ -46,6 +46,10 @@
       "save": "Não foi possível guardar o recibo.",
       "duplicate": "Este recibo já foi importado.",
       "nothingSelected": "Selecione pelo menos uma linha."
-    }
+    },
+    "contentLabel": "Quanto no total?",
+    "unitLabel": "Unidade",
+    "contentHint": "Não está no talão. Preencha, ou o inventário vai perguntar.",
+    "contentNeedsUnit": "Indique a unidade desta quantidade ou apague-a."
   }
 }

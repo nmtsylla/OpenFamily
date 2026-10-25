@@ -53,6 +53,15 @@
     "title": "Top merchants",
     "empty": "No receipt was imported over this period."
   },
+  "products": {
+    "title": "Productos comprados",
+    "note": "Según los tickets importados. Una línea sin unidad impresa cuenta en paquetes.",
+    "summary": "{{products}} productos · {{amount}}",
+    "noUnit": "{{value}} ×",
+    "atLeast": "≥ {{value}}",
+    "hidden": "+{{count}} más",
+    "empty": "No se importó ningún ticket en este periodo."
+  },
   "states": {
     "loading": "Loading…",
     "error": "Could not load the analytics.",

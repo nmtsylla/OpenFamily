@@ -142,6 +142,9 @@ export function buildParsePrompt(
         ``,
         `Règles :`,
         `- Chaque champ non pertinent vaut "" (chaîne vide), 0 (nombre) ou [] (liste). is_expense vaut true par défaut.`,
+        // FORK-START: ai-english
+        `- Écris en anglais tout le texte que tu produis (title, description, location, unit) même quand la note est en français ou dans une autre langue. Recopie tels quels les membres (member_names) et les valeurs prises dans les listes de catégories, priorités et fréquences.`,
+        // FORK-END: ai-english
         `- "lasagnes jeudi soir" dans un contexte de repas/courses = shopping_item ou task de cuisine, pas un rendez-vous, sauf mention d'un horaire précis.`,
         // FORK-START: pantry-ai
         ...pantryRules,
@@ -514,9 +517,11 @@ export function validateMealProposals(
 }
 
 // ── Recipe refinement ─────────────────────────────────────────────────────────
+// FORK-START: ai-english
 // Cleans up a rough recipe (a pasted block, or the rough output of an import)
-// into the shape the recipe form expects. The recipe KEEPS its own language:
-// only the JSON keys and the category are ours.
+// into the shape the recipe form expects, translated into English (the fork's
+// rule: see the prompt below; only the JSON keys and the category are ours).
+// FORK-END: ai-english
 
 export const REFINE_RECIPE_SCHEMA: Record<string, unknown> = {
     type: 'object',
@@ -542,12 +547,20 @@ export function buildRefineRecipePrompt(
     return [
         `Tu es un chef professionnel. On te donne une recette en vrac ; réorganise-la proprement.`,
         ``,
-        `Règle absolue : garde la recette dans SA langue d'origine (français, anglais, portugais…). Ne traduis ni les ingrédients, ni les étapes, ni le titre.`,
+        // FORK-START: ai-english
+        `Règle absolue : traduis la recette en anglais. Le titre, la description, les ingrédients et les étapes sont en anglais, même si la recette d'origine est en français, en portugais ou dans une autre langue. Garde les quantités, les unités et les noms propres (marques, lieux) tels quels.`,
+        // FORK-END: ai-english
         ``,
-        `- name : titre court et appétissant, dans la langue de la recette.`,
+        // FORK-START: ai-english
+        `- name : titre court et appétissant, en anglais.`,
+        // FORK-END: ai-english
         `- category : choisis exactement une valeur parmi ${recipeCategories.join('/')}.`,
-        `- description : 1 à 2 phrases, dans la langue de la recette.`,
-        `- ingredients : un ingrédient par entrée, avec sa quantité. Si la recette a des parties distinctes (pâte, garniture, nappage…), préfixe chaque entrée par la partie entre crochets, dans la langue de la recette : "[Pâte] 4 œufs", "[Massa] 4 ovos", "[Dough] 4 eggs".`,
+        // FORK-START: ai-english
+        `- description : 1 à 2 phrases, en anglais.`,
+        // FORK-END: ai-english
+        // FORK-START: ai-english
+        `- ingredients : un ingrédient par entrée, avec sa quantité. Si la recette a des parties distinctes (pâte, garniture, nappage…), préfixe chaque entrée par la partie entre crochets, en anglais : "[Dough] 4 eggs", "[Filling] 200 g dark chocolate".`,
+        // FORK-END: ai-english
         `- instructions : les étapes dans l'ordre, une par entrée, même règle de préfixe.`,
         `- prep_time, cook_time, servings : des nombres, uniquement si la recette les donne.`,
         ``,

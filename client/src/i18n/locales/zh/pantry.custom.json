@@ -83,14 +83,17 @@
   },
   "pending": {
     "title": "{{count}} 项待归置",
-    "subtitle": "AI 无法命名的小票条目：确认或忽略它们。",
+    "subtitle": "AI 无法命名的、或小票上没有数量的小票行：请确认或忽略。",
     "review": "去处理",
     "dialogTitle": "待归置的食品",
-    "dialogHint": "修正名称和分类后加入储藏，或忽略不需要保留的项目。",
+    "dialogHint": "修改名称、分类和数量，然后加入储藏室。不是需要保存的商品可以忽略。",
     "label": "小票上：{{label}}",
     "add": "加入食品储藏",
     "ignore": "忽略",
-    "empty": "没有待处理的条目了。"
+    "empty": "没有待处理的条目了。",
+    "amountHint": "小票上没有写包含多少。请填写数量和单位。",
+    "amountRequired": "确认前请填写数量。",
+    "unitConflict": "该商品已以其他单位存在于储藏室。请先修改该记录的单位。"
   },
   "cook": {
     "title": "用手头的东西做饭",
@@ -113,7 +116,8 @@
     "importedReceipt": "小票已导入食品储藏",
     "receiptPending": "{{count}} 项待归置到食品储藏",
     "pendingIgnored": "已忽略该条目",
-    "importedGrocy": "已从 Grocy 导入 {{count}} 项"
+    "importedGrocy": "已从 Grocy 导入 {{count}} 项",
+    "skippedUnits": "{{count}} 行未添加：该商品在储藏室中使用其他单位。"
   },
   "errors": {
     "load": "无法加载食品储藏。",

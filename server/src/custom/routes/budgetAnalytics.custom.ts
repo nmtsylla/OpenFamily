@@ -7,6 +7,8 @@ import {
     toAnalyticsEntries,
     type AnalyticsMember,
 } from '../lib/budgetAnalytics.custom';
+import { buildProductPurchases, type PurchaseLine } from '../lib/productAnalytics.custom';
+import { inferLineAmount } from '../lib/quantityInference.custom';
 
 // Fine-grained budget analytics — a SIDECAR to the shipped budget feature.
 //
@@ -23,7 +25,9 @@ import {
 // `start` and `end` are both inclusive. The response is the pure
 // buildBudgetAnalytics() output plus the echoed range: totals, actual-vs-recurring
 // split, per category / month / day / weekday / member / merchant breakdowns and a
-// pace projection for the elapsed part of the range.
+// pace projection for the elapsed part of the range. One request still answers the
+// whole screen; the products come only from imported receipts (their item lines),
+// so a family that types its expenses by hand gets an empty list, not a guess.
 const router = Router();
 router.use(authMiddleware);
 
@@ -36,6 +40,12 @@ const dateOnly = (value: unknown): string | null =>
 
 /** Inclusive `end` → exclusive upper bound, the shape a `date < $n` scan wants. */
 const dayAfter = (date: string) => formatDateOnly(new Date(Date.parse(`${date}T00:00:00Z`) + 86400000));
+
+/** pg hands DECIMAL back as a string; a broken value counts as nothing. */
+const toNumber = (value: unknown): number => {
+    const parsed = typeof value === 'number' ? value : parseFloat(String(value ?? ''));
+    return Number.isFinite(parsed) ? parsed : 0;
+};
 
 const daysInclusive = (from: string, to: string) =>
     Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000) + 1;
@@ -66,7 +76,7 @@ router.get('/overview', async (req: AuthRequest, res) => {
             return res.status(400).json({ success: false, error: `range too long (max ${MAX_RANGE_DAYS} days)` });
         }
 
-        const [entriesResult, recurringResult, membersResult] = await Promise.all([
+        const [entriesResult, recurringResult, membersResult, itemsResult] = await Promise.all([
             // Range predicate on the bare column: this is what the index above serves.
             query(
                 `SELECT be.id, be.category, be.amount, be.is_expense, be.date, be.assigned_to,
@@ -87,7 +97,41 @@ router.get('/overview', async (req: AuthRequest, res) => {
                 [req.userId, start, end]
             ),
             query('SELECT id, name, color FROM family_members WHERE user_id = $1 ORDER BY name', [req.userId]),
+            // The item lines of the imported receipts: what the family bought.
+            query(
+                `SELECT i.label, i.product, i.quantity, i.unit, i.content, i.amount
+                   FROM budget_receipt_items i
+                   JOIN budget_receipts r ON r.id = i.receipt_id
+                  WHERE r.user_id = $1
+                    AND r.date >= $2::date
+                    AND r.date < $3::date`,
+                [req.userId, start, dayAfter(end)]
+            ),
         ]);
+
+        // pg returns DECIMAL as a string: coerce here, so the pure module only
+        // ever sees numbers.
+        //
+        // A line imported before the amount was stored (NULL content), or one
+        // whose extractor could not read it (0), gets the size its own label
+        // prints: the analytics page then shows 500 g of broccoli instead of
+        // '1' under a unit that means grams. The inference is the same one the
+        // import uses, so old and new receipts agree.
+        const lines: PurchaseLine[] = itemsResult.rows.map((row) => {
+            const label = String(row.label ?? '');
+            const quantity = toNumber(row.quantity);
+            const unit = row.unit === null || row.unit === undefined ? null : String(row.unit);
+            const content = toNumber(row.content);
+            const inferred = content > 0 ? null : inferLineAmount({ label, quantity, unit });
+            return {
+                label,
+                product: row.product ?? null,
+                unit: inferred ? inferred.unit : unit,
+                quantity,
+                content: inferred ? inferred.content : content,
+                amount: toNumber(row.amount),
+            };
+        });
 
         // Both sides include the end day: `date < end + 1 day` here, and an
         // inclusive range end inside the expansion (see toAnalyticsEntries).
@@ -104,6 +148,7 @@ router.get('/overview', async (req: AuthRequest, res) => {
             data: {
                 range: { start, end },
                 ...buildBudgetAnalytics({ entries, members, start, end, today: localToday() }),
+                purchases: buildProductPurchases(lines),
             },
         });
     } catch (error) {

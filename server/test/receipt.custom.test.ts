@@ -39,6 +39,7 @@ test('validateReceipt keeps the pantry name, unit and stock verdict', () => {
                     category: 'Alimentation',
                     pantry_item: '  Lait   demi-écrémé ',
                     pantry_unit: 'L',
+                    pantry_content: 2,
                     pantry_stock: true,
                 },
             ],
@@ -55,6 +56,7 @@ test('validateReceipt keeps the pantry name, unit and stock verdict', () => {
         category: 'Alimentation',
         pantry_item: 'Lait demi-écrémé',
         pantry_unit: 'L',
+        pantry_content: 2,
         pantry_stock: true,
     }]);
 });
@@ -87,6 +89,162 @@ test('validateReceipt never invents a pantry name and bounds what it takes', () 
     assert.equal(line.pantry_stock, false);
 });
 
+// ─── Content of a line ────────────────────────────────────────────────────────
+// The model sets `quantity` to the number of items, so a 5 kg bag of rice
+// arrives as quantity 1: the content is the ONLY value that says how much
+// product the line holds, and a missing one must read as unknown (0), never as 1.
+
+test('validateReceipt reads the content of the line in its printed unit', () => {
+    const [line] = validateReceipt(
+        {
+            document_type: 'receipt',
+            date: '2026-10-10',
+            total: 10,
+            items: [{
+                label: 'RIJST BASMATI 5KG',
+                quantity: 1,
+                unit_price: 10,
+                amount: 10,
+                category: 'Alimentation',
+                pantry_item: 'Riz basmati',
+                pantry_unit: 'kg',
+                pantry_content: 5,
+                pantry_stock: true,
+            }],
+        },
+        CATEGORIES,
+        '2026-10-10',
+    ).items;
+
+    assert.equal(line.quantity, 1);
+    assert.equal(line.pantry_unit, 'kg');
+    assert.equal(line.pantry_content, 5);
+});
+
+test('a missing, negative or nonsense content reads as unknown, never as 1', () => {
+    const contents = [undefined, null, -2, 0, 'beaucoup', Number.NaN, Number.POSITIVE_INFINITY].map((value) => {
+        const [line] = validateReceipt(
+            {
+                document_type: 'receipt',
+                date: '2026-10-10',
+                total: 10,
+                items: [{
+                    label: 'RIJST BASMATI',
+                    quantity: 1,
+                    amount: 10,
+                    category: 'Alimentation',
+                    pantry_item: 'Riz',
+                    pantry_unit: 'kg',
+                    pantry_content: value,
+                    pantry_stock: true,
+                }],
+            },
+            CATEGORIES,
+            '2026-10-10',
+        ).items;
+        return line.pantry_content;
+    });
+
+    assert.deepEqual(contents, [0, 0, 0, 0, 0, 0, 0]);
+});
+
+test('a missing content is read off the label instead of staying unknown', () => {
+    const [line] = validateReceipt(
+        {
+            document_type: 'receipt',
+            date: '2026-10-10',
+            total: 10,
+            items: [{
+                label: 'RIJST BASMATI 5KG',
+                quantity: 1,
+                unit_price: 10,
+                amount: 10,
+                category: 'Alimentation',
+                pantry_item: 'Riz basmati',
+                // The model answered 0 for the content: before, this stored
+                // '1 kg' while the label said 5 kg.
+                pantry_unit: 'kg',
+                pantry_content: 0,
+                pantry_stock: true,
+            }],
+        },
+        CATEGORIES,
+        '2026-10-10',
+    ).items;
+
+    assert.equal(line.pantry_unit, 'kg');
+    assert.equal(line.pantry_content, 5);
+});
+
+test('the model content wins over the label inference', () => {
+    const [line] = validateReceipt(
+        {
+            document_type: 'receipt',
+            date: '2026-10-10',
+            total: 10,
+            items: [{
+                label: 'BROCCOLI 500g',
+                quantity: 1,
+                unit_price: 10,
+                amount: 10,
+                category: 'Alimentation',
+                pantry_item: 'Broccoli',
+                pantry_unit: 'pièce',
+                pantry_content: 2,
+                pantry_stock: true,
+            }],
+        },
+        CATEGORIES,
+        '2026-10-10',
+    ).items;
+
+    assert.equal(line.pantry_unit, 'pièce');
+    assert.equal(line.pantry_content, 2);
+});
+
+test('the content survives the reviewed draft, comma decimal included', () => {
+    const payload = validateReceiptImport(
+        {
+            merchant: 'Supermarché',
+            date: '2026-10-10',
+            currency: 'EUR',
+            document_type: 'receipt',
+            category: 'Alimentation',
+            total: 10,
+            mode: 'itemized',
+            items: [
+                {
+                    label: 'RIJST BASMATI 5KG',
+                    quantity: 1,
+                    amount: 5,
+                    category: 'Alimentation',
+                    pantry_item: 'Riz basmati',
+                    pantry_unit: 'kg',
+                    pantry_content: 5,
+                    pantry_stock: true,
+                },
+                {
+                    label: 'POMMES',
+                    quantity: 1,
+                    amount: 5,
+                    category: 'Alimentation',
+                    pantry_item: 'Pommes',
+                    pantry_unit: 'kg',
+                    pantry_content: '1,250',
+                    pantry_stock: true,
+                },
+            ],
+            entries: [{ category: 'Alimentation', amount: 10, description: 'Supermarché' }],
+        },
+        CATEGORIES,
+        'EUR',
+    );
+
+    assert.ok(payload);
+    assert.equal(payload.items[0].pantry_content, 5);
+    assert.equal(payload.items[1].pantry_content, 1.25);
+});
+
 test('validateReceiptImport passes the reviewed pantry fields through', () => {
     const payload = validateReceiptImport(
         {
@@ -115,7 +273,10 @@ test('validateReceiptImport passes the reviewed pantry fields through', () => {
 
     assert.ok(payload);
     assert.equal(payload.items[0].pantry_item, 'Lait');
-    assert.equal(payload.items[0].pantry_unit, 'L');
+    // The reviewed draft had no content either: the label 'LAIT 1L' × 2 packs is
+    // 2 litres, in the canonical unit (never the printed capital 'L').
+    assert.equal(payload.items[0].pantry_unit, 'l');
+    assert.equal(payload.items[0].pantry_content, 2);
     assert.equal(payload.items[0].pantry_stock, true);
 });
 
@@ -125,6 +286,8 @@ test('a line typed by hand carries no pantry name: the label stands in', () => {
     assert.ok(line);
     assert.equal(line.pantry_item, '');
     assert.equal(line.pantry_unit, '');
+    // A hand-typed line never saw a ticket: how much it holds is unknown.
+    assert.equal(line.pantry_content, 0);
 });
 
 // =============================================================================
@@ -157,6 +320,21 @@ test('receiptFingerprint: non-Latin shop names stay distinct', () => {
     assert.equal(receiptFingerprint('Магазин', '2026-10-10', 30), receiptFingerprint('магазин', '2026-10-10', 30));
     assert.notEqual(receiptFingerprint('Магазин', '2026-10-10', 30), receiptFingerprint('Продукты', '2026-10-10', 30));
     assert.notEqual(receiptFingerprint('商店', '2026-10-10', 30), receiptFingerprint('超市', '2026-10-10', 30));
+});
+
+// =============================================================================
+// The fork's language rule: the receipt keeps its own words, both the `label` on
+// the budget line and the generic `pantry_item` name. Translating the pantry name
+// would stop the folded-name merge from meeting the family's existing rows, and
+// it would stop the promo screen's "my products" mode from matching the Dutch and
+// French product names the Belgian shops publish.
+// =============================================================================
+
+test("the receipt prompt keeps the ticket's language for the pantry name", () => {
+    const prompt = buildReceiptPrompt(CATEGORIES, '2026-10-10', 'EUR');
+
+    assert.match(prompt, /Garde la langue du ticket/);
+    assert.doesNotMatch(prompt, /Écris ce nom en anglais/);
 });
 
 // =============================================================================

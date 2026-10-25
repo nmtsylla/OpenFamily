@@ -509,17 +509,25 @@ router.post('/import/receipt', async (req: AuthRequest, res) => {
         }
 
         const lines = await client.query(
-            'SELECT label, quantity, category FROM budget_receipt_items WHERE receipt_id = $1 ORDER BY position',
+            'SELECT label, quantity, category, unit, content FROM budget_receipt_items WHERE receipt_id = $1 ORDER BY position',
             [receiptId],
         );
-        const seeds = mapReceiptItems(lines.rows as { label: string; quantity: unknown; category: string }[]);
-        const { created, updated } = await mergeIntoPantry(client, req.userId!, seeds, 'receipt');
+        const seeds = mapReceiptItems(lines.rows as {
+            label: string;
+            quantity: unknown;
+            category: string;
+            unit: string | null;
+            content: unknown;
+        }[]);
+        const { created, updated, skipped } = await mergeIntoPantry(client, req.userId!, seeds, 'receipt');
         await client.query('COMMIT');
 
         if (created + updated > 0) {
             broadcast(req.userId!, { type: 'update', entity: 'shopping', action: 'updated' });
         }
-        res.json({ success: true, data: { created, updated } });
+        // A line whose unit contradicts the pantry row's own is reported, not
+        // merged: the receipt stays the place to see what was bought.
+        res.json({ success: true, data: { created, updated, skipped } });
     } catch (error) {
         await client.query('ROLLBACK').catch(() => {});
         logger.error('pantry.receipt_import_failed', {
@@ -557,6 +565,9 @@ router.get('/pending', async (req: AuthRequest, res) => {
                     quantity: toNumber(row.quantity),
                     unit: row.unit,
                     category: row.category,
+                    // The stockable line whose amount nobody knows: the page asks
+                    // the family for it before confirming.
+                    needs_amount: Boolean(row.needs_amount),
                     merchant: row.merchant,
                     date: row.date ? String(row.date).slice(0, 10) : null,
                     created_at: row.created_at,
@@ -575,14 +586,15 @@ router.get('/pending', async (req: AuthRequest, res) => {
 // a queued line: it joins the pantry (merged by folded name, like every other
 // import) and leaves the queue. Body: { name, category?, quantity?, unit? } —
 // the same shape as POST /api/pantry, so the page reuses one form.
+//
+// A queued line with `needs_amount` was stockable but nobody knew how much it
+// holds: the family must send a quantity > 0, else the answer is 400
+// AMOUNT_REQUIRED and the line STAYS in the queue (the claim below is rolled
+// back), because stocking it as 1 is exactly the bug this fixes.
 router.post('/pending/:id/confirm', async (req: AuthRequest, res) => {
     const id = req.params.id;
     if (!isUuid(id)) {
         return res.status(404).json({ success: false, error: 'NOT_FOUND' });
-    }
-    const input = sanitizePantryItem(req.body);
-    if (!input) {
-        return res.status(400).json({ success: false, error: 'INVALID_ITEM' });
     }
 
     const client = await getClient();
@@ -596,7 +608,7 @@ router.post('/pending/:id/confirm', async (req: AuthRequest, res) => {
         // unseen — the product was counted into the pantry twice. Now the loser
         // deletes nothing and answers 404, and the merge never runs twice.
         const claimed = await client.query(
-            'DELETE FROM custom_pantry_pending WHERE id = $1 AND user_id = $2 RETURNING id',
+            'DELETE FROM custom_pantry_pending WHERE id = $1 AND user_id = $2 RETURNING id, needs_amount',
             [id, req.userId],
         );
         if (claimed.rows.length === 0) {
@@ -604,12 +616,40 @@ router.post('/pending/:id/confirm', async (req: AuthRequest, res) => {
             return res.status(404).json({ success: false, error: 'NOT_FOUND' });
         }
 
-        const { created, updated } = await mergeIntoPantry(
+        // The raw body, not the sanitized item: `sanitizePantryItem` turns an
+        // absent quantity into 1, which is the value nobody typed. A line that
+        // needs an amount therefore demands a real one before the merge.
+        const rawQuantity = req.body && typeof req.body === 'object'
+            ? (req.body as Record<string, unknown>).quantity
+            : undefined;
+        const quantityGiven = rawQuantity !== undefined && rawQuantity !== null && rawQuantity !== ''
+            && Number(rawQuantity) > 0;
+        if (claimed.rows[0]?.needs_amount === true && !quantityGiven) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ success: false, error: 'AMOUNT_REQUIRED' });
+        }
+
+        // Sanitised after the claim (and after the amount check): an item that
+        // cannot be stored rolls the claim back, so the line stays queued.
+        const input = sanitizePantryItem(req.body);
+        if (!input) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ success: false, error: 'INVALID_ITEM' });
+        }
+
+        const { created, updated, skipped } = await mergeIntoPantry(
             client,
             req.userId!,
             [{ name: input.name, quantity: input.quantity, category: input.category, unit: input.unit }],
             'receipt',
         );
+        // The row exists under another unit: merging would be a wrong number, and
+        // dropping the queue line would lose the purchase. Roll the claim back so
+        // the line stays queued until the pantry row's unit is fixed.
+        if (skipped > 0) {
+            await client.query('ROLLBACK');
+            return res.status(409).json({ success: false, error: 'UNIT_CONFLICT' });
+        }
         await client.query('COMMIT');
 
         broadcast(req.userId!, { type: 'update', entity: 'shopping', action: 'updated' });

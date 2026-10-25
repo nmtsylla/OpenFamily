@@ -46,6 +46,10 @@
       "save": "Le reçu n'a pas pu être enregistré.",
       "duplicate": "Ce reçu a déjà été importé.",
       "nothingSelected": "Sélectionnez au moins une ligne."
-    }
+    },
+    "contentLabel": "Combien en tout ?",
+    "unitLabel": "Unité",
+    "contentHint": "Absent du ticket. Renseignez-le, ou le garde-manger le demandera.",
+    "contentNeedsUnit": "Donnez l'unité de ce montant, ou effacez-le."
   }
 }

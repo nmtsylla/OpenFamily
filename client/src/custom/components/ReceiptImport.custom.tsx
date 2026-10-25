@@ -23,6 +23,8 @@ interface ReceiptLine {
     pantry_item: string;
     /** Unit the ticket showed ('L', 'kg', 'pièce'…), '' when it showed none. */
     pantry_unit: string;
+    /** Total content of the line in `pantry_unit` ('RIJST BASMATI 5KG' → 5), 0 when the ticket does not say. */
+    pantry_content?: number;
     /**
      * The model's verdict: true only for lines that are plainly household stock
      * with a clear generic name. Those are stocked by the import; the others are
@@ -59,6 +61,11 @@ interface ReviewLine {
     /** What the pantry will store for this line (the label when the AI saw none). */
     pantry_item: string;
     pantry_unit: string;
+    /**
+     * Total content of the line in `pantry_unit`, edited as text (a comma is a
+     * decimal separator here), '' or 0 when the ticket did not say.
+     */
+    pantry_content: string;
     /** Stocked by the import, or queued for the pantry page. */
     pantry_stock: boolean;
 }
@@ -334,6 +341,10 @@ export const ReceiptImportDialog: React.FC<Props> = ({ open, onOpenChange, curre
                     unit_price: item.unit_price,
                     pantry_item: item.pantry_item ?? '',
                     pantry_unit: item.pantry_unit ?? '',
+                    // Kept as text for the input; '' when the ticket said
+                    // nothing, which is what asks the family for it. A 0 from an
+                    // older draft is the same unknown, not a zero amount.
+                    pantry_content: item.pantry_content && item.pantry_content > 0 ? String(item.pantry_content) : '',
                     pantry_stock: item.pantry_stock === true,
                 }))
             );
@@ -368,6 +379,7 @@ export const ReceiptImportDialog: React.FC<Props> = ({ open, onOpenChange, curre
                 // pantry page rather than stocked under a name nobody checked.
                 pantry_item: '',
                 pantry_unit: '',
+                pantry_content: '',
                 pantry_stock: false,
             },
         ]);
@@ -408,14 +420,20 @@ export const ReceiptImportDialog: React.FC<Props> = ({ open, onOpenChange, curre
             setError(t('budget:errors.amountInvalid'));
             return;
         }
+        // "5" with no unit cannot be stocked: the pantry would store 5 of
+        // nothing. An empty amount is fine — the pantry queue asks for it.
+        if (includedLines.some((line) => toAmount(line.pantry_content) > 0 && line.pantry_unit.trim() === '')) {
+            setError(t('budget.custom:receipt.contentNeedsUnit'));
+            return;
+        }
 
         setSaving(true);
         setError('');
-        let pantry: { created: number; updated: number; pending: number } | null = null;
+        let pantry: { created: number; updated: number; pending: number; skipped?: number } | null = null;
         try {
             const response = await api.post<{
                 success: boolean;
-                data: { pantry?: { created: number; updated: number; pending: number } | null };
+                data: { pantry?: { created: number; updated: number; pending: number; skipped?: number } | null };
             }>('/api/budget/receipts', {
                 merchant: descriptionBase,
                 date: entryDate,
@@ -439,6 +457,8 @@ export const ReceiptImportDialog: React.FC<Props> = ({ open, onOpenChange, curre
                     // the import may add without asking.
                     pantry_item: line.pantry_item,
                     pantry_unit: line.pantry_unit,
+                    // toAmount, not Number(): "1,5" is a decimal here.
+                    pantry_content: toAmount(line.pantry_content),
                     pantry_stock: line.pantry_stock,
                 })).filter((item) => item.amount > 0),
                 entries,
@@ -471,6 +491,13 @@ export const ReceiptImportDialog: React.FC<Props> = ({ open, onOpenChange, curre
                 description: t('pantry.custom:pending.subtitle'),
             });
         }
+        // The pantry row of that product already counts another unit (kg vs
+        // pièce): the line stays in the budget but is not stocked.
+        if (pantry && (pantry.skipped ?? 0) > 0) {
+            showToast({
+                title: t('pantry.custom:toasts.skippedUnits', { count: pantry.skipped ?? 0 }),
+            });
+        }
         close();
     };
 
@@ -488,6 +515,41 @@ export const ReceiptImportDialog: React.FC<Props> = ({ open, onOpenChange, curre
             ))}
         </select>
     );
+
+    /**
+     * How much product the line holds. A ticket often prints only the price, so
+     * the amount is editable here: shown when known, asked for when not — a
+     * blank amount is what makes the pantry queue ask again.
+     */
+    // Known only when both halves are there: an amount typed without its unit
+    // keeps the two inputs open, so the family can finish what it started.
+    const contentField = (line: ReviewLine) =>
+        toAmount(line.pantry_content) > 0 && line.pantry_unit.trim() !== '' ? (
+            <p className="truncate text-micro text-muted-foreground">
+                {[line.pantry_content.trim(), line.pantry_unit.trim()].filter(Boolean).join(' ')}
+            </p>
+        ) : (
+            <div className="space-y-1">
+                <div className="flex gap-2">
+                    <input
+                        value={line.pantry_content}
+                        inputMode="decimal"
+                        placeholder={t('budget.custom:receipt.contentLabel')}
+                        aria-label={`${t('budget.custom:receipt.contentLabel')} — ${line.label || t('budget.custom:receipt.lineLabel')}`}
+                        onChange={(event) => patchLine(line.id, { pantry_content: event.target.value })}
+                        className="input-nexus min-w-0 flex-1 py-0 text-caption"
+                    />
+                    <input
+                        value={line.pantry_unit}
+                        placeholder={t('budget.custom:receipt.unitLabel')}
+                        aria-label={`${t('budget.custom:receipt.unitLabel')} — ${line.label || t('budget.custom:receipt.lineLabel')}`}
+                        onChange={(event) => patchLine(line.id, { pantry_unit: event.target.value })}
+                        className="input-nexus w-20 shrink-0 py-0 text-caption"
+                    />
+                </div>
+                <p className="text-micro text-muted-foreground">{t('budget.custom:receipt.contentHint')}</p>
+            </div>
+        );
 
     return (
         <Dialog
@@ -689,6 +751,7 @@ export const ReceiptImportDialog: React.FC<Props> = ({ open, onOpenChange, curre
                                                         placeholder={t('budget.custom:receipt.lineLabel')}
                                                         className="input-nexus py-0 text-caption"
                                                     />
+                                                    {contentField(line)}
                                                     <div className="flex gap-2">
                                                         <div className="flex-1">
                                                             {lineCategorySelect(
