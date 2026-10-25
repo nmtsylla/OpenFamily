@@ -89,7 +89,17 @@
     "dialogTitle": "Nom et regroupement",
     "dialogHint": "Le nom est ce que le produit affiche. Ajoutez les autres noms d'un ticket ou d'un magasin pour les regrouper sous celui-ci.",
     "saveError": "Enregistrement impossible. Réessayez.",
-    "seeAll": "Voir tous les produits"
+    "seeAll": "Voir tous les produits",
+    "select": "Sélectionner {{name}}",
+    "selected": "{{count}} sélectionné(s)",
+    "clear": "Effacer",
+    "merge": "Regrouper la sélection",
+    "mergeTitle": "Regrouper des produits",
+    "mergeHint": "Ils deviennent un seul produit sous ce nom. Tous les noms restent attachés et le stock est additionné quand les unités correspondent.",
+    "mergeNames": "Noms regroupés : {{names}}",
+    "merged": "Regroupé sous {{name}}",
+    "mergeSkipped": "{{count}} ligne(s) de stock laissée(s) à part : autre unité.",
+    "mergeError": "Regroupement impossible. Réessayez."
   },
   "states": {
     "loading": "Chargement…",

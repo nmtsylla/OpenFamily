@@ -89,7 +89,17 @@
     "dialogTitle": "Nombre y grupo",
     "dialogHint": "El nombre es lo que muestra el producto. Añade los otros nombres de un ticket o de una tienda para agruparlos en este.",
     "saveError": "No se pudo guardar. Inténtalo de nuevo.",
-    "seeAll": "Ver todos los productos"
+    "seeAll": "Ver todos los productos",
+    "select": "Seleccionar {{name}}",
+    "selected": "{{count}} seleccionado(s)",
+    "clear": "Limpiar",
+    "merge": "Agrupar selección",
+    "mergeTitle": "Agrupar productos",
+    "mergeHint": "Se convierten en un solo producto con este nombre. Todos los nombres siguen adjuntos y el stock se suma cuando las unidades coinciden.",
+    "mergeNames": "Nombres agrupados: {{names}}",
+    "merged": "Agrupado como {{name}}",
+    "mergeSkipped": "{{count}} línea(s) de stock separada(s): otra unidad.",
+    "mergeError": "No se pudo agrupar. Inténtalo de nuevo."
   },
   "states": {
     "loading": "Loading…",

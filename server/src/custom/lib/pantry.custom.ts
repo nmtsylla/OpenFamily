@@ -111,6 +111,38 @@ export const pantryHeadName = (name: string): string => {
  * itself. Edit distance is deliberately absent: 'poisson' and 'boisson' are one
  * letter apart.
  */
+/** The separator a product's other names follow its own in the stored name. */
+export const PRODUCT_NAME_SEPARATOR = ' - ';
+
+/**
+ * One name out of a head and the names it answers to: 'Rijst - AH Basmati -
+ * Basmati rijst'. Folding duplicates out keeps a merge that repeats a printed
+ * label from storing it twice, and the column cap is applied once at the end.
+ */
+export const composeProductName = (name: string, aliases: readonly string[]): string => {
+    const seen = new Set<string>();
+    const parts: string[] = [];
+    for (const raw of [name, ...aliases]) {
+        const text = String(raw ?? '').replace(/\s+/g, ' ').trim();
+        const key = pantryNameKey(text);
+        if (key.length === 0 || seen.has(key)) continue;
+        seen.add(key);
+        parts.push(text);
+    }
+    return parts.join(PRODUCT_NAME_SEPARATOR).slice(0, MAX_PANTRY_NAME);
+};
+
+/**
+ * Whether two stock units can be added up. No unit on either side is no
+ * contradiction; 'L' and 'l' are one unit. 'kg' and 'pièce' are not, and adding
+ * them would be the wrong number this pantry refuses to show.
+ */
+export const unitsAgree = (a: string | null | undefined, b: string | null | undefined): boolean => {
+    const left = String(a ?? '').trim().toLowerCase();
+    const right = String(b ?? '').trim().toLowerCase();
+    return left.length === 0 || right.length === 0 || left === right;
+};
+
 export const pantryKeyResolver = (existingKeys: readonly string[]) => {
     const rows = new Set(existingKeys);
     // declared name → the row that answers to it. First row wins, so the winner
