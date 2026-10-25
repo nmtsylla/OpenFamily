@@ -39,6 +39,7 @@
 
 import { createHash } from 'node:crypto';
 import { MAX_PANTRY_NAME, MAX_PANTRY_UNIT } from '../lib/pantry.custom';
+import { inferLineAmount } from '../lib/quantityInference.custom';
 
 /** Accepted for both the analyse route and the client-side pre-checks. */
 export const RECEIPT_MEDIA_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'] as const;
@@ -110,12 +111,16 @@ export interface ReceiptLine {
      * creating a brand-named one. '' when the label is already the plain item.
      */
     pantry_item: string;
-    /** Packaging/content unit the document shows ('L', 'kg', 'pièce'…), else ''. */
+    /**
+     * Packaging/content unit: what the document shows ('L', 'kg', 'pièce'…), else
+     * the canonical unit the label inference found. '' when there is none.
+     */
     pantry_unit: string;
     /**
      * Total content of the line in `pantry_unit`: 5 for 'RIJST BASMATI 5KG',
-     * 1.25 for 'POMMES 1,250 KG'. 0 when the document does not say how much
-     * product the line holds — `quantity` is then only a pack count.
+     * 1.25 for 'POMMES 1,250 KG'. The model's answer wins; when it is 0, the
+     * extraction reads the size the label prints (lib/quantityInference.custom.ts),
+     * so a 500 g pack is 0.5 kg and never '1 g'. 0 only when neither says.
      */
     pantry_content: number;
     /**
@@ -192,6 +197,7 @@ export function buildReceiptPrompt(
         `    Un nom du garde-manger peut lui-même en contenir plusieurs, séparés par un tiret : "Uien - Oignon" veut dire que ce produit s'appelle uien ou oignon, et une ligne "UIEN" comme une ligne "OIGNON" doivent renvoyer exactement "Uien - Oignon" — c'est tout l'intérêt de cette liste.`,
         `    La liste est celle des produits du foyer, pas celle du ticket : ne l'utilise jamais pour inventer une ligne que le ticket ne porte pas, et ignore les produits du foyer qui ne sont pas sur ce ticket.`,
         `  "pantry_unit" = l'unité de conditionnement ou de contenu que le ticket précise ("L", "kg", "pièce", "pot", "paquet"…), "" sinon.`,
+        `    "pantry_unit" ne contient QUE l'unité, jamais une taille : une taille ("500g", "1,5L", "6x33cl") va dans "pantry_content" (déjà demandée), qui reçoit alors la quantité totale de produit, pas le nombre de paquets.`,
         `  "pantry_content" = la quantité totale de produit de cette ligne, exprimée dans "pantry_unit", en nombre (0 si le ticket ne permet pas de la calculer) : "RIJST BASMATI 5KG" → 5, "2 x LAIT 1L" → 2, "POMMES 1,250 KG" → 1.25.`,
         `  "pantry_stock" = true UNIQUEMENT si cette ligne est clairement un produit que le foyer garde chez lui (alimentaire, boisson, entretien, hygiène…) ET que "pantry_item" est un nom générique net. false pour un service, une taxe, une consigne, du carburant, une ligne illisible ou abrégée, et dès que tu as un doute : ces lignes seront proposées à la famille, qui décidera elle-même.`,
         ``,
@@ -282,15 +288,24 @@ export function validateReceiptImport(
         const label = cleanString(line.label, MAX_LABEL);
         const amount = cleanAmount(line.amount, false);
         if (!label || amount <= 0) continue;
+        const quantity = cleanQuantity(line.quantity);
+        // The reviewed line is stored with an amount even when the model left
+        // `pantry_content` at 0: the label already says it.
+        const pantryAmount = resolvePantryAmount(
+            label,
+            quantity,
+            cleanString(line.pantry_unit, MAX_PANTRY_UNIT),
+            cleanContent(line.pantry_content),
+        );
         items.push({
             label,
-            quantity: cleanQuantity(line.quantity),
+            quantity,
             unit_price: cleanAmount(line.unit_price, true),
             amount,
             category: resolveCategory(line.category, categories),
             pantry_item: cleanString(line.pantry_item, MAX_PANTRY_NAME),
-            pantry_unit: cleanString(line.pantry_unit, MAX_PANTRY_UNIT),
-            pantry_content: cleanContent(line.pantry_content),
+            pantry_unit: pantryAmount.unit,
+            pantry_content: pantryAmount.content,
             pantry_stock: line.pantry_stock === true,
         });
     }
@@ -389,6 +404,26 @@ const cleanContent = (value: unknown): number => {
 };
 
 /**
+ * The pantry amount of a line: the model's own content when it has one, the
+ * label/unit inference otherwise. A ticket that prints 'RIJST BASMATI 5KG'
+ * says the amount itself, and the extraction must not store a pack count under
+ * the pack's unit instead (the '500 g broccoli → Broccoli 1 g' bug).
+ *
+ * The inferred unit is the canonical one ('kg', 'l', 'pièce'), so the pantry and
+ * the analytics buckets agree with each other.
+ */
+const resolvePantryAmount = (
+    label: string,
+    quantity: number,
+    unit: string,
+    content: number,
+): { unit: string; content: number } => {
+    if (content > 0) return { unit, content };
+    const inferred = inferLineAmount({ label, quantity, unit });
+    return inferred ? { unit: inferred.unit, content: inferred.content } : { unit, content };
+};
+
+/**
  * Maps a model-proposed category onto the family's list (case-insensitive).
  * Unknown → "Autre" when the list has it, else the last entry (the family's
  * own catch-all, historically "Autre").
@@ -422,6 +457,13 @@ export function validateReceipt(
             || Math.round(quantity * unitPrice * 100) / 100;
         if (amount <= 0) continue;
 
+        const pantryAmount = resolvePantryAmount(
+            label,
+            quantity,
+            cleanString(line.pantry_unit, MAX_PANTRY_UNIT),
+            cleanContent(line.pantry_content),
+        );
+
         items.push({
             label,
             quantity,
@@ -429,8 +471,8 @@ export function validateReceipt(
             amount,
             category: resolveCategory(line.category, categories),
             pantry_item: cleanString(line.pantry_item, MAX_PANTRY_NAME),
-            pantry_unit: cleanString(line.pantry_unit, MAX_PANTRY_UNIT),
-            pantry_content: cleanContent(line.pantry_content),
+            pantry_unit: pantryAmount.unit,
+            pantry_content: pantryAmount.content,
             pantry_stock: line.pantry_stock === true,
         });
     }
@@ -480,6 +522,11 @@ export function validateReceiptLine(
     // A line typed by hand was never seen by the model: there is no pantry name
     // to propose and no verdict on whether it is stock, so the pantry import
     // sends it to the pending list (the label is its stand-in name).
+    //
+    // Its amount is deliberately left at 0: there is no read ticket behind it,
+    // so nothing here can be trusted to know how much the line holds. The label
+    // inference (lib/quantityInference.custom.ts) runs at the analytics read and
+    // in the pantry import, where the family can still correct it.
     return {
         label,
         quantity,
