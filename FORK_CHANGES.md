@@ -44,6 +44,7 @@ explained below.
 | Receipt / bill import with line detail. A **PDF is rendered to one JPEG per page in the browser** (pdf.js), never uploaded as a PDF: providers that take a `file` part are unreliable — the fork's OpenCode Zen gateway ingested about one document in five, answered the rest with `file must have a file_id or file_data` or hung until the route's 60 s timeout (the 502), and a failed ingest is then cached for the whole session so every later PDF came back as an empty draft — and Ollama refuses anything but images. A rendered page costs what a photo costs, so a PDF now takes the photo path on every provider, with a 5-page ceiling (more would exceed the route's file count) and the local size limits | `server/src/custom/routes/budgetReceipts.custom.ts`, `server/src/custom/ai/receipt.custom.ts`, `client/src/custom/components/{ReceiptImport,BudgetReceipts}.custom.tsx` | `CUSTOM_FEATURE_BUDGET_RECEIPTS_ENABLED` |
 | Budget analytics page, including **what the family bought** over the same range (spending per product plus how much of it, inside each printed unit, read from the imported receipt lines: `purchases` in the same response) | `server/src/custom/lib/{budgetAnalytics,productAnalytics}.custom.ts`, `server/src/custom/routes/budgetAnalytics.custom.ts`, `server/test/productAnalytics.custom.test.ts`, `client/src/custom/pages/BudgetAnalytics.custom.tsx` | `CUSTOM_FEATURE_BUDGET_ANALYTICS_ENABLED` |
 | Product groups: a pantry product answers to every name written in its name (`Rijst - AH Basmati - Basmati rijst`), the sort the merge already resolves. The pantry form edits the head and an "Also called" list apart. A receipt line whose printed label, or whose product name, is one of those names lands on the group in the receipt import, the per-receipt "add to pantry" button, and the products card, which shows the head once (`Rijst`) instead of a row per shop spelling. | `server/src/custom/lib/pantry.custom.ts` (`pantryHeadName`), `server/src/custom/lib/productAnalytics.custom.ts` (`groupKey` / `group`), `server/src/custom/routes/budgetAnalytics.custom.ts`, `client/src/custom/pages/Pantry.custom.tsx` | `CUSTOM_FEATURE_PANTRY_ENABLED`, `CUSTOM_FEATURE_BUDGET_ANALYTICS_ENABLED` |
+| Products page (`/products`): every product the pantry knows and every receipt group no pantry row declares, in one list with purchases, stock and a search over every name. Its edit dialog is the same Name + "Also called" pair as the pantry form; saving a name groups the product (the receipt labels resolve to it) and a rename keeps the old name as an alias so its purchases stay attached. A product the pantry does not track yet becomes a row with no stock. The analytics card links here ("See all products"), so a phone reaches it without a tab. | `server/src/custom/lib/productCatalog.custom.ts` (new), `server/src/custom/lib/productAnalytics.custom.ts` (`withNames`), `server/src/custom/routes/budgetAnalytics.custom.ts` (`GET /products`), `server/src/custom/routes/pantry.custom.ts` (`PUT /:id/name`), `server/test/productCatalog.custom.test.ts`, `client/src/custom/pages/Products.custom.tsx` (new), `client/src/custom/lib/productNames.custom.ts` (new), `client/src/custom/pages/{Pantry,BudgetAnalytics}.custom.tsx`, `client/src/custom/{routes,nav}.custom.ts` | `CUSTOM_FEATURE_BUDGET_ANALYTICS_ENABLED`, `CUSTOM_FEATURE_PANTRY_ENABLED` |
 | Receipt amounts: how much product each line holds, as a third value beside the printed label and the pack count. The import reads it off the ticket (the model's `pantry_content`), else off the size the label prints (`RIJST BASMATI 5KG` → 5 kg, `15x8g` → 0.12 kg), else from a weighed quantity. A stockable line with no known amount is not stocked as 1: the import review asks for it, and the pantry queue asks again and refuses to confirm without one. The pantry stocks the amount (0.5 kg of broccoli) instead of the pack count under the pack's unit (the old `Broccoli 1 g`), and a merge never adds two different units. Old receipt lines get the same inference at the analytics read. A label that no receipt can size is listed on the analytics page, one question per printed label ("one pack holds X"), and the answer fills every line that prints it. | `server/src/custom/lib/{quantityInference,receiptAmounts}.custom.ts`, `server/src/custom/lib/{pantry,pantryMerge}.custom.ts`, `server/src/custom/ai/receipt.custom.ts`, `server/src/custom/routes/{budgetReceipts,pantry,budgetAnalytics}.custom.ts`, `server/test/quantityInference.custom.test.ts`, `client/src/custom/components/{ReceiptImport,BudgetReceipts}.custom.tsx`, `client/src/custom/pages/Pantry.custom.tsx` | `CUSTOM_FEATURE_BUDGET_RECEIPTS_ENABLED`, `CUSTOM_FEATURE_PANTRY_ENABLED` |
 | Lunchboxes + weekly nutritional read (ported from KeurTonux), with manual and AI drink fields optional and validation/save errors kept inside the form dialog | `server/src/custom/lib/lunchbox.custom.ts`, `server/src/custom/lib/aiSettings.custom.ts`, `server/src/custom/lib/promptLanguage.custom.ts`, `server/src/custom/ai/{lunchbox,nutrition}.custom.ts`, `server/src/custom/routes/lunchbox.custom.ts`, `server/test/lunchbox.custom.test.ts`, `client/src/custom/pages/Lunchboxes.custom.tsx`, `client/src/custom/components/{LunchboxAiDialog,NutritionAnalysisDialog}.custom.tsx` | `CUSTOM_FEATURE_LUNCHBOX_ENABLED` |
 | Smart pantry — what the household has at home (locations, expiry, low stock), bridging the shopping list both ways, Grocy stock in, and the receipt import feeding it: the obviously stockable lines merge in under the brand-free name the AI read off the ticket, the rest wait in a review queue on the page; lunchbox AI and a "cook from what you have" tab out | `server/src/custom/lib/pantry.custom.ts`, `server/src/custom/lib/pantryMerge.custom.ts`, `server/src/custom/lib/validation.custom.ts`, `server/src/custom/routes/pantry.custom.ts`, `client/src/custom/pages/Pantry.custom.tsx`, `client/src/custom/components/PantryExpiryCard.custom.tsx`, `client/src/custom/lib/pantryMatch.custom.ts` | `CUSTOM_FEATURE_PANTRY_ENABLED` |
@@ -360,7 +361,7 @@ upstream locale file:
 
 ## Tests
 
-`server/test/{weather,aiProvider,budgetAnalytics,productAnalytics,quantityInference,receiptAmounts,aiPrompt,lunchbox,pantry,receipt,outings,productScan,aiPantry,news}.custom.test.ts` — matched by the
+`server/test/{weather,aiProvider,budgetAnalytics,productAnalytics,productCatalog,quantityInference,receiptAmounts,aiPrompt,lunchbox,pantry,receipt,outings,productScan,aiPantry,news}.custom.test.ts` — matched by the
 server's `tsx --test test/*.test.ts`. `aiPantry` covers the pantry
 half of the two AI prompts: the three states of the stock argument (`null` off,
 `[]` on and empty, values), the `pantry_item` validator (quantity 0 kept,
@@ -450,6 +451,11 @@ was verified in a browser instead (see "Verification" below).
 - **The demo's receipt import still splits lines the old way.** `client/src/demo/mockApi.ts`
   mirrors `splitReceiptLines` for the static demo; the amount rule is not mirrored there,
   because the demo has no pantry backend and no real tickets to parse.
+- **The products page keeps the old name on a rename, the pantry form does not.** Renaming a
+  product from `/products` puts its previous head into the alias list, so the receipt lines it
+  already has stay attached. The pantry form edits the raw name and does not add it back; a
+  rename done there can leave a receipt label attached to nothing until the names are grouped
+  again.
 - **Two pantry rows must not declare the same name.** `pantryKeyResolver` picks the first row
   that declares an alias (by name order), so adding a name that another row already
   answers to leaves two rows claiming it. The form does not merge existing rows: an
@@ -1641,3 +1647,38 @@ rijst` and `Café` apart. Adding `Thaise rijst` through the form's "Also called"
 saving turned the card into two products: `Rijst` 4 packs / €7.86 and `Café`. The form
 loaded `Name: Rijst` and `Also called: AH Basmati, Basmati rijst` from the stored name.
 Evidence in `artifacts/product-groups/`.
+
+
+### The products page (2026-10-25)
+
+The analytics card shows twenty products for one date range, which is not the catalog. The
+family needed a place to see every product and to decide which names are the same product.
+
+- **One list, two sources.** Every pantry row is a product, even with no purchase; every
+  receipt group whose name no pantry row declares is a product of its own. `productCatalog`
+  joins them by the folded group key, keeps the pantry row's stock, and sorts by spend then
+  name. The route is `GET /api/budget-analytics/products`, no date range.
+- **The same edit as the pantry.** The row's dialog is Name + "Also called", composed with
+  the dash separator the merge resolves. A tracked product is renamed through
+  `PUT /api/pantry/:id/name`, which touches the name only (a full PUT would reset category,
+  location and expiry). An untracked product is saved as a new pantry row with quantity 0:
+  the catalog names a product, it does not claim the family has it.
+- **A rename keeps the old name.** The previous head goes into the alias list, so the
+  purchases already attached to it stay attached.
+- **Reached from the card.** The products card carries a "See all products" link, which is
+  how a phone gets there; the sidebar entry is desktop-only because the tab bar is full.
+
+Server: `lib/productCatalog.custom.ts` (new), `lib/productAnalytics.custom.ts` (`withNames`),
+`routes/budgetAnalytics.custom.ts`, `routes/pantry.custom.ts`, `test/productCatalog.custom.test.ts`.
+Client: `pages/Products.custom.tsx` (new), `lib/productNames.custom.ts` (new, shared with the
+pantry form), `pages/{Pantry,BudgetAnalytics}.custom.tsx`, `routes.custom.tsx`,
+`nav.custom.ts`, six `analytics.custom.json`. No upstream file, no migration.
+
+Verified on the isolated stack. `npm test` 183/183 (five new tests), `tsc` clean on server and
+client, `check:i18n` OK for six languages. With two pantry rows and five receipt lines the
+catalog returned 6 products, including `Riz basmati` with no purchase and 5 kg in stock and
+`milano fotolijst 50x70cm` untracked. In Chromium: editing `Riz basmati` and adding
+`Rice, AH Basmati, Basmati rijst, Thaise rijst` left 3 products, with `Riz basmati` at 4 packs
+/ €7.86 and the three aliases listed; renaming the untracked `milano fotolijst 50x70cm` to
+`Cadre photo` kept 3 products and its 1 pack / €7.95, the old label now an alias. Evidence in
+`artifacts/product-catalog/`.

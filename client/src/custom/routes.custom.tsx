@@ -23,6 +23,7 @@ import { Navigate, Route } from 'react-router-dom';
 // (measured 2,097,362 → 2,009,466 bytes). The service worker precaches every
 // chunk, so an installed app opens them offline like the rest.
 const BudgetAnalytics = React.lazy(() => import('./pages/BudgetAnalytics.custom'));
+const Products = React.lazy(() => import('./pages/Products.custom'));
 const Lunchboxes = React.lazy(() => import('./pages/Lunchboxes.custom'));
 const Pantry = React.lazy(() => import('./pages/Pantry.custom'));
 const PromoWatchlist = React.lazy(() => import('./pages/PromoWatchlist.custom'));
@@ -39,6 +40,19 @@ const ProductScanner = React.lazy(() => import('./pages/ProductScanner.custom'))
 const Board = React.lazy(() => import('./pages/Board.custom'));
 
 export const customRoutes = (isModuleEnabled: (key: string) => boolean): React.ReactElement[] => [
+    <Route
+        key="products"
+        path="/products"
+        element={
+            isModuleEnabled('budgetAnalytics') ? (
+                <Suspense fallback={null}>
+                    <Products />
+                </Suspense>
+            ) : (
+                <Navigate to="/" replace />
+            )
+        }
+    />,
     <Route
         key="budget-analytics"
         path="/budget-analytics"

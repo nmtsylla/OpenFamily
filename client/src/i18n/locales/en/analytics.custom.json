@@ -1,7 +1,8 @@
 {
   "nav": {
     "budgetAnalytics": "Budget analytics",
-    "mobileBudgetAnalytics": "Analytics"
+    "mobileBudgetAnalytics": "Analytics",
+    "products": "Products"
   },
   "back": "Back to budget",
   "title": "Budget analytics",
@@ -71,6 +72,24 @@
     "lines": "{{count}} line(s) · {{amount}}",
     "hidden": "+{{count}} more",
     "error": "Could not save. Try again."
+  },
+  "page": {
+    "back": "Back to analytics",
+    "title": "Products",
+    "subtitle": "Every product the pantry knows and every name a receipt printed. Edit a name, add the other names it goes by, and the pantry and the stats treat them as one.",
+    "refresh": "Refresh",
+    "search": "Search a name",
+    "count": "{{count}} product(s)",
+    "empty": "No product matches.",
+    "lines": "{{count}} line(s) · {{amount}}",
+    "noPurchases": "No purchase yet",
+    "stock": "{{quantity}} {{unit}} in stock",
+    "untracked": "Not in the pantry yet",
+    "edit": "Edit",
+    "dialogTitle": "Name and group",
+    "dialogHint": "The name is what the product shows as. Add the other names a receipt or a shop uses to group them into this one.",
+    "saveError": "Could not save. Try again.",
+    "seeAll": "See all products"
   },
   "states": {
     "loading": "Loading…",

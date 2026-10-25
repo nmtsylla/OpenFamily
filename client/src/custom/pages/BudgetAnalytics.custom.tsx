@@ -395,6 +395,11 @@ const BudgetAnalyticsPage: React.FC = () => {
                         <ChartCard
                             title={t('analytics.custom:products.title')}
                             subtitle={t('analytics.custom:products.note')}
+                            action={
+                                <Link to="/products" className="text-caption font-medium text-primary hover:underline">
+                                    {t('analytics.custom:page.seeAll')}
+                                </Link>
+                            }
                         >
                             {data.purchases.byProduct.length === 0 ? (
                                 <p className="py-6 text-center text-sm text-muted-foreground">{t('analytics.custom:products.empty')}</p>

@@ -30,6 +30,7 @@ import { integrationRateLimiter } from '../middleware/rateLimit.custom';
 import { isUniqueViolation, isUuid } from '../lib/validation.custom';
 import {
     MAX_STOCK_LINES,
+    MAX_PANTRY_NAME,
     PANTRY_LOCATIONS,
     mapGrocyStock,
     mapReceiptItems,
@@ -297,6 +298,46 @@ router.post('/missing', async (req: AuthRequest, res) => {
 });
 
 // PUT /api/pantry/:id — the client sends the full item back.
+// PUT /api/pantry/:id/name — rename a product, aliases included, without touching
+// its stock. The products page groups a product by editing this; the full PUT
+// would reset category, location, notes and expiry to their defaults.
+router.put('/:id/name', async (req: AuthRequest, res) => {
+    try {
+        if (!isUuid(req.params.id)) {
+            return res.status(404).json({ success: false, error: 'NOT_FOUND' });
+        }
+        const raw = req.body && typeof req.body === 'object'
+            ? (req.body as Record<string, unknown>).name
+            : undefined;
+        const name = typeof raw === 'string' ? raw.replace(/\s+/g, ' ').trim().slice(0, MAX_PANTRY_NAME) : '';
+        if (name.length === 0) {
+            return res.status(400).json({ success: false, error: 'INVALID_ITEM' });
+        }
+
+        const result = await query(
+            `UPDATE custom_pantry_items
+                SET name = $3, name_key = $4, updated_at = CURRENT_TIMESTAMP
+              WHERE id = $1 AND user_id = $2
+              RETURNING *`,
+            [req.params.id, req.userId, name, pantryNameKey(name)],
+        );
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'NOT_FOUND' });
+        }
+
+        broadcast(req.userId!, { type: 'update', entity: 'shopping', action: 'updated' });
+        res.json({ success: true, data: { item: toItem(result.rows[0] as PantryRow) } });
+    } catch (error) {
+        if (isUniqueViolation(error)) {
+            return res.status(409).json({ success: false, error: 'DUPLICATE_NAME' });
+        }
+        logger.error('pantry.rename_failed', {
+            error: error instanceof Error ? error.message : String(error),
+        });
+        res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+});
+
 router.put('/:id', async (req: AuthRequest, res) => {
     try {
         // A malformed id would otherwise reach a UUID column and answer 500.

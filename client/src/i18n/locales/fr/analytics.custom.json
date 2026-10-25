@@ -1,7 +1,8 @@
 {
   "nav": {
     "budgetAnalytics": "Analyse du budget",
-    "mobileBudgetAnalytics": "Analyse"
+    "mobileBudgetAnalytics": "Analyse",
+    "products": "Produits"
   },
   "back": "Retour au budget",
   "title": "Analyse du budget",
@@ -71,6 +72,24 @@
     "lines": "{{count}} ligne(s) · {{amount}}",
     "hidden": "+{{count}} de plus",
     "error": "Enregistrement impossible. Réessayez."
+  },
+  "page": {
+    "back": "Retour aux statistiques",
+    "title": "Produits",
+    "subtitle": "Tous les produits du garde-manger et tous les noms imprimés sur un ticket. Modifiez un nom, ajoutez les autres noms du produit : le garde-manger et les statistiques les traitent comme un seul.",
+    "refresh": "Actualiser",
+    "search": "Rechercher un nom",
+    "count": "{{count}} produit(s)",
+    "empty": "Aucun produit ne correspond.",
+    "lines": "{{count}} ligne(s) · {{amount}}",
+    "noPurchases": "Aucun achat",
+    "stock": "{{quantity}} {{unit}} en stock",
+    "untracked": "Pas encore dans le garde-manger",
+    "edit": "Modifier",
+    "dialogTitle": "Nom et regroupement",
+    "dialogHint": "Le nom est ce que le produit affiche. Ajoutez les autres noms d'un ticket ou d'un magasin pour les regrouper sous celui-ci.",
+    "saveError": "Enregistrement impossible. Réessayez.",
+    "seeAll": "Voir tous les produits"
   },
   "states": {
     "loading": "Chargement…",
