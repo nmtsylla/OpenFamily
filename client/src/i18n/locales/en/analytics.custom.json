@@ -53,6 +53,15 @@
     "title": "Top merchants",
     "empty": "No receipt was imported over this period."
   },
+  "products": {
+    "title": "Products bought",
+    "note": "From imported receipts. A line with no printed unit counts in packs.",
+    "summary": "{{products}} products · {{amount}}",
+    "noUnit": "{{value}} ×",
+    "atLeast": "≥ {{value}}",
+    "hidden": "+{{count}} more",
+    "empty": "No receipt was imported over this period."
+  },
   "states": {
     "loading": "Loading…",
     "error": "Could not load the analytics.",
