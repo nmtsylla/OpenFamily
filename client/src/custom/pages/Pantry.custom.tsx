@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Package, Plus, Edit2, Trash2, ShoppingBasket, Download, Loader2, Sparkles } from 'lucide-react';
 import { api } from '../../lib/api';
+import { joinAliases, splitAliases } from '../lib/productNames.custom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCategories } from '../../hooks/useCategories';
 import { useWebSocketUpdates } from '../../hooks/useWebSocketUpdates';
@@ -87,23 +88,6 @@ const amountMissing = (line: PendingLine): boolean =>
 const LOCATIONS = ['pantry', 'fridge', 'freezer', 'cellar', 'other'] as const;
 const BUCKETS = ['main', 'fruit', 'snack', 'drink'] as const;
 const EXPIRY_DAYS = 14;
-
-/**
- * Other names live in the product's name itself, the convention the receipt merge
- * already resolves ('Rijst - AH Basmati - Basmati rijst'). The form edits the two
- * halves apart so the family does not have to know the syntax.
- */
-const ALIAS_SEPARATOR = ' - ';
-
-const splitAliases = (name: string): { name: string; aliases: string } => {
-    const parts = String(name ?? '').split(ALIAS_SEPARATOR).map((part) => part.trim()).filter(Boolean);
-    return { name: parts[0] ?? '', aliases: parts.slice(1).join(', ') };
-};
-
-const joinAliases = (name: string, aliases: string): string =>
-    [name.trim(), ...aliases.split(',').map((part) => part.trim()).filter(Boolean)]
-        .filter(Boolean)
-        .join(ALIAS_SEPARATOR);
 
 const emptyForm = {
     name: '',

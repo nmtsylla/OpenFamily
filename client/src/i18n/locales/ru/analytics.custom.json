@@ -1,7 +1,8 @@
 {
   "nav": {
     "budgetAnalytics": "Budget analytics",
-    "mobileBudgetAnalytics": "Analytics"
+    "mobileBudgetAnalytics": "Analytics",
+    "products": "Продукты"
   },
   "back": "Back to budget",
   "title": "Budget analytics",
@@ -71,6 +72,24 @@
     "lines": "{{count}} строк(и) · {{amount}}",
     "hidden": "ещё +{{count}}",
     "error": "Не удалось сохранить. Повторите."
+  },
+  "page": {
+    "back": "Назад к статистике",
+    "title": "Продукты",
+    "subtitle": "Все продукты кладовой и все названия, напечатанные в чеке. Измените название, добавьте другие названия продукта, и кладовая и статистика считают их одним.",
+    "refresh": "Обновить",
+    "search": "Найти название",
+    "count": "{{count}} продукт(ов)",
+    "empty": "Ничего не найдено.",
+    "lines": "{{count}} строк(и) · {{amount}}",
+    "noPurchases": "Покупок нет",
+    "stock": "{{quantity}} {{unit}} в запасе",
+    "untracked": "Ещё нет в кладовой",
+    "edit": "Изменить",
+    "dialogTitle": "Название и группа",
+    "dialogHint": "Название — то, что показывает продукт. Добавьте другие названия из чека или магазина, чтобы объединить их в это.",
+    "saveError": "Не удалось сохранить. Повторите.",
+    "seeAll": "Все продукты"
   },
   "states": {
     "loading": "Loading…",

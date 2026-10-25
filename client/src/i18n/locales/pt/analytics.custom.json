@@ -1,7 +1,8 @@
 {
   "nav": {
     "budgetAnalytics": "Budget analytics",
-    "mobileBudgetAnalytics": "Analytics"
+    "mobileBudgetAnalytics": "Analytics",
+    "products": "Produtos"
   },
   "back": "Back to budget",
   "title": "Budget analytics",
@@ -71,6 +72,24 @@
     "lines": "{{count}} linha(s) · {{amount}}",
     "hidden": "+{{count}} mais",
     "error": "Não foi possível guardar. Tente de novo."
+  },
+  "page": {
+    "back": "Voltar às estatísticas",
+    "title": "Produtos",
+    "subtitle": "Todos os produtos do inventário e todos os nomes impressos num talão. Edite um nome, acrescente os outros nomes do produto e o inventário e as estatísticas tratam-nos como um.",
+    "refresh": "Atualizar",
+    "search": "Procurar um nome",
+    "count": "{{count}} produto(s)",
+    "empty": "Nenhum produto corresponde.",
+    "lines": "{{count}} linha(s) · {{amount}}",
+    "noPurchases": "Sem compras",
+    "stock": "{{quantity}} {{unit}} em stock",
+    "untracked": "Ainda não está no inventário",
+    "edit": "Editar",
+    "dialogTitle": "Nome e grupo",
+    "dialogHint": "O nome é o que o produto mostra. Acrescente os outros nomes de um talão ou de uma loja para os agrupar neste.",
+    "saveError": "Não foi possível guardar. Tente de novo.",
+    "seeAll": "Ver todos os produtos"
   },
   "states": {
     "loading": "Loading…",

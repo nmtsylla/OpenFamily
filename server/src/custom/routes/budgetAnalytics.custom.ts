@@ -7,9 +7,14 @@ import {
     toAnalyticsEntries,
     type AnalyticsMember,
 } from '../lib/budgetAnalytics.custom';
-import { buildProductPurchases, type PurchaseLine } from '../lib/productAnalytics.custom';
+import {
+    buildProductPurchases,
+    type PurchaseLine,
+    type PurchasedProduct,
+} from '../lib/productAnalytics.custom';
 import { inferLineAmount } from '../lib/quantityInference.custom';
 import { pantryHeadName, pantryKeyResolver, pantryNameKey } from '../lib/pantry.custom';
+import { buildProductCatalog, type CatalogPantryRow } from '../lib/productCatalog.custom';
 
 // Fine-grained budget analytics — a SIDECAR to the shipped budget feature.
 //
@@ -58,6 +63,70 @@ const localToday = () => {
     return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 };
 
+/**
+ * The receipt lines of the family, mapped for the product module: DECIMALs to
+ * numbers, the amount inferred when it was never stored, and the pantry group each
+ * name belongs to. `start`/`end` (inclusive) scope it to a period; no range means
+ * the whole history, which is what the products page asks for.
+ */
+const loadPurchaseLines = async (
+    userId: string,
+    start?: string,
+    end?: string,
+): Promise<PurchaseLine[]> => {
+    const params: unknown[] = [userId];
+    let sql = `SELECT i.label, i.product, i.quantity, i.unit, i.content, i.amount
+                 FROM budget_receipt_items i
+                 JOIN budget_receipts r ON r.id = i.receipt_id
+                WHERE r.user_id = $1`;
+    if (start && end) {
+        params.push(start, dayAfter(end));
+        sql += ' AND r.date >= $2::date AND r.date < $3::date';
+    }
+
+    const [itemsResult, pantryResult] = await Promise.all([
+        query(sql, params),
+        // The family's own product names. A row named 'Rijst - AH Basmati -
+        // Basmati rijst' declares those names, so every receipt line that prints
+        // one lands on the single product 'Rijst', the same way the receipt
+        // import merges them into one pantry row.
+        query(
+            `SELECT name FROM custom_pantry_items
+              WHERE user_id = $1 AND source <> 'grocy'
+              ORDER BY name`,
+            [userId]
+        ),
+    ]);
+
+    const pantryNames = pantryResult.rows.map((row) => String(row.name));
+    const resolvePantryKey = pantryKeyResolver(pantryNames.map(pantryNameKey));
+    const pantryByKey = new Map(pantryNames.map((name) => [pantryNameKey(name), name]));
+
+    return itemsResult.rows.map((row) => {
+        const label = String(row.label ?? '');
+        const product = row.product ?? null;
+        const quantity = toNumber(row.quantity);
+        const unit = row.unit === null || row.unit === undefined ? null : String(row.unit);
+        const content = toNumber(row.content);
+        const inferred = content > 0 ? null : inferLineAmount({ label, quantity, unit });
+        // A line whose printed name (or the product name the model read) is a
+        // name the family grouped lands on that group's head.
+        const raw = String(product || label || '').trim();
+        const groupKey = raw.length > 0 ? resolvePantryKey(raw) : '';
+        const groupedName = groupKey.length > 0 ? pantryByKey.get(groupKey) : undefined;
+        return {
+            label,
+            product,
+            unit: inferred ? inferred.unit : unit,
+            quantity,
+            content: inferred ? inferred.content : content,
+            amount: toNumber(row.amount),
+            groupKey: groupedName ? groupKey : null,
+            group: groupedName ? pantryHeadName(groupedName) : null,
+        };
+    });
+};
+
 // ponytail: no index of its own. The family's table is small (tens to thousands
 // of rows) and a seq scan answers in milliseconds; the shipped per-column
 // indexes on budget_entries stay untouched. Add a composite (user_id, date)
@@ -77,7 +146,7 @@ router.get('/overview', async (req: AuthRequest, res) => {
             return res.status(400).json({ success: false, error: `range too long (max ${MAX_RANGE_DAYS} days)` });
         }
 
-        const [entriesResult, recurringResult, membersResult, itemsResult, pantryResult] = await Promise.all([
+        const [entriesResult, recurringResult, membersResult, lines] = await Promise.all([
             // Range predicate on the bare column: this is what the index above serves.
             query(
                 `SELECT be.id, be.category, be.amount, be.is_expense, be.date, be.assigned_to,
@@ -99,62 +168,8 @@ router.get('/overview', async (req: AuthRequest, res) => {
             ),
             query('SELECT id, name, color FROM family_members WHERE user_id = $1 ORDER BY name', [req.userId]),
             // The item lines of the imported receipts: what the family bought.
-            query(
-                `SELECT i.label, i.product, i.quantity, i.unit, i.content, i.amount
-                   FROM budget_receipt_items i
-                   JOIN budget_receipts r ON r.id = i.receipt_id
-                  WHERE r.user_id = $1
-                    AND r.date >= $2::date
-                    AND r.date < $3::date`,
-                [req.userId, start, dayAfter(end)]
-            ),
-            // The family's own product names. A row named 'Rijst - AH Basmati -
-            // Basmati rijst' declares those names, so every receipt line that
-            // prints one lands on the single product 'Rijst' in the card, the
-            // same way the receipt import merges them into one pantry row.
-            query(
-                `SELECT name FROM custom_pantry_items
-                  WHERE user_id = $1 AND source <> 'grocy'
-                  ORDER BY name`,
-                [req.userId]
-            ),
+            loadPurchaseLines(req.userId!, start, end),
         ]);
-
-        // pg returns DECIMAL as a string: coerce here, so the pure module only
-        // ever sees numbers.
-        //
-        // A line imported before the amount was stored (NULL content), or one
-        // whose extractor could not read it (0), gets the size its own label
-        // prints: the analytics page then shows 500 g of broccoli instead of
-        // '1' under a unit that means grams. The inference is the same one the
-        // import uses, so old and new receipts agree.
-        const pantryNames = pantryResult.rows.map((row) => String(row.name));
-        const resolvePantryKey = pantryKeyResolver(pantryNames.map(pantryNameKey));
-        const pantryByKey = new Map(pantryNames.map((name) => [pantryNameKey(name), name]));
-
-        const lines: PurchaseLine[] = itemsResult.rows.map((row) => {
-            const label = String(row.label ?? '');
-            const product = row.product ?? null;
-            const quantity = toNumber(row.quantity);
-            const unit = row.unit === null || row.unit === undefined ? null : String(row.unit);
-            const content = toNumber(row.content);
-            const inferred = content > 0 ? null : inferLineAmount({ label, quantity, unit });
-            // A line whose printed name (or the product name the model read) is a
-            // name the family grouped lands on that group's head.
-            const raw = String(product || label || '').trim();
-            const groupKey = raw.length > 0 ? resolvePantryKey(raw) : '';
-            const groupedName = groupKey.length > 0 ? pantryByKey.get(groupKey) : undefined;
-            return {
-                label,
-                product,
-                unit: inferred ? inferred.unit : unit,
-                quantity,
-                content: inferred ? inferred.content : content,
-                amount: toNumber(row.amount),
-                groupKey: groupedName ? groupKey : null,
-                group: groupedName ? pantryHeadName(groupedName) : null,
-            };
-        });
 
         // Both sides include the end day: `date < end + 1 day` here, and an
         // inclusive range end inside the expansion (see toAnalyticsEntries).
@@ -176,6 +191,46 @@ router.get('/overview', async (req: AuthRequest, res) => {
         });
     } catch (error) {
         console.error('Budget analytics error:', error);
+        res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+});
+
+// How many products one catalog request returns: every one a family plausibly has,
+// bounded so the page cannot become a phonebook.
+const MAX_CATALOG_PRODUCTS = 1000;
+
+// GET /api/budget-analytics/products — the products page's whole list: every
+// pantry row (a product exists without a purchase) plus every receipt group no
+// pantry row declares. The analytics card is a screenful about one period; this is
+// the catalog the family names and groups.
+router.get('/products', async (req: AuthRequest, res) => {
+    try {
+        const [lines, pantryResult] = await Promise.all([
+            loadPurchaseLines(req.userId!),
+            query(
+                `SELECT id, name, quantity, unit FROM custom_pantry_items
+                  WHERE user_id = $1
+                  ORDER BY name`,
+                [req.userId]
+            ),
+        ]);
+
+        const purchases = buildProductPurchases(lines, MAX_CATALOG_PRODUCTS, { withNames: true });
+        const groups = purchases.byProduct.filter(
+            (product): product is PurchasedProduct & { key: string; names: string[] } =>
+                typeof product.key === 'string' && Array.isArray(product.names),
+        );
+        const pantryRows: CatalogPantryRow[] = pantryResult.rows.map((row) => ({
+            id: String(row.id),
+            name: String(row.name),
+            quantity: toNumber(row.quantity),
+            unit: row.unit === null || row.unit === undefined ? null : String(row.unit),
+        }));
+
+        const products = buildProductCatalog(pantryRows, groups);
+        res.json({ success: true, data: { products, total: products.length } });
+    } catch (error) {
+        console.error('Product catalog error:', error);
         res.status(500).json({ success: false, error: 'Internal server error' });
     }
 });

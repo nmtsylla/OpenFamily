@@ -1,7 +1,8 @@
 {
   "nav": {
     "budgetAnalytics": "Budget analytics",
-    "mobileBudgetAnalytics": "Analytics"
+    "mobileBudgetAnalytics": "Analytics",
+    "products": "商品"
   },
   "back": "Back to budget",
   "title": "Budget analytics",
@@ -71,6 +72,24 @@
     "lines": "{{count}} 行 · {{amount}}",
     "hidden": "还有 {{count}} 个",
     "error": "保存失败，请重试。"
+  },
+  "page": {
+    "back": "返回统计",
+    "title": "商品",
+    "subtitle": "储藏室已知的每个商品，以及小票上印过的每个名称。修改名称，添加该商品的其他名称，储藏室和统计就会把它们视为一个。",
+    "refresh": "刷新",
+    "search": "搜索名称",
+    "count": "{{count}} 个商品",
+    "empty": "没有匹配的商品。",
+    "lines": "{{count}} 行 · {{amount}}",
+    "noPurchases": "尚无购买",
+    "stock": "库存 {{quantity}} {{unit}}",
+    "untracked": "尚未加入储藏室",
+    "edit": "编辑",
+    "dialogTitle": "名称与分组",
+    "dialogHint": "名称是商品显示的名称。添加小票或商店使用的其他名称，即可将它们归入这个商品。",
+    "saveError": "保存失败，请重试。",
+    "seeAll": "查看所有商品"
   },
   "states": {
     "loading": "Loading…",

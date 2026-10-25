@@ -62,6 +62,10 @@ export interface PurchasedProduct {
     lines: number;
     /** One entry per unit, heaviest first, the unit-less bucket last. */
     units: PurchaseUnit[];
+    /** Folded group key. Only with `{ withNames: true }` (the products page). */
+    key?: string;
+    /** Every raw spelling that landed in this group. Only with `{ withNames: true }`. */
+    names?: string[];
 }
 
 export interface ProductPurchases {
@@ -123,6 +127,7 @@ interface ProductGroup {
 export const buildProductPurchases = (
     lines: readonly PurchaseLine[],
     max = MAX_PRODUCTS,
+    options: { withNames?: boolean } = {},
 ): ProductPurchases => {
     const groups = new Map<string, ProductGroup>();
     const totals = { amount: 0, lines: 0, products: 0, hidden: 0 };
@@ -165,7 +170,7 @@ export const buildProductPurchases = (
         totals.lines += 1;
     }
 
-    const products: PurchasedProduct[] = Array.from(groups, ([, group]) => {
+    const products: PurchasedProduct[] = Array.from(groups, ([groupKey, group]) => {
         const units: PurchaseUnit[] = Array.from(group.units, ([unitKey, bucket]) => ({
             unit: unitKey.length === 0 ? null : pickSpelling(bucket.texts),
             content: unitKey.length === 0 ? 0 : roundTo(bucket.content, 3),
@@ -182,12 +187,17 @@ export const buildProductPurchases = (
             return (b.content || b.packs) - (a.content || a.packs) || compareText(a.unit ?? '', b.unit ?? '');
         });
 
-        return {
+        const product: PurchasedProduct = {
             name: group.groupName ?? pickSpelling(group.texts),
             amount: roundTo(group.amount, 2),
             lines: group.lines,
             units,
         };
+        if (options.withNames) {
+            product.key = groupKey;
+            product.names = Array.from(group.texts.keys());
+        }
+        return product;
     });
 
     products.sort((a, b) => b.amount - a.amount || compareText(a.name, b.name));

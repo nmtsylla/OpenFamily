@@ -19,6 +19,8 @@ export const customNavigation: CustomNavEntry[] = [
     // Flat href on purpose: a nested /budget/analytics would keep the upstream
     // Budget entry highlighted at the same time, since Layout matches by prefix.
     { labelKey: 'analytics.custom:nav.budgetAnalytics', href: '/budget-analytics', icon: BarChart3, module: 'budgetAnalytics' },
+    // Every product, not the analytics card's screenful: where names are grouped.
+    { labelKey: 'analytics.custom:nav.products', href: '/products', icon: Package, module: 'budgetAnalytics' },
     // Same reason for /lunchboxes: the upstream Meals entry matches /meals.
     { labelKey: 'lunchbox.custom:nav.lunchboxes', href: '/lunchboxes', icon: Sandwich, module: 'lunchbox' },
     { labelKey: 'pantry.custom:nav.pantry', href: '/pantry', icon: Package, module: 'pantry' },

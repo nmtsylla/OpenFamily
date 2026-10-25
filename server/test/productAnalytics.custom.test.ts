@@ -208,3 +208,18 @@ test('names grouped by the family add up as one product', () => {
         units: [{ unit: 'kg', content: 1, unsized: 0, packs: 2 }],
     });
 });
+
+
+test('withNames carries the group key and every printed spelling', () => {
+    const result = buildProductPurchases(
+        [
+            line({ label: 'AH Basmati', groupKey: 'rijst - ah basmati', group: 'Rijst', amount: 2 }),
+            line({ label: 'Basmati rijst', groupKey: 'rijst - ah basmati', group: 'Rijst', amount: 3 }),
+        ],
+        20,
+        { withNames: true },
+    );
+
+    assert.deepEqual(result.byProduct[0].key, 'rijst - ah basmati');
+    assert.deepEqual(result.byProduct[0].names?.sort(), ['AH Basmati', 'Basmati rijst']);
+});
