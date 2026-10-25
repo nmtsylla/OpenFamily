@@ -54,6 +54,7 @@ explained below.
 | Client hooks for custom code | `client/src/custom/{nav.custom.ts,routes.custom.tsx}` | — |
 | Deploy assets | `deploy/README.md`, `deploy/up.sh`, `docker-compose.override.yml` | — |
 | Maintenance: clear the Budget / Meals / Pantry domains (dry run by default, `--yes` to delete) | `scripts/clean-custom-data.mjs` | — |
+| Maintenance: fill the amount of receipt lines imported before `custom/0010-receipt-item-product` (dry run by default, `--yes` to write) | `scripts/backfill-receipt-amounts.ts` | — |
 | Translations | `client/src/i18n/locales/<lng>/{weather,activities,analytics,dashboard,budget,ai,lunchbox,pantry,outings,scan,market,layout,board}.custom.json` | — |
 | Screen wake lock — the app keeps the screen awake while it is the visible page, which is what makes a wall tablet or a phone left on the kitchen counter usable as a display; the lock is re-asked for on every return to visible (the browser drops it itself when the page hides) and released on unmount, and it exists once, in a hook the app-wide mount uses (it absorbed the family dashboard's own inline effect, which had the idempotence bug of stacking a second lock on a mount followed by a visible event) | `client/src/custom/hooks/useScreenWakeLock.custom.ts`, `client/src/custom/components/ScreenWakeLock.custom.tsx` (mounted from `client/src/main.tsx`) | — (no flag: client-only, no server route and no API surface, so there is nothing for a `CUSTOM_FEATURE_*` variable to unmount; its scope is the installed display mode, which `isStandalonePwa` holds — `matchMedia('(display-mode: standalone)')` or `navigator.standalone` — because a browser tab's screen is the browser's business, while the dashboard holds the lock whatever the display mode, a wall tablet being a display) |
 | Landscape mobile tab-bar collapse | `client/src/custom/components/LandscapeTabsToggle.custom.tsx`, `client/src/custom/lib/landscapeTabs.custom.css`, `client/src/i18n/locales/<lng>/layout.custom.json` | — (no flag: client-only, no server route and no API surface) |
@@ -1500,6 +1501,12 @@ asked for when nobody knows it, and derived for tickets imported earlier.
 - **Earlier imports.** The analytics read infers the amount for a line whose content is
   NULL, so old receipts show 1 kg of clementines. The per-receipt "add to pantry" button
   infers too, so a ticket imported before this change can still stock real amounts.
+- **The lines already on the instance.** `scripts/backfill-receipt-amounts.ts` writes that
+  same inference into the rows, so the amount is data every consumer reads instead of a
+  value recomputed per request. Run once after the deploy: 62 of the 110 lines took their
+  label's size (56 printed sizes, 6 weighed), stored as 44 kg, 11 l and 7 pièce. The other
+  48 lines, across 31 printed labels, print no size anywhere on the ticket and stay pack
+  counts in the stats; unit price cannot recover them (see the known gap).
 
 Server: `lib/quantityInference.custom.ts` (new), `ai/receipt.custom.ts`,
 `lib/{pantry,pantryMerge}.custom.ts`, `routes/{budgetReceipts,pantry,budgetAnalytics}.custom.ts`,
