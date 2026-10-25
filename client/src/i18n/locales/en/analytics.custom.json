@@ -62,6 +62,16 @@
     "hidden": "+{{count}} more",
     "empty": "No receipt was imported over this period."
   },
+  "missing": {
+    "title": "Quantities to fill in",
+    "note": "Receipts imported before the amount was stored. Say how much one pack holds, and the product list above uses it.",
+    "perPack": "One pack holds",
+    "unit": "Unit",
+    "save": "Save",
+    "lines": "{{count}} line(s) · {{amount}}",
+    "hidden": "+{{count}} more",
+    "error": "Could not save. Try again."
+  },
   "states": {
     "loading": "Loading…",
     "error": "Could not load the analytics.",

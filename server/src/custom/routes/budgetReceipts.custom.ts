@@ -13,6 +13,13 @@ import { isUuid } from '../lib/validation.custom';
 import { isCustomFeatureEnabled } from '../features.custom';
 import { splitReceiptLines } from '../lib/pantry.custom';
 import { mergeIntoPantry } from '../lib/pantryMerge.custom';
+import {
+    cleanUnit,
+    groupMissingAmounts,
+    parsePerPack,
+    planAmountFill,
+    type AmountlessLine,
+} from '../lib/receiptAmounts.custom';
 
 // Imported receipts and bills, with their line detail.
 //
@@ -363,6 +370,93 @@ router.get('/', async (req: AuthRequest, res) => {
     } catch (error) {
         console.error('List budget receipts error:', error);
         res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+});
+
+// The lines no data can size: imported before the amount was stored, and their
+// label prints no size. The analytics page asks one question per label ("one
+// pack holds X") and posts the answer back here.
+
+/** Lines of this family's receipts that still have no amount, newest first. */
+const amountlessLines = async (userId: string): Promise<AmountlessLine[]> => {
+    const result = await query(
+        `SELECT i.id, i.label, i.quantity, i.amount, r.date
+           FROM budget_receipt_items i
+           JOIN budget_receipts r ON r.id = i.receipt_id
+          WHERE r.user_id = $1
+            AND i.content IS NULL
+          ORDER BY r.date DESC, i.position`,
+        [userId],
+    );
+    return result.rows.map((row) => ({
+        id: String(row.id),
+        label: String(row.label ?? ''),
+        quantity: toNumber(row.quantity),
+        amount: toNumber(row.amount),
+        date: String(row.date ?? '').slice(0, 10),
+    }));
+};
+
+// GET /api/budget/receipts/missing-amounts — grouped by the label they print,
+// biggest spend first. A line the size inference can read is not listed: its
+// amount is already in the stats.
+router.get('/missing-amounts', async (req: AuthRequest, res) => {
+    try {
+        const lines = await amountlessLines(req.userId!);
+        res.json({ success: true, data: groupMissingAmounts(lines) });
+    } catch (error) {
+        console.error('Missing receipt amounts error:', error);
+        res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+});
+
+// POST /api/budget/receipts/missing-amounts — body { key, per_pack, unit }. `key`
+// is the folded label the GET returned. Every line of the family that prints it
+// takes `per_pack` times the packs it bought; a line whose amount is already
+// stored is left alone (the UPDATE repeats the test).
+//
+// Not parent-only: this is a product size, not a budget amount, and the pantry
+// page already lets every member correct what the household has.
+router.post('/missing-amounts', async (req: AuthRequest, res) => {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const key = typeof body.key === 'string' ? body.key.trim() : '';
+    const perPack = parsePerPack(body.per_pack);
+    const unit = cleanUnit(body.unit);
+    if (key.length === 0 || perPack === null || unit === null) {
+        return res.status(400).json({ success: false, error: 'INVALID_AMOUNT' });
+    }
+
+    const client = await getClient();
+    try {
+        const lines = await amountlessLines(req.userId!);
+        const fills = planAmountFill(lines, key, perPack, unit);
+        if (fills.length === 0) {
+            return res.status(404).json({ success: false, error: 'NOT_FOUND' });
+        }
+
+        await client.query('BEGIN');
+        for (const fill of fills) {
+            await client.query(
+                `UPDATE budget_receipt_items i
+                    SET content = $2, unit = $3
+                   FROM budget_receipts r
+                  WHERE i.id = $1
+                    AND i.receipt_id = r.id
+                    AND r.user_id = $4
+                    AND i.content IS NULL`,
+                [fill.id, fill.content, fill.unit, req.userId],
+            );
+        }
+        await client.query('COMMIT');
+
+        broadcast(req.userId!, { type: 'update', entity: 'budget', action: 'updated' });
+        res.json({ success: true, data: { updated: fills.length } });
+    } catch (error) {
+        await client.query('ROLLBACK').catch(() => {});
+        console.error('Fill receipt amounts error:', error);
+        res.status(500).json({ success: false, error: 'Internal server error' });
+    } finally {
+        client.release();
     }
 });
 

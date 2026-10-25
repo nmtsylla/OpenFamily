@@ -43,7 +43,7 @@ explained below.
 | Object storage for images (S3-compatible) | `server/src/custom/lib/{storage,media,storage-errors}.custom.ts`, `server/src/custom/middleware/media.custom.ts`, `server/src/custom/routes/media.custom.ts` | `CUSTOM_FEATURE_MEDIA_ENABLED` |
 | Receipt / bill import with line detail. A **PDF is rendered to one JPEG per page in the browser** (pdf.js), never uploaded as a PDF: providers that take a `file` part are unreliable — the fork's OpenCode Zen gateway ingested about one document in five, answered the rest with `file must have a file_id or file_data` or hung until the route's 60 s timeout (the 502), and a failed ingest is then cached for the whole session so every later PDF came back as an empty draft — and Ollama refuses anything but images. A rendered page costs what a photo costs, so a PDF now takes the photo path on every provider, with a 5-page ceiling (more would exceed the route's file count) and the local size limits | `server/src/custom/routes/budgetReceipts.custom.ts`, `server/src/custom/ai/receipt.custom.ts`, `client/src/custom/components/{ReceiptImport,BudgetReceipts}.custom.tsx` | `CUSTOM_FEATURE_BUDGET_RECEIPTS_ENABLED` |
 | Budget analytics page, including **what the family bought** over the same range (spending per product plus how much of it, inside each printed unit, read from the imported receipt lines: `purchases` in the same response) | `server/src/custom/lib/{budgetAnalytics,productAnalytics}.custom.ts`, `server/src/custom/routes/budgetAnalytics.custom.ts`, `server/test/productAnalytics.custom.test.ts`, `client/src/custom/pages/BudgetAnalytics.custom.tsx` | `CUSTOM_FEATURE_BUDGET_ANALYTICS_ENABLED` |
-| Receipt amounts: how much product each line holds, as a third value beside the printed label and the pack count. The import reads it off the ticket (the model's `pantry_content`), else off the size the label prints (`RIJST BASMATI 5KG` → 5 kg, `15x8g` → 0.12 kg), else from a weighed quantity. A stockable line with no known amount is not stocked as 1: the import review asks for it, and the pantry queue asks again and refuses to confirm without one. The pantry stocks the amount (0.5 kg of broccoli) instead of the pack count under the pack's unit (the old `Broccoli 1 g`), and a merge never adds two different units. Old receipt lines get the same inference at the analytics read. | `server/src/custom/lib/quantityInference.custom.ts`, `server/src/custom/lib/{pantry,pantryMerge}.custom.ts`, `server/src/custom/ai/receipt.custom.ts`, `server/src/custom/routes/{budgetReceipts,pantry,budgetAnalytics}.custom.ts`, `server/test/quantityInference.custom.test.ts`, `client/src/custom/components/{ReceiptImport,BudgetReceipts}.custom.tsx`, `client/src/custom/pages/Pantry.custom.tsx` | `CUSTOM_FEATURE_BUDGET_RECEIPTS_ENABLED`, `CUSTOM_FEATURE_PANTRY_ENABLED` |
+| Receipt amounts: how much product each line holds, as a third value beside the printed label and the pack count. The import reads it off the ticket (the model's `pantry_content`), else off the size the label prints (`RIJST BASMATI 5KG` → 5 kg, `15x8g` → 0.12 kg), else from a weighed quantity. A stockable line with no known amount is not stocked as 1: the import review asks for it, and the pantry queue asks again and refuses to confirm without one. The pantry stocks the amount (0.5 kg of broccoli) instead of the pack count under the pack's unit (the old `Broccoli 1 g`), and a merge never adds two different units. Old receipt lines get the same inference at the analytics read. A label that no receipt can size is listed on the analytics page, one question per printed label ("one pack holds X"), and the answer fills every line that prints it. | `server/src/custom/lib/{quantityInference,receiptAmounts}.custom.ts`, `server/src/custom/lib/{pantry,pantryMerge}.custom.ts`, `server/src/custom/ai/receipt.custom.ts`, `server/src/custom/routes/{budgetReceipts,pantry,budgetAnalytics}.custom.ts`, `server/test/quantityInference.custom.test.ts`, `client/src/custom/components/{ReceiptImport,BudgetReceipts}.custom.tsx`, `client/src/custom/pages/Pantry.custom.tsx` | `CUSTOM_FEATURE_BUDGET_RECEIPTS_ENABLED`, `CUSTOM_FEATURE_PANTRY_ENABLED` |
 | Lunchboxes + weekly nutritional read (ported from KeurTonux), with manual and AI drink fields optional and validation/save errors kept inside the form dialog | `server/src/custom/lib/lunchbox.custom.ts`, `server/src/custom/lib/aiSettings.custom.ts`, `server/src/custom/lib/promptLanguage.custom.ts`, `server/src/custom/ai/{lunchbox,nutrition}.custom.ts`, `server/src/custom/routes/lunchbox.custom.ts`, `server/test/lunchbox.custom.test.ts`, `client/src/custom/pages/Lunchboxes.custom.tsx`, `client/src/custom/components/{LunchboxAiDialog,NutritionAnalysisDialog}.custom.tsx` | `CUSTOM_FEATURE_LUNCHBOX_ENABLED` |
 | Smart pantry — what the household has at home (locations, expiry, low stock), bridging the shopping list both ways, Grocy stock in, and the receipt import feeding it: the obviously stockable lines merge in under the brand-free name the AI read off the ticket, the rest wait in a review queue on the page; lunchbox AI and a "cook from what you have" tab out | `server/src/custom/lib/pantry.custom.ts`, `server/src/custom/lib/pantryMerge.custom.ts`, `server/src/custom/lib/validation.custom.ts`, `server/src/custom/routes/pantry.custom.ts`, `client/src/custom/pages/Pantry.custom.tsx`, `client/src/custom/components/PantryExpiryCard.custom.tsx`, `client/src/custom/lib/pantryMatch.custom.ts` | `CUSTOM_FEATURE_PANTRY_ENABLED` |
 | AI outing planner on the Planning page — real nearby places from OpenStreetMap/Overpass ranked for the selected day, weather, party and relevant family profiles; choose saved home, browser position or a temporary city/area without changing home settings; restaurants require the exact `diet:halal=only` tag; location-free activity ideas never invent venues; the chosen outing is added through upstream's `/api/planning` | `server/src/custom/lib/places.custom.ts`, `server/src/custom/lib/{location,kids}.custom.ts`, `server/src/custom/ai/outings.custom.ts`, `server/src/custom/routes/outings.custom.ts`, `server/test/outings.custom.test.ts`, `client/src/custom/components/OutingPlanner.custom.tsx`, `client/src/custom/hooks/useOutings.custom.ts` | `CUSTOM_FEATURE_OUTINGS_ENABLED` |
@@ -54,6 +54,7 @@ explained below.
 | Client hooks for custom code | `client/src/custom/{nav.custom.ts,routes.custom.tsx}` | — |
 | Deploy assets | `deploy/README.md`, `deploy/up.sh`, `docker-compose.override.yml` | — |
 | Maintenance: clear the Budget / Meals / Pantry domains (dry run by default, `--yes` to delete) | `scripts/clean-custom-data.mjs` | — |
+| Maintenance: fill the amount of receipt lines imported before `custom/0010-receipt-item-product` (dry run by default, `--yes` to write) | `scripts/backfill-receipt-amounts.ts` | — |
 | Translations | `client/src/i18n/locales/<lng>/{weather,activities,analytics,dashboard,budget,ai,lunchbox,pantry,outings,scan,market,layout,board}.custom.json` | — |
 | Screen wake lock — the app keeps the screen awake while it is the visible page, which is what makes a wall tablet or a phone left on the kitchen counter usable as a display; the lock is re-asked for on every return to visible (the browser drops it itself when the page hides) and released on unmount, and it exists once, in a hook the app-wide mount uses (it absorbed the family dashboard's own inline effect, which had the idempotence bug of stacking a second lock on a mount followed by a visible event) | `client/src/custom/hooks/useScreenWakeLock.custom.ts`, `client/src/custom/components/ScreenWakeLock.custom.tsx` (mounted from `client/src/main.tsx`) | — (no flag: client-only, no server route and no API surface, so there is nothing for a `CUSTOM_FEATURE_*` variable to unmount; its scope is the installed display mode, which `isStandalonePwa` holds — `matchMedia('(display-mode: standalone)')` or `navigator.standalone` — because a browser tab's screen is the browser's business, while the dashboard holds the lock whatever the display mode, a wall tablet being a display) |
 | Landscape mobile tab-bar collapse | `client/src/custom/components/LandscapeTabsToggle.custom.tsx`, `client/src/custom/lib/landscapeTabs.custom.css`, `client/src/i18n/locales/<lng>/layout.custom.json` | — (no flag: client-only, no server route and no API surface) |
@@ -353,7 +354,7 @@ upstream locale file:
 
 ## Tests
 
-`server/test/{weather,aiProvider,budgetAnalytics,productAnalytics,quantityInference,aiPrompt,lunchbox,pantry,receipt,outings,productScan,aiPantry,news}.custom.test.ts` — matched by the
+`server/test/{weather,aiProvider,budgetAnalytics,productAnalytics,quantityInference,receiptAmounts,aiPrompt,lunchbox,pantry,receipt,outings,productScan,aiPantry,news}.custom.test.ts` — matched by the
 server's `tsx --test test/*.test.ts`. `aiPantry` covers the pantry
 half of the two AI prompts: the three states of the stock argument (`null` off,
 `[]` on and empty, values), the `pantry_item` validator (quantity 0 kept,
@@ -1500,6 +1501,20 @@ asked for when nobody knows it, and derived for tickets imported earlier.
 - **Earlier imports.** The analytics read infers the amount for a line whose content is
   NULL, so old receipts show 1 kg of clementines. The per-receipt "add to pantry" button
   infers too, so a ticket imported before this change can still stock real amounts.
+- **The lines already on the instance.** `scripts/backfill-receipt-amounts.ts` writes that
+  same inference into the rows, so the amount is data every consumer reads instead of a
+  value recomputed per request. Run once after the deploy: 62 of the 110 lines took their
+  label's size (56 printed sizes, 6 weighed), stored as 44 kg, 11 l and 7 pièce. The other
+  48 lines, across 31 printed labels, print no size anywhere on the ticket and stay pack
+  counts in the stats; unit price cannot recover them (see the known gap).
+- **The labels no receipt can size are asked once.** `GET /api/budget/receipts/missing-amounts`
+  groups the lines whose amount no inference can read, by the folded label they print, and
+  skips the ones it can read. `POST` the same path with `{ key, per_pack, unit }` writes
+  `per_pack × packs` to every line of the family that prints that label, in one transaction.
+  The analytics page shows the groups with a "One pack holds" field and a Save button; the
+  row disappears and the products card above reloads. The answer is a product size, so the
+  route is not parent-only; invalid sizes are refused with 400 `INVALID_AMOUNT` and an
+  unknown label answers 404.
 
 Server: `lib/quantityInference.custom.ts` (new), `ai/receipt.custom.ts`,
 `lib/{pantry,pantryMerge}.custom.ts`, `routes/{budgetReceipts,pantry,budgetAnalytics}.custom.ts`,
@@ -1520,6 +1535,14 @@ applied to a fresh database. API, with three receipts imported through
 - A pantry row `Café 1 g` plus a new `CAFE 250G` import reported `skipped: 1` and left the
   row unchanged, while the analytics page showed the bought 0.25 kg.
 - A receipt line inserted with no content (`CLEMENTINES 1KG`) → the product card showed 1 kg.
+
+The fill card was verified on the isolated stack with four lines (two `AH Basmati` lines, one
+`RIJST BASMATI 5KG` it can size, one `AH Druiven`): the GET returned two groups and left the
+rice out; `{ key: 'ah basmati', per_pack: '0,5', unit: 'kg' }` wrote 0.5 kg and 1 kg to its two
+lines and returned `updated: 2`; the GET then listed only `AH Druiven`, and the overview showed
+`AH Basmati` at 1.5 kg. An invalid size, an empty unit and an unknown label answered 400, 400
+and 404. In Chromium, the card showed `AH Druiven — 1 line(s) · €2.00` at 390 px, and saving
+0.75 kg removed it while the products card showed 0.75 kg.
 
 Driven in Chromium with `scripts/drive-receipt-amounts.mjs` (PASS): the review showed
 `6 kg` on a known line and the amount/unit inputs with the hint on the unknown one, the
