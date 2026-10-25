@@ -8,6 +8,7 @@ import {
     mapReceiptItems,
     pantryAliasKeys,
     pantryHeadKey,
+    pantryHeadName,
     pantryKeyResolver,
     pantryNameKey,
     sanitizePantryItem,
@@ -361,4 +362,15 @@ test('isCalendarDate: a real day, not just four-two-two digits', () => {
     assert.equal(isCalendarDate(''), false);
     assert.equal(isCalendarDate(null), false);
     assert.equal(isCalendarDate(20260301), false);
+});
+
+
+// The name a grouped product shows under in the stats: the head, in the family's
+// own casing.
+test('pantryHeadName keeps the name before the first qualifier', () => {
+    assert.equal(pantryHeadName('Rijst - AH Basmati - Basmati rijst'), 'Rijst');
+    assert.equal(pantryHeadName('Lait entier - Melk - Milk'), 'Lait entier');
+    assert.equal(pantryHeadName('Pommes de terre (sac)'), 'Pommes de terre');
+    assert.equal(pantryHeadName('Broccoli'), 'Broccoli');
+    assert.equal(pantryHeadName('  '), '');
 });

@@ -80,6 +80,18 @@ export const pantryAliasKeys = (name: string): string[] => {
 export const pantryHeadKey = (name: string): string => pantryAliasKeys(name)[0] ?? '';
 
 /**
+ * The name a grouped product shows under: the text before its first qualifier, in
+ * the family's own casing ('Rijst - AH Basmati' → 'Rijst'). `pantryHeadKey` is
+ * its folded counterpart; this one is for display (the analytics card, a receipt
+ * line that resolved to the row).
+ */
+export const pantryHeadName = (name: string): string => {
+    const text = String(name ?? '').trim();
+    const head = text.split(QUALIFIER_SEPARATOR)[0].trim();
+    return head.length > 0 ? head : text;
+};
+
+/**
  * What an incoming name adds up to. The folded name itself, or one of the names
  * an EXISTING row declares: a ticket that says 'Uien' — or 'Oignon' — lands on
  * the household's 'Uien - Oignon' row instead of opening a second one, which is

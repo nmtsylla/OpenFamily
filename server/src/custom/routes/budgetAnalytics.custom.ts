@@ -9,6 +9,7 @@ import {
 } from '../lib/budgetAnalytics.custom';
 import { buildProductPurchases, type PurchaseLine } from '../lib/productAnalytics.custom';
 import { inferLineAmount } from '../lib/quantityInference.custom';
+import { pantryHeadName, pantryKeyResolver, pantryNameKey } from '../lib/pantry.custom';
 
 // Fine-grained budget analytics — a SIDECAR to the shipped budget feature.
 //
@@ -76,7 +77,7 @@ router.get('/overview', async (req: AuthRequest, res) => {
             return res.status(400).json({ success: false, error: `range too long (max ${MAX_RANGE_DAYS} days)` });
         }
 
-        const [entriesResult, recurringResult, membersResult, itemsResult] = await Promise.all([
+        const [entriesResult, recurringResult, membersResult, itemsResult, pantryResult] = await Promise.all([
             // Range predicate on the bare column: this is what the index above serves.
             query(
                 `SELECT be.id, be.category, be.amount, be.is_expense, be.date, be.assigned_to,
@@ -107,6 +108,16 @@ router.get('/overview', async (req: AuthRequest, res) => {
                     AND r.date < $3::date`,
                 [req.userId, start, dayAfter(end)]
             ),
+            // The family's own product names. A row named 'Rijst - AH Basmati -
+            // Basmati rijst' declares those names, so every receipt line that
+            // prints one lands on the single product 'Rijst' in the card, the
+            // same way the receipt import merges them into one pantry row.
+            query(
+                `SELECT name FROM custom_pantry_items
+                  WHERE user_id = $1 AND source <> 'grocy'
+                  ORDER BY name`,
+                [req.userId]
+            ),
         ]);
 
         // pg returns DECIMAL as a string: coerce here, so the pure module only
@@ -117,19 +128,31 @@ router.get('/overview', async (req: AuthRequest, res) => {
         // prints: the analytics page then shows 500 g of broccoli instead of
         // '1' under a unit that means grams. The inference is the same one the
         // import uses, so old and new receipts agree.
+        const pantryNames = pantryResult.rows.map((row) => String(row.name));
+        const resolvePantryKey = pantryKeyResolver(pantryNames.map(pantryNameKey));
+        const pantryByKey = new Map(pantryNames.map((name) => [pantryNameKey(name), name]));
+
         const lines: PurchaseLine[] = itemsResult.rows.map((row) => {
             const label = String(row.label ?? '');
+            const product = row.product ?? null;
             const quantity = toNumber(row.quantity);
             const unit = row.unit === null || row.unit === undefined ? null : String(row.unit);
             const content = toNumber(row.content);
             const inferred = content > 0 ? null : inferLineAmount({ label, quantity, unit });
+            // A line whose printed name (or the product name the model read) is a
+            // name the family grouped lands on that group's head.
+            const raw = String(product || label || '').trim();
+            const groupKey = raw.length > 0 ? resolvePantryKey(raw) : '';
+            const groupedName = groupKey.length > 0 ? pantryByKey.get(groupKey) : undefined;
             return {
                 label,
-                product: row.product ?? null,
+                product,
                 unit: inferred ? inferred.unit : unit,
                 quantity,
                 content: inferred ? inferred.content : content,
                 amount: toNumber(row.amount),
+                groupKey: groupedName ? groupKey : null,
+                group: groupedName ? pantryHeadName(groupedName) : null,
             };
         });
 
