@@ -39,6 +39,7 @@ test('validateReceipt keeps the pantry name, unit and stock verdict', () => {
                     category: 'Alimentation',
                     pantry_item: '  Lait   demi-écrémé ',
                     pantry_unit: 'L',
+                    pantry_content: 2,
                     pantry_stock: true,
                 },
             ],
@@ -55,6 +56,7 @@ test('validateReceipt keeps the pantry name, unit and stock verdict', () => {
         category: 'Alimentation',
         pantry_item: 'Lait demi-écrémé',
         pantry_unit: 'L',
+        pantry_content: 2,
         pantry_stock: true,
     }]);
 });
@@ -85,6 +87,108 @@ test('validateReceipt never invents a pantry name and bounds what it takes', () 
     assert.equal(line.pantry_item, '');
     assert.equal(line.pantry_unit.length, 50);
     assert.equal(line.pantry_stock, false);
+});
+
+// ─── Content of a line ────────────────────────────────────────────────────────
+// The model sets `quantity` to the number of items, so a 5 kg bag of rice
+// arrives as quantity 1: the content is the ONLY value that says how much
+// product the line holds, and a missing one must read as unknown (0), never as 1.
+
+test('validateReceipt reads the content of the line in its printed unit', () => {
+    const [line] = validateReceipt(
+        {
+            document_type: 'receipt',
+            date: '2026-10-10',
+            total: 10,
+            items: [{
+                label: 'RIJST BASMATI 5KG',
+                quantity: 1,
+                unit_price: 10,
+                amount: 10,
+                category: 'Alimentation',
+                pantry_item: 'Riz basmati',
+                pantry_unit: 'kg',
+                pantry_content: 5,
+                pantry_stock: true,
+            }],
+        },
+        CATEGORIES,
+        '2026-10-10',
+    ).items;
+
+    assert.equal(line.quantity, 1);
+    assert.equal(line.pantry_unit, 'kg');
+    assert.equal(line.pantry_content, 5);
+});
+
+test('a missing, negative or nonsense content reads as unknown, never as 1', () => {
+    const contents = [undefined, null, -2, 0, 'beaucoup', Number.NaN, Number.POSITIVE_INFINITY].map((value) => {
+        const [line] = validateReceipt(
+            {
+                document_type: 'receipt',
+                date: '2026-10-10',
+                total: 10,
+                items: [{
+                    label: 'RIJST BASMATI',
+                    quantity: 1,
+                    amount: 10,
+                    category: 'Alimentation',
+                    pantry_item: 'Riz',
+                    pantry_unit: 'kg',
+                    pantry_content: value,
+                    pantry_stock: true,
+                }],
+            },
+            CATEGORIES,
+            '2026-10-10',
+        ).items;
+        return line.pantry_content;
+    });
+
+    assert.deepEqual(contents, [0, 0, 0, 0, 0, 0, 0]);
+});
+
+test('the content survives the reviewed draft, comma decimal included', () => {
+    const payload = validateReceiptImport(
+        {
+            merchant: 'Supermarché',
+            date: '2026-10-10',
+            currency: 'EUR',
+            document_type: 'receipt',
+            category: 'Alimentation',
+            total: 10,
+            mode: 'itemized',
+            items: [
+                {
+                    label: 'RIJST BASMATI 5KG',
+                    quantity: 1,
+                    amount: 5,
+                    category: 'Alimentation',
+                    pantry_item: 'Riz basmati',
+                    pantry_unit: 'kg',
+                    pantry_content: 5,
+                    pantry_stock: true,
+                },
+                {
+                    label: 'POMMES',
+                    quantity: 1,
+                    amount: 5,
+                    category: 'Alimentation',
+                    pantry_item: 'Pommes',
+                    pantry_unit: 'kg',
+                    pantry_content: '1,250',
+                    pantry_stock: true,
+                },
+            ],
+            entries: [{ category: 'Alimentation', amount: 10, description: 'Supermarché' }],
+        },
+        CATEGORIES,
+        'EUR',
+    );
+
+    assert.ok(payload);
+    assert.equal(payload.items[0].pantry_content, 5);
+    assert.equal(payload.items[1].pantry_content, 1.25);
 });
 
 test('validateReceiptImport passes the reviewed pantry fields through', () => {
@@ -125,6 +229,8 @@ test('a line typed by hand carries no pantry name: the label stands in', () => {
     assert.ok(line);
     assert.equal(line.pantry_item, '');
     assert.equal(line.pantry_unit, '');
+    // A hand-typed line never saw a ticket: how much it holds is unknown.
+    assert.equal(line.pantry_content, 0);
 });
 
 // =============================================================================

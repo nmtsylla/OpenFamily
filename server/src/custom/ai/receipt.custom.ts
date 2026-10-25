@@ -15,11 +15,14 @@
 // their own category. A bill with no itemised lines (rent, electricity,
 // subscription) yields items: [] and a single entry for its total.
 //
-// Every line also carries `pantry_item` / `pantry_unit`: the same purchase with
-// the brand, the format and the promo text dropped, plus the unit the document
-// shows. That is what the pantry import stores, so the next ticket with the same
-// product adds up to the same row instead of opening a second one under a brand
-// name. The `label` stays the printed text (it describes the budget entry).
+// Every line also carries `pantry_item` / `pantry_unit` / `pantry_content`: the
+// same purchase with the brand, the format and the promo text dropped, plus the
+// unit the document shows and how much product the line holds in that unit.
+// The pantry import stores the name and the unit; the receipt line keeps all
+// three, so the analytics page can add up what the family bought. The name is
+// also what makes the next ticket with the same product add up to one pantry row
+// instead of opening a second one under a brand name. The `label` stays the
+// printed text (it describes the budget entry).
 //
 // The prompt also receives the names already in the household's pantry, and one
 // rule is added with them: when a line IS one of those products, the model hands
@@ -74,7 +77,7 @@ export const RECEIPT_SCHEMA: Record<string, unknown> = {
             items: {
                 type: 'object',
                 additionalProperties: false,
-                required: ['label', 'quantity', 'unit_price', 'amount', 'category', 'pantry_item', 'pantry_unit', 'pantry_stock'],
+                required: ['label', 'quantity', 'unit_price', 'amount', 'category', 'pantry_item', 'pantry_unit', 'pantry_content', 'pantry_stock'],
                 properties: {
                     label: { type: 'string' },
                     quantity: { type: 'number' },
@@ -83,6 +86,7 @@ export const RECEIPT_SCHEMA: Record<string, unknown> = {
                     category: { type: 'string' },
                     pantry_item: { type: 'string' },
                     pantry_unit: { type: 'string' },
+                    pantry_content: { type: 'number' },
                     pantry_stock: { type: 'boolean' },
                 },
             },
@@ -108,6 +112,12 @@ export interface ReceiptLine {
     pantry_item: string;
     /** Packaging/content unit the document shows ('L', 'kg', 'pièce'…), else ''. */
     pantry_unit: string;
+    /**
+     * Total content of the line in `pantry_unit`: 5 for 'RIJST BASMATI 5KG',
+     * 1.25 for 'POMMES 1,250 KG'. 0 when the document does not say how much
+     * product the line holds — `quantity` is then only a pack count.
+     */
+    pantry_content: number;
     /**
      * True only when this line is clearly household stock with an unambiguous
      * generic name: those go straight into the pantry. Everything else (a
@@ -182,6 +192,7 @@ export function buildReceiptPrompt(
         `    Un nom du garde-manger peut lui-même en contenir plusieurs, séparés par un tiret : "Uien - Oignon" veut dire que ce produit s'appelle uien ou oignon, et une ligne "UIEN" comme une ligne "OIGNON" doivent renvoyer exactement "Uien - Oignon" — c'est tout l'intérêt de cette liste.`,
         `    La liste est celle des produits du foyer, pas celle du ticket : ne l'utilise jamais pour inventer une ligne que le ticket ne porte pas, et ignore les produits du foyer qui ne sont pas sur ce ticket.`,
         `  "pantry_unit" = l'unité de conditionnement ou de contenu que le ticket précise ("L", "kg", "pièce", "pot", "paquet"…), "" sinon.`,
+        `  "pantry_content" = la quantité totale de produit de cette ligne, exprimée dans "pantry_unit", en nombre (0 si le ticket ne permet pas de la calculer) : "RIJST BASMATI 5KG" → 5, "2 x LAIT 1L" → 2, "POMMES 1,250 KG" → 1.25.`,
         `  "pantry_stock" = true UNIQUEMENT si cette ligne est clairement un produit que le foyer garde chez lui (alimentaire, boisson, entretien, hygiène…) ET que "pantry_item" est un nom générique net. false pour un service, une taxe, une consigne, du carburant, une ligne illisible ou abrégée, et dès que tu as un doute : ces lignes seront proposées à la famille, qui décidera elle-même.`,
         ``,
         `Règles :`,
@@ -279,6 +290,7 @@ export function validateReceiptImport(
             category: resolveCategory(line.category, categories),
             pantry_item: cleanString(line.pantry_item, MAX_PANTRY_NAME),
             pantry_unit: cleanString(line.pantry_unit, MAX_PANTRY_UNIT),
+            pantry_content: cleanContent(line.pantry_content),
             pantry_stock: line.pantry_stock === true,
         });
     }
@@ -365,6 +377,18 @@ const cleanQuantity = (value: unknown): number => {
 };
 
 /**
+ * Content of a line in its printed unit: number or numeric string with a comma,
+ * positive, capped, 3 decimals. 0 = unknown, and 0 is a real answer here ("the
+ * ticket did not say how much the line holds"), so it never falls back to 1.
+ */
+const cleanContent = (value: unknown): number => {
+    const raw = typeof value === 'number' ? value : typeof value === 'string' ? value.replace(',', '.') : NaN;
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed) || parsed <= 0 || parsed > 10000) return 0;
+    return Math.round(parsed * 1000) / 1000;
+};
+
+/**
  * Maps a model-proposed category onto the family's list (case-insensitive).
  * Unknown → "Autre" when the list has it, else the last entry (the family's
  * own catch-all, historically "Autre").
@@ -406,6 +430,7 @@ export function validateReceipt(
             category: resolveCategory(line.category, categories),
             pantry_item: cleanString(line.pantry_item, MAX_PANTRY_NAME),
             pantry_unit: cleanString(line.pantry_unit, MAX_PANTRY_UNIT),
+            pantry_content: cleanContent(line.pantry_content),
             pantry_stock: line.pantry_stock === true,
         });
     }
@@ -463,6 +488,8 @@ export function validateReceiptLine(
         category: resolveCategory(raw.category, categories),
         pantry_item: '',
         pantry_unit: '',
+        // Nothing was read off a document: how much the line holds is unknown.
+        pantry_content: 0,
         pantry_stock: false,
     };
 }

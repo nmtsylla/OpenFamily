@@ -510,5 +510,23 @@ export const coreMigrations: readonly Migration[] = [
             )`,
         ],
     },
+    {
+        // Three values per receipt line, so the analytics page can add up what the
+        // family bought instead of only what it spent: `product` is the brand-free
+        // name, `unit` the unit the ticket printed, and `content` how much product
+        // the line holds in that unit ('RIJST BASMATI 5KG' → 5, quantity 1). The
+        // import already reads all three off the ticket (`pantry_item`,
+        // `pantry_unit`, `pantry_content` in ai/receipt.custom.ts) and used to drop
+        // them. `content` is NULL when the ticket does not say how much the line
+        // holds; the quantity is then a pack count. Nullable: lines imported before
+        // this migration keep NULL, and the aggregation falls back to the label and
+        // to a pack count.
+        id: 'custom/0010-receipt-item-product',
+        statements: [
+            'ALTER TABLE budget_receipt_items ADD COLUMN IF NOT EXISTS product VARCHAR(160)',
+            'ALTER TABLE budget_receipt_items ADD COLUMN IF NOT EXISTS unit VARCHAR(50)',
+            'ALTER TABLE budget_receipt_items ADD COLUMN IF NOT EXISTS content DECIMAL(10,3)',
+        ],
+    },
     // FORK-END: custom-migrations
 ];

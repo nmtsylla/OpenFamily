@@ -20,6 +20,8 @@ interface ReceiptLine {
     pantry_item: string;
     /** Unit the ticket showed ('L', 'kg', 'pièce'…), '' when it showed none. */
     pantry_unit: string;
+    /** Total content of the line in `pantry_unit` ('RIJST BASMATI 5KG' → 5), 0 when the ticket does not say. */
+    pantry_content?: number;
     /**
      * The model's verdict: true only for lines that are plainly household stock
      * with a clear generic name. Those are stocked by the import; the others are
@@ -56,6 +58,8 @@ interface ReviewLine {
     /** What the pantry will store for this line (the label when the AI saw none). */
     pantry_item: string;
     pantry_unit: string;
+    /** Total content of the line in `pantry_unit`, 0 when the ticket did not say. */
+    pantry_content?: number;
     /** Stocked by the import, or queued for the pantry page. */
     pantry_stock: boolean;
 }
@@ -272,6 +276,7 @@ export const ReceiptImportDialog: React.FC<Props> = ({ open, onOpenChange, curre
                     unit_price: item.unit_price,
                     pantry_item: item.pantry_item ?? '',
                     pantry_unit: item.pantry_unit ?? '',
+                    pantry_content: item.pantry_content ?? 0,
                     pantry_stock: item.pantry_stock === true,
                 }))
             );
@@ -306,6 +311,7 @@ export const ReceiptImportDialog: React.FC<Props> = ({ open, onOpenChange, curre
                 // pantry page rather than stocked under a name nobody checked.
                 pantry_item: '',
                 pantry_unit: '',
+                pantry_content: 0,
                 pantry_stock: false,
             },
         ]);
@@ -377,6 +383,7 @@ export const ReceiptImportDialog: React.FC<Props> = ({ open, onOpenChange, curre
                     // the import may add without asking.
                     pantry_item: line.pantry_item,
                     pantry_unit: line.pantry_unit,
+                    pantry_content: Number(line.pantry_content) || 0,
                     pantry_stock: line.pantry_stock,
                 })).filter((item) => item.amount > 0),
                 entries,

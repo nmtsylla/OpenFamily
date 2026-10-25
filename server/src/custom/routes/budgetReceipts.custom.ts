@@ -154,9 +154,21 @@ const insertReceipt = async (
         for (const [position, item] of payload.items.entries()) {
             await client.query(
                 `INSERT INTO budget_receipt_items
-                    (receipt_id, position, label, quantity, unit_price, amount, category)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-                [receiptId, position, item.label, item.quantity, item.unit_price, item.amount, item.category]
+                    (receipt_id, position, label, quantity, unit_price, amount, category, product, unit, content)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+                [
+                    receiptId,
+                    position,
+                    item.label,
+                    item.quantity,
+                    item.unit_price,
+                    item.amount,
+                    item.category,
+                    item.pantry_item || null,
+                    item.pantry_unit || null,
+                    // NULL, not 0: the ticket did not say how much the line holds.
+                    item.pantry_content > 0 ? item.pantry_content : null,
+                ]
             );
         }
 
