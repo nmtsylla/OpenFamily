@@ -11,7 +11,7 @@ import { formatCurrency } from '../../lib/utils';
 import { dateLocale, intlLocale } from '../../i18n/format';
 import { format } from 'date-fns';
 import ChartCard from '../../components/app/ChartCard';
-import { Card, CardContent, DatePicker } from '../../components/ui';
+import { Button, Card, CardContent, DatePicker } from '../../components/ui';
 
 // Fine-grained budget analysis, on its own page and its own endpoint
 // (/api/budget-analytics/overview) so the shipped Budget page and its routes are
@@ -49,6 +49,17 @@ interface PurchasedProduct {
 interface ProductPurchases {
     byProduct: PurchasedProduct[];
     totals: { amount: number; lines: number; products: number; hidden: number };
+}
+
+interface MissingAmount {
+    /** Folded label: what a fill request names. */
+    key: string;
+    /** The spelling the family sees. */
+    label: string;
+    lines: number;
+    packs: number;
+    amount: number;
+    last: string;
 }
 
 interface BudgetAnalytics {
@@ -94,6 +105,12 @@ const weekdayLabel = (isoWeekday: number) =>
 const quantityText = (value: number) =>
     new Intl.NumberFormat(intlLocale(), { maximumFractionDigits: 3 }).format(value);
 
+/** An answer typed by hand: a comma is a decimal separator here. */
+const toAmount = (value: string): number => {
+    const parsed = Number(value.replace(',', '.'));
+    return Number.isFinite(parsed) ? parsed : 0;
+};
+
 const BudgetAnalyticsPage: React.FC = () => {
     const { t } = useTranslation(['analytics.custom', 'budget', 'common']);
     const { user, isModuleEnabled } = useAuth();
@@ -129,6 +146,64 @@ const BudgetAnalyticsPage: React.FC = () => {
     }, [start, end]);
 
     useEffect(() => { void load(); }, [load]);
+
+    // Lines no data can size: the family answers once per printed label. The
+    // receipt module owns the route, so the card is only fetched when it is on.
+    const receiptsEnabled = isModuleEnabled('budgetReceipts');
+    const [missing, setMissing] = useState<MissingAmount[]>([]);
+    const [missingHidden, setMissingHidden] = useState(0);
+    const [answers, setAnswers] = useState<Record<string, { perPack: string; unit: string }>>({});
+    const [savingKey, setSavingKey] = useState<string | null>(null);
+    const [fillError, setFillError] = useState(false);
+
+    useEffect(() => {
+        if (!receiptsEnabled) return;
+        let cancelled = false;
+        void (async () => {
+            try {
+                const res = await api.get<{ success: boolean; data: { groups: MissingAmount[]; hidden: number } }>(
+                    '/api/budget/receipts/missing-amounts'
+                );
+                if (cancelled || !res.success) return;
+                setMissing(res.data?.groups ?? []);
+                setMissingHidden(res.data?.hidden ?? 0);
+            } catch (err) {
+                console.error('Failed to load the missing receipt amounts:', err);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [receiptsEnabled]);
+
+    const answerOf = (key: string) => answers[key] ?? { perPack: '', unit: '' };
+
+    const setAnswer = (key: string, patch: Partial<{ perPack: string; unit: string }>) =>
+        setAnswers((previous) => ({ ...previous, [key]: { ...answerOf(key), ...patch } }));
+
+    const saveMissing = async (row: MissingAmount) => {
+        const answer = answerOf(row.key);
+        const perPack = toAmount(answer.perPack);
+        const unit = answer.unit.trim();
+        if (!(perPack > 0) || unit === '') return;
+
+        setSavingKey(row.key);
+        setFillError(false);
+        try {
+            await api.post('/api/budget/receipts/missing-amounts', { key: row.key, per_pack: perPack, unit });
+            setMissing((previous) => previous.filter((entry) => entry.key !== row.key));
+            setAnswers((previous) => {
+                const next = { ...previous };
+                delete next[row.key];
+                return next;
+            });
+            // The products card above reads the amounts this just stored.
+            void load();
+        } catch (err) {
+            console.error('Failed to save a receipt amount:', err);
+            setFillError(true);
+        } finally {
+            setSavingKey(null);
+        }
+    };
 
     const rangeValid = useMemo(
         () => /^\d{4}-\d{2}-\d{2}$/.test(start) && /^\d{4}-\d{2}-\d{2}$/.test(end) && start <= end,
@@ -359,6 +434,63 @@ const BudgetAnalyticsPage: React.FC = () => {
                                     )}
                                 </div>
                             )}
+                        </ChartCard>
+                    )}
+
+                    {missing.length > 0 && (
+                        <ChartCard
+                            title={t('analytics.custom:missing.title')}
+                            subtitle={t('analytics.custom:missing.note')}
+                        >
+                            <div className="space-y-3">
+                                {fillError && (
+                                    <p className="text-caption text-danger">{t('analytics.custom:missing.error')}</p>
+                                )}
+                                {missing.map((row) => {
+                                    const answer = answerOf(row.key);
+                                    const ready = toAmount(answer.perPack) > 0 && answer.unit.trim() !== '';
+                                    return (
+                                        <div key={row.key} className="space-y-2 rounded-input border border-border p-3">
+                                            <div className="flex items-baseline justify-between gap-3">
+                                                <span className="truncate text-sm font-medium">{row.label}</span>
+                                                <span className="shrink-0 text-caption text-muted-foreground">
+                                                    {t('analytics.custom:missing.lines', { count: row.lines, amount: cur(row.amount) })}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    value={answer.perPack}
+                                                    inputMode="decimal"
+                                                    placeholder={t('analytics.custom:missing.perPack')}
+                                                    aria-label={`${t('analytics.custom:missing.perPack')} — ${row.label}`}
+                                                    onChange={(event) => setAnswer(row.key, { perPack: event.target.value })}
+                                                    className="input-nexus min-w-0 flex-1 py-0 text-caption"
+                                                />
+                                                <input
+                                                    value={answer.unit}
+                                                    placeholder={t('analytics.custom:missing.unit')}
+                                                    aria-label={`${t('analytics.custom:missing.unit')} — ${row.label}`}
+                                                    onChange={(event) => setAnswer(row.key, { unit: event.target.value })}
+                                                    className="input-nexus w-20 shrink-0 py-0 text-caption"
+                                                />
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    onClick={() => void saveMissing(row)}
+                                                    disabled={!ready || savingKey === row.key}
+                                                >
+                                                    {t('analytics.custom:missing.save')}
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                                {missingHidden > 0 && (
+                                    <p className="text-caption text-muted-foreground">
+                                        {t('analytics.custom:missing.hidden', { count: missingHidden })}
+                                    </p>
+                                )}
+                            </div>
                         </ChartCard>
                     )}
 

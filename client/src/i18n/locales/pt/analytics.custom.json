@@ -62,6 +62,16 @@
     "hidden": "+{{count}} mais",
     "empty": "Nenhum talão foi importado neste período."
   },
+  "missing": {
+    "title": "Quantidades a preencher",
+    "note": "Talões importados antes de a quantidade ser guardada. Indique quanto contém uma embalagem e a lista de produtos acima usa esse valor.",
+    "perPack": "Uma embalagem contém",
+    "unit": "Unidade",
+    "save": "Guardar",
+    "lines": "{{count}} linha(s) · {{amount}}",
+    "hidden": "+{{count}} mais",
+    "error": "Não foi possível guardar. Tente de novo."
+  },
   "states": {
     "loading": "Loading…",
     "error": "Could not load the analytics.",

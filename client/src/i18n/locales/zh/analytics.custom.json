@@ -62,6 +62,16 @@
     "hidden": "还有 {{count}} 个",
     "empty": "该时段没有导入小票。"
   },
+  "missing": {
+    "title": "待填写的数量",
+    "note": "在保存数量之前导入的小票。填写每包包含多少，上面的商品列表就会使用它。",
+    "perPack": "每包含",
+    "unit": "单位",
+    "save": "保存",
+    "lines": "{{count}} 行 · {{amount}}",
+    "hidden": "还有 {{count}} 个",
+    "error": "保存失败，请重试。"
+  },
   "states": {
     "loading": "Loading…",
     "error": "Could not load the analytics.",
