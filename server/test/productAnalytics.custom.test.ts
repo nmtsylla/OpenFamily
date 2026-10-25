@@ -187,3 +187,24 @@ test('an unsized line in the bucket makes the content a floor, not a total', () 
     // The page shows "≥ 5 kg": one line said how much it held, the other did not.
     assert.deepEqual(result.byProduct[0].units, [{ unit: 'kg', content: 5, unsized: 1, packs: 2 }]);
 });
+
+
+test('names grouped by the family add up as one product', () => {
+    // The pantry row is 'Rijst - AH Basmati - Basmati rijst': both printed
+    // labels resolve to it, so the card shows one 'Rijst' at 1 kg.
+    const result = buildProductPurchases([
+        line({ label: 'AH Basmati', product: null, unit: 'kg', content: 0.5, quantity: 1, amount: 2, groupKey: 'rijst - ah basmati - basmati rijst', group: 'Rijst' }),
+        line({ label: 'Basmati rijst', product: null, unit: 'kg', content: 0.5, quantity: 1, amount: 2.5, groupKey: 'rijst - ah basmati - basmati rijst', group: 'Rijst' }),
+        line({ label: 'Café', product: 'Café', unit: 'kg', content: 0.25, quantity: 1, amount: 4 }),
+    ]);
+
+    // Rijst spends more, so it leads; the two labels are one product.
+    assert.deepEqual(result.byProduct.map((product) => product.name), ['Rijst', 'Café']);
+    const rijst = result.byProduct.find((product) => product.name === 'Rijst');
+    assert.deepEqual(rijst, {
+        name: 'Rijst',
+        amount: 4.5,
+        lines: 2,
+        units: [{ unit: 'kg', content: 1, unsized: 0, packs: 2 }],
+    });
+});

@@ -88,8 +88,26 @@ const LOCATIONS = ['pantry', 'fridge', 'freezer', 'cellar', 'other'] as const;
 const BUCKETS = ['main', 'fruit', 'snack', 'drink'] as const;
 const EXPIRY_DAYS = 14;
 
+/**
+ * Other names live in the product's name itself, the convention the receipt merge
+ * already resolves ('Rijst - AH Basmati - Basmati rijst'). The form edits the two
+ * halves apart so the family does not have to know the syntax.
+ */
+const ALIAS_SEPARATOR = ' - ';
+
+const splitAliases = (name: string): { name: string; aliases: string } => {
+    const parts = String(name ?? '').split(ALIAS_SEPARATOR).map((part) => part.trim()).filter(Boolean);
+    return { name: parts[0] ?? '', aliases: parts.slice(1).join(', ') };
+};
+
+const joinAliases = (name: string, aliases: string): string =>
+    [name.trim(), ...aliases.split(',').map((part) => part.trim()).filter(Boolean)]
+        .filter(Boolean)
+        .join(ALIAS_SEPARATOR);
+
 const emptyForm = {
     name: '',
+    alsoCalled: '',
     category: '',
     quantity: '1',
     unit: '',
@@ -375,8 +393,10 @@ const Pantry: React.FC = () => {
 
     const openEdit = (item: PantryItem) => {
         setEditing(item);
+        const split = splitAliases(item.name);
         setForm({
-            name: item.name,
+            name: split.name,
+            alsoCalled: split.aliases,
             category: item.category,
             quantity: String(item.quantity),
             unit: item.unit ?? '',
@@ -393,7 +413,7 @@ const Pantry: React.FC = () => {
         if (form.name.trim() === '') return;
         setSaving(true);
         const body = {
-            name: form.name,
+            name: joinAliases(form.name, form.alsoCalled),
             category: form.category,
             quantity: form.quantity === '' ? 1 : Number(form.quantity),
             unit: form.unit,
@@ -711,6 +731,15 @@ const Pantry: React.FC = () => {
                         value={form.name}
                         onChange={(event) => setForm({ ...form, name: event.target.value })}
                     />
+                    <div>
+                        <Input
+                            label={t('pantry.custom:form.alsoCalled')}
+                            placeholder={t('pantry.custom:form.alsoCalledPlaceholder')}
+                            value={form.alsoCalled}
+                            onChange={(event) => setForm({ ...form, alsoCalled: event.target.value })}
+                        />
+                        <p className="mt-1 text-micro text-muted-foreground">{t('pantry.custom:form.alsoCalledHint')}</p>
+                    </div>
                     <Select
                         value={form.category}
                         onValueChange={(value) => setForm({ ...form, category: value })}

@@ -33,6 +33,14 @@ export interface PurchaseLine {
     /** Total content of the line in `unit`, 0 when the ticket did not say. */
     content: number;
     amount: number;
+    /**
+     * Folded key of the family's pantry row that declares this name, when one
+     * does: 'AH Basmati' resolves to the 'Rijst - AH Basmati - Basmati rijst' row,
+     * so every name of one product adds up in one row.
+     */
+    groupKey?: string | null;
+    /** That row's display name (its head), used instead of the voted spelling. */
+    group?: string | null;
 }
 
 export interface PurchaseUnit {
@@ -105,6 +113,8 @@ interface UnitBucket {
 interface ProductGroup {
     /** Raw display text (`product || label`) → how many lines carried it. */
     texts: Map<string, number>;
+    /** Set when a line resolved to a pantry row: its head is the display name. */
+    groupName: string | null;
     amount: number;
     lines: number;
     units: Map<string, UnitBucket>;
@@ -119,11 +129,13 @@ export const buildProductPurchases = (
 
     for (const line of lines) {
         const display = String(line.product || line.label || '');
-        const productKey = pantryNameKey(display);
+        const resolved = String(line.groupKey ?? '').trim();
+        const productKey = resolved.length > 0 ? resolved : pantryNameKey(display);
         // An unnamed line (no product, no label) cannot be grouped by anything.
         if (productKey.length === 0) continue;
 
-        const group = groups.get(productKey) ?? { texts: new Map(), amount: 0, lines: 0, units: new Map() };
+        const group = groups.get(productKey) ?? { texts: new Map(), groupName: null, amount: 0, lines: 0, units: new Map() };
+        if (line.group && group.groupName === null) group.groupName = String(line.group);
 
         group.texts.set(display, (group.texts.get(display) ?? 0) + 1);
         group.amount += finite(line.amount);
@@ -171,7 +183,7 @@ export const buildProductPurchases = (
         });
 
         return {
-            name: pickSpelling(group.texts),
+            name: group.groupName ?? pickSpelling(group.texts),
             amount: roundTo(group.amount, 2),
             lines: group.lines,
             units,
