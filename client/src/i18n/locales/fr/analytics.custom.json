@@ -62,6 +62,16 @@
     "hidden": "+{{count}} de plus",
     "empty": "Aucun ticket importé sur cette période."
   },
+  "missing": {
+    "title": "Quantités à compléter",
+    "note": "Des tickets importés avant l'enregistrement de la quantité. Indiquez ce que contient un paquet, la liste de produits ci-dessus l'utilisera.",
+    "perPack": "Un paquet contient",
+    "unit": "Unité",
+    "save": "Enregistrer",
+    "lines": "{{count}} ligne(s) · {{amount}}",
+    "hidden": "+{{count}} de plus",
+    "error": "Enregistrement impossible. Réessayez."
+  },
   "states": {
     "loading": "Chargement…",
     "error": "Impossible de charger l'analyse.",

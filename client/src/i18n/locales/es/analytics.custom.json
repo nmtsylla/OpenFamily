@@ -62,6 +62,16 @@
     "hidden": "+{{count}} más",
     "empty": "No se importó ningún ticket en este periodo."
   },
+  "missing": {
+    "title": "Cantidades por completar",
+    "note": "Tickets importados antes de guardar la cantidad. Indica cuánto contiene un paquete y la lista de productos de arriba lo usará.",
+    "perPack": "Un paquete contiene",
+    "unit": "Unidad",
+    "save": "Guardar",
+    "lines": "{{count}} línea(s) · {{amount}}",
+    "hidden": "+{{count}} más",
+    "error": "No se pudo guardar. Inténtalo de nuevo."
+  },
   "states": {
     "loading": "Loading…",
     "error": "Could not load the analytics.",
