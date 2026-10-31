@@ -158,7 +158,11 @@ const ExpenseCheckPage: React.FC = () => {
             const key = aiErrorKey(error);
             const message = error instanceof Error ? error.message : '';
             setScanError(
-                key
+                // A provider refusal is almost always the plan or the key: say
+                // where to look, the generic "provider error" says nothing useful.
+                key === 'AI_PROVIDER_ERROR'
+                    ? t('expenseCheck.custom:errors.provider')
+                    : key
                     ? t(`ai:errors.${key}`)
                     : message === 'AI_NOT_CONFIGURED'
                       ? t('expenseCheck.custom:errors.ai')

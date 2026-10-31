@@ -40,6 +40,7 @@
     "scan": "Impossible de lire cette capture.",
     "generic": "Une erreur est survenue.",
     "tooMany": "{{max}} captures à la fois au maximum.",
-    "tooLarge": "Cette capture est trop lourde. Essayez-en une plus légère."
+    "tooLarge": "Cette capture est trop lourde. Essayez-en une plus légère.",
+    "provider": "Le fournisseur d'IA a refusé la requête (offre, quota ou clé). Vérifiez Réglages → IA."
   }
 }

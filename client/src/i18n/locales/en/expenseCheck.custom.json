@@ -40,6 +40,7 @@
     "scan": "Could not read that screenshot.",
     "generic": "Something went wrong.",
     "tooMany": "Only {{max}} screenshots at a time.",
-    "tooLarge": "That screenshot is too large. Try a smaller one."
+    "tooLarge": "That screenshot is too large. Try a smaller one.",
+    "provider": "The AI provider refused the request (plan, quota or key). Check Settings → AI."
   }
 }

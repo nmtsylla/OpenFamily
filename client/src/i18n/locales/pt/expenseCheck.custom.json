@@ -40,6 +40,7 @@
     "scan": "Não foi possível ler essa captura.",
     "generic": "Ocorreu um erro.",
     "tooMany": "Apenas {{max}} capturas de cada vez.",
-    "tooLarge": "Essa captura é demasiado grande. Tente uma mais pequena."
+    "tooLarge": "Essa captura é demasiado grande. Tente uma mais pequena.",
+    "provider": "O fornecedor de IA recusou o pedido (plano, quota ou chave). Verifique Definições → IA."
   }
 }
