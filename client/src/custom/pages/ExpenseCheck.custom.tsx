@@ -8,6 +8,7 @@ import { formatCurrency } from '../../lib/utils';
 import { dateLocale } from '../../i18n/format';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAiEnabled } from '../../lib/aiStatus';
+import { aiErrorKey } from '../../components/app/MagicInput';
 import { Button, Card, CardContent, useToast } from '../../components/ui';
 import { toScreenshotAttachment } from '../lib/screenshotUpload.custom';
 
@@ -47,7 +48,7 @@ type Filter = 'missing' | 'accounted' | 'ignored';
 const MAX_FILES = 6;
 
 const ExpenseCheckPage: React.FC = () => {
-    const { t } = useTranslation(['expenseCheck.custom', 'common']);
+    const { t } = useTranslation(['expenseCheck.custom', 'ai', 'common']);
     const { user, isModuleEnabled } = useAuth();
     const { showToast } = useToast();
     const aiEnabled = useAiEnabled();
@@ -112,9 +113,25 @@ const ExpenseCheckPage: React.FC = () => {
         scanId.current = run;
         setScanning(true);
         setScanError(null);
+
         try {
             const picked = Array.from(files).slice(0, MAX_FILES);
-            const attachments = await Promise.all(picked.map(toScreenshotAttachment));
+            if (files.length > MAX_FILES) {
+                showToast({ title: t('expenseCheck.custom:errors.tooMany', { max: MAX_FILES }) });
+            }
+
+            // Encoding is a local failure (a file this browser cannot decode) and
+            // is reported as such: it says nothing about the model or the quota.
+            let attachments;
+            try {
+                attachments = await Promise.all(picked.map(toScreenshotAttachment));
+            } catch {
+                if (scanId.current === run) {
+                    setScanError(t('expenseCheck.custom:errors.media'));
+                }
+                return;
+            }
+
             const response = await api.post<{
                 success: boolean;
                 data: { added: number; duplicates: number; skipped: number };
@@ -134,13 +151,20 @@ const ExpenseCheckPage: React.FC = () => {
             await load();
         } catch (error) {
             if (scanId.current !== run) return;
+            // The server answers an AI failure with its machine-readable code, and
+            // the app already has one message per code (`ai:errors.*`, the same
+            // ones the ✨ assistant shows): a quota or a rejected key must not read
+            // as "your screenshot is unreadable".
+            const key = aiErrorKey(error);
             const message = error instanceof Error ? error.message : '';
             setScanError(
-                message === 'AI_NOT_CONFIGURED'
-                    ? t('expenseCheck.custom:errors.ai')
-                    : message === 'UNSUPPORTED_MEDIA' || message === 'UNREADABLE_FILE'
-                      ? t('expenseCheck.custom:errors.media')
-                      : t('expenseCheck.custom:errors.scan'),
+                key
+                    ? t(`ai:errors.${key}`)
+                    : message === 'AI_NOT_CONFIGURED'
+                      ? t('expenseCheck.custom:errors.ai')
+                      : message === 'FILE_TOO_LARGE'
+                        ? t('expenseCheck.custom:errors.tooLarge')
+                        : t('expenseCheck.custom:errors.scan'),
             );
         } finally {
             if (scanId.current === run) setScanning(false);
@@ -300,7 +324,9 @@ const ExpenseCheckPage: React.FC = () => {
                         </p>
                     ) : visible.length === 0 ? (
                         <p className="py-12 text-center text-sm text-muted-foreground">
-                            {filter === 'missing'
+                            {payments.length === 0
+                                ? t('expenseCheck.custom:page.empty')
+                                : filter === 'missing'
                                 ? t('expenseCheck.custom:page.emptyMissing')
                                 : filter === 'accounted'
                                   ? t('expenseCheck.custom:page.emptyAccounted')

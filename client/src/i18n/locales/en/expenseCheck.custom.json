@@ -30,13 +30,16 @@
     "added": "Added to the budget",
     "ignored": "Payment ignored",
     "restored": "Payment restored",
-    "deleted": "Payment removed"
+    "deleted": "Payment removed",
+    "empty": "Nothing to check yet. Scan a screenshot of your card or bank app."
   },
   "errors": {
     "load": "Could not load the payment check.",
     "ai": "Configure an AI model in Settings to read screenshots.",
     "media": "That file is not an image this browser can read.",
     "scan": "Could not read that screenshot.",
-    "generic": "Something went wrong."
+    "generic": "Something went wrong.",
+    "tooMany": "Only {{max}} screenshots at a time.",
+    "tooLarge": "That screenshot is too large. Try a smaller one."
   }
 }

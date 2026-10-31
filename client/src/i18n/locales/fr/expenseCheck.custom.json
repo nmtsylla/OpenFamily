@@ -30,13 +30,16 @@
     "added": "Ajouté au budget",
     "ignored": "Paiement ignoré",
     "restored": "Paiement rétabli",
-    "deleted": "Paiement supprimé"
+    "deleted": "Paiement supprimé",
+    "empty": "Rien à vérifier pour l'instant. Scannez une capture de votre app de paiement ou de banque."
   },
   "errors": {
     "load": "Impossible de charger la vérification des paiements.",
     "ai": "Configurez un modèle d'IA dans les Réglages pour lire les captures.",
     "media": "Ce fichier n'est pas une image lisible par ce navigateur.",
     "scan": "Impossible de lire cette capture.",
-    "generic": "Une erreur est survenue."
+    "generic": "Une erreur est survenue.",
+    "tooMany": "{{max}} captures à la fois au maximum.",
+    "tooLarge": "Cette capture est trop lourde. Essayez-en une plus légère."
   }
 }

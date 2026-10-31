@@ -30,13 +30,16 @@
     "added": "Adicionado ao orçamento",
     "ignored": "Pagamento ignorado",
     "restored": "Pagamento restaurado",
-    "deleted": "Pagamento eliminado"
+    "deleted": "Pagamento eliminado",
+    "empty": "Nada para verificar ainda. Leia uma captura da sua app de pagamento ou do banco."
   },
   "errors": {
     "load": "Não foi possível carregar a verificação de pagamentos.",
     "ai": "Configure um modelo de IA nas Definições para ler as capturas.",
     "media": "Esse ficheiro não é uma imagem que este navegador consiga ler.",
     "scan": "Não foi possível ler essa captura.",
-    "generic": "Ocorreu um erro."
+    "generic": "Ocorreu um erro.",
+    "tooMany": "Apenas {{max}} capturas de cada vez.",
+    "tooLarge": "Essa captura é demasiado grande. Tente uma mais pequena."
   }
 }

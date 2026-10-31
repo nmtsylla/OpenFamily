@@ -30,13 +30,16 @@
     "added": "Añadido al presupuesto",
     "ignored": "Pago ignorado",
     "restored": "Pago restaurado",
-    "deleted": "Pago eliminado"
+    "deleted": "Pago eliminado",
+    "empty": "Nada que comprobar todavía. Escanea una captura de tu app de pago o de tu banco."
   },
   "errors": {
     "load": "No se pudo cargar el control de pagos.",
     "ai": "Configura un modelo de IA en Ajustes para leer las capturas.",
     "media": "Ese archivo no es una imagen que este navegador pueda leer.",
     "scan": "No se pudo leer esa captura.",
-    "generic": "Algo ha fallado."
+    "generic": "Algo ha fallado.",
+    "tooMany": "Solo {{max}} capturas a la vez.",
+    "tooLarge": "Esa captura es demasiado grande. Prueba con una más pequeña."
   }
 }
