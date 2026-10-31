@@ -50,6 +50,7 @@
     "contentLabel": "¿Cuánto en total?",
     "unitLabel": "Unidad",
     "contentHint": "No está en el ticket. Rellénelo o el inventario lo pedirá.",
-    "contentNeedsUnit": "Indique la unidad de esta cantidad o bórrela."
+    "contentNeedsUnit": "Indique la unidad de esta cantidad o bórrela.",
+    "checkPayments": "Revisar pagos"
   }
 }

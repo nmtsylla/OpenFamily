@@ -1,0 +1,42 @@
+{
+  "nav": {
+    "expenseCheck": "Payment check"
+  },
+  "page": {
+    "title": "Payment check",
+    "subtitle": "Screenshots of your card or bank app, checked against the budget. Every payment no expense accounts for is listed here, ready to add.",
+    "back": "Budget",
+    "refresh": "Refresh",
+    "scan": "Scan screenshots",
+    "scanning": "Reading…",
+    "scanHint": "Up to 6 screenshots of your payment or bank app. Money added to the account is not a payment.",
+    "scanned": "New payments found: {{count}}",
+    "duplicates": "Already known: {{count}}",
+    "missingTitle": "not in the budget",
+    "accountedTitle": "accounted for",
+    "window": "An expense of the same amount, within {{days}} days of the payment, counts as accounted for.",
+    "missingTab": "Not in the budget",
+    "accountedTab": "Accounted for",
+    "ignoredTab": "Ignored",
+    "emptyMissing": "Every payment is in the budget.",
+    "emptyAccounted": "No payment is accounted for yet.",
+    "emptyIgnored": "Nothing ignored.",
+    "add": "Add",
+    "ignore": "Ignore",
+    "restore": "Restore",
+    "delete": "Delete this payment",
+    "matchedWith": "in the budget: {{description}}",
+    "unnamedEntry": "no description",
+    "added": "Added to the budget",
+    "ignored": "Payment ignored",
+    "restored": "Payment restored",
+    "deleted": "Payment removed"
+  },
+  "errors": {
+    "load": "Could not load the payment check.",
+    "ai": "Configure an AI model in Settings to read screenshots.",
+    "media": "That file is not an image this browser can read.",
+    "scan": "Could not read that screenshot.",
+    "generic": "Something went wrong."
+  }
+}

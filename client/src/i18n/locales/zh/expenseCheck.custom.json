@@ -1,0 +1,42 @@
+{
+  "nav": {
+    "expenseCheck": "付款核对"
+  },
+  "page": {
+    "title": "付款核对",
+    "subtitle": "把支付应用或银行应用的截图与预算比对。没有任何支出对应的付款会列在这里，可一键添加。",
+    "back": "预算",
+    "refresh": "刷新",
+    "scan": "扫描截图",
+    "scanning": "读取中…",
+    "scanHint": "最多 6 张支付或银行应用的截图。向账户充值的钱不算付款。",
+    "scanned": "发现新付款：{{count}}",
+    "duplicates": "已知付款：{{count}}",
+    "missingTitle": "不在预算中",
+    "accountedTitle": "已入账",
+    "window": "与付款日期相差 {{days}} 天以内、金额相同的支出即视为已入账。",
+    "missingTab": "不在预算中",
+    "accountedTab": "已入账",
+    "ignoredTab": "已忽略",
+    "emptyMissing": "所有付款都在预算中。",
+    "emptyAccounted": "还没有已入账的付款。",
+    "emptyIgnored": "没有已忽略的付款。",
+    "add": "添加",
+    "ignore": "忽略",
+    "restore": "恢复",
+    "delete": "删除这笔付款",
+    "matchedWith": "预算中：{{description}}",
+    "unnamedEntry": "无描述",
+    "added": "已添加到预算",
+    "ignored": "已忽略该付款",
+    "restored": "已恢复该付款",
+    "deleted": "已删除该付款"
+  },
+  "errors": {
+    "load": "无法加载付款核对。",
+    "ai": "请在设置中配置 AI 模型以读取截图。",
+    "media": "该文件不是此浏览器可读取的图片。",
+    "scan": "无法读取该截图。",
+    "generic": "出现错误。"
+  }
+}

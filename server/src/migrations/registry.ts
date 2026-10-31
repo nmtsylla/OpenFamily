@@ -544,5 +544,38 @@ export const coreMigrations: readonly Migration[] = [
             'ALTER TABLE custom_pantry_pending ADD COLUMN IF NOT EXISTS needs_amount BOOLEAN NOT NULL DEFAULT false',
         ],
     },
+    {
+        // The payments a family's card apps show, read off a screenshot and
+        // checked against the budget (routes/expenseCheck.custom.ts). One row per
+        // payment the app listed; the fingerprint is the duplicate guard, so
+        // scanning the same screenshot twice adds nothing.
+        //
+        // `status` is only the family's verdict ('pending' = still to check,
+        // 'ignored' = known about, stop asking). Whether an expense accounts for
+        // the payment is NOT stored: it is computed on every read, so deleting
+        // that expense makes the payment missing again.
+        // `budget_entry_id` records the expense THIS page created, so the same
+        // expense is never offered to a second payment; deleting it clears the
+        // link and the payment comes back as missing.
+        id: 'custom/0012-payment-check',
+        statements: [
+            `CREATE TABLE IF NOT EXISTS custom_payment_transactions (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                source VARCHAR(40) NOT NULL,
+                entry_date DATE NOT NULL,
+                label VARCHAR(200) NOT NULL,
+                amount DECIMAL(10, 2) NOT NULL,
+                currency VARCHAR(3),
+                category VARCHAR(50) NOT NULL,
+                fingerprint VARCHAR(64) NOT NULL,
+                status VARCHAR(16) NOT NULL DEFAULT 'pending',
+                budget_entry_id UUID REFERENCES budget_entries(id) ON DELETE SET NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (user_id, fingerprint)
+            )`,
+            'CREATE INDEX IF NOT EXISTS idx_custom_payment_tx_user_date ON custom_payment_transactions(user_id, entry_date)',
+        ],
+    },
     // FORK-END: custom-migrations
 ];

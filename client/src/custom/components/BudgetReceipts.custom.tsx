@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronDown, ChevronRight, Edit2, Package, Plus, Receipt, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Edit2, Package, Plus, Receipt, ShieldCheck, Trash2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { format, parseISO } from 'date-fns';
 import { api } from '../../lib/api';
 import { formatCurrency } from '../../lib/utils';
@@ -356,10 +357,24 @@ export const ReceiptImportButton: React.FC<{
     const aiEnabled = useAiEnabled();
     const [open, setOpen] = useState(false);
 
-    if (!aiEnabled || !isModuleEnabled('ai') || !isModuleEnabled('budgetReceipts')) return null;
+    // The payment check lives beside the receipt import: both answer "is what I
+    // paid in the budget?". A text link rather than a third toolbar button.
+    const checkLink = isModuleEnabled('expenseCheck') ? (
+        <Link
+            to="/expense-check"
+            className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground
+                       hover:text-foreground active:scale-95 transition-transform"
+        >
+            <ShieldCheck className="w-4 h-4" />
+            {t('receipt.checkPayments')}
+        </Link>
+    ) : null;
+
+    if (!aiEnabled || !isModuleEnabled('ai') || !isModuleEnabled('budgetReceipts')) return checkLink;
 
     return (
         <>
+            {checkLink}
             <button
                 type="button"
                 onClick={() => setOpen(true)}

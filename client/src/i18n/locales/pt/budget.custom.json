@@ -50,6 +50,7 @@
     "contentLabel": "Quanto no total?",
     "unitLabel": "Unidade",
     "contentHint": "Não está no talão. Preencha, ou o inventário vai perguntar.",
-    "contentNeedsUnit": "Indique a unidade desta quantidade ou apague-a."
+    "contentNeedsUnit": "Indique a unidade desta quantidade ou apague-a.",
+    "checkPayments": "Verificar pagamentos"
   }
 }

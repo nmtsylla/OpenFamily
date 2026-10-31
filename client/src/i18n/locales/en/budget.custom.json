@@ -50,6 +50,7 @@
     "contentLabel": "How much in total?",
     "unitLabel": "Unit",
     "contentHint": "Not on the ticket. Fill it in, or the pantry will ask.",
-    "contentNeedsUnit": "Give the unit of this amount, or clear the amount."
+    "contentNeedsUnit": "Give the unit of this amount, or clear the amount.",
+    "checkPayments": "Check payments"
   }
 }

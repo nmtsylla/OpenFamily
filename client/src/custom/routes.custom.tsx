@@ -39,6 +39,10 @@ const ProductScanner = React.lazy(() => import('./pages/ProductScanner.custom'))
 // then lives in the service worker's cache like the rest.
 const Board = React.lazy(() => import('./pages/Board.custom'));
 
+// The payment check is a phone screen (a screenshot, then a list of verdicts), so
+// it is opened from a tab while standing there; its chunk is fetched then.
+const ExpenseCheck = React.lazy(() => import('./pages/ExpenseCheck.custom'));
+
 export const customRoutes = (isModuleEnabled: (key: string) => boolean): React.ReactElement[] => [
     <Route
         key="products"
@@ -114,6 +118,19 @@ export const customRoutes = (isModuleEnabled: (key: string) => boolean): React.R
             isModuleEnabled('productScan') ? (
                 <Suspense fallback={null}>
                     <PromoWatchlist />
+                </Suspense>
+            ) : (
+                <Navigate to="/" replace />
+            )
+        }
+    />,
+    <Route
+        key="expense-check"
+        path="/expense-check"
+        element={
+            isModuleEnabled('expenseCheck') ? (
+                <Suspense fallback={null}>
+                    <ExpenseCheck />
                 </Suspense>
             ) : (
                 <Navigate to="/" replace />

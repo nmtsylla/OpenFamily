@@ -16,6 +16,7 @@ import customRateLimiter from './middleware/rateLimit.custom';
 import aiDashboardRoutes from './routes/aiDashboard.custom';
 import budgetAnalyticsRoutes from './routes/budgetAnalytics.custom';
 import budgetReceiptsRoutes from './routes/budgetReceipts.custom';
+import expenseCheckRoutes from './routes/expenseCheck.custom';
 import lunchboxRoutes from './routes/lunchbox.custom';
 import marketRoutes from './routes/market.custom';
 import mediaRoutes from './routes/media.custom';
@@ -80,6 +81,13 @@ export const registerCustomRoutes = (app: Express): void => {
 
     if (isCustomFeatureEnabled('budgetAnalytics')) {
         app.use('/api/budget-analytics', budgetAnalyticsRoutes);
+    }
+
+    if (isCustomFeatureEnabled('expenseCheck')) {
+        // Reads the family's own card-app screenshots with the configured model
+        // and checks the payments against the budget. Its own prefix, so
+        // upstream's /api/budget router is not involved at all.
+        app.use('/api/expense-check', expenseCheckRoutes);
     }
 
     if (isCustomFeatureEnabled('productScan')) {

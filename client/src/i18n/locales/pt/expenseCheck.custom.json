@@ -1,0 +1,42 @@
+{
+  "nav": {
+    "expenseCheck": "Verif. de pagamentos"
+  },
+  "page": {
+    "title": "Verificação de pagamentos",
+    "subtitle": "Capturas da sua app de pagamento ou do banco, comparadas com o orçamento. Cada pagamento sem despesa correspondente aparece aqui, pronto a adicionar.",
+    "back": "Orçamento",
+    "refresh": "Atualizar",
+    "scan": "Ler capturas",
+    "scanning": "A ler…",
+    "scanHint": "Até 6 capturas da sua app de pagamento ou do banco. O dinheiro adicionado à conta não é um pagamento.",
+    "scanned": "Novos pagamentos encontrados: {{count}}",
+    "duplicates": "Já conhecidos: {{count}}",
+    "missingTitle": "fora do orçamento",
+    "accountedTitle": "contabilizados",
+    "window": "Uma despesa do mesmo montante, a {{days}} dias do pagamento, conta como contabilizada.",
+    "missingTab": "Fora do orçamento",
+    "accountedTab": "Contabilizados",
+    "ignoredTab": "Ignorados",
+    "emptyMissing": "Todos os pagamentos estão no orçamento.",
+    "emptyAccounted": "Nenhum pagamento está contabilizado ainda.",
+    "emptyIgnored": "Nada ignorado.",
+    "add": "Adicionar",
+    "ignore": "Ignorar",
+    "restore": "Restaurar",
+    "delete": "Eliminar este pagamento",
+    "matchedWith": "no orçamento: {{description}}",
+    "unnamedEntry": "sem descrição",
+    "added": "Adicionado ao orçamento",
+    "ignored": "Pagamento ignorado",
+    "restored": "Pagamento restaurado",
+    "deleted": "Pagamento eliminado"
+  },
+  "errors": {
+    "load": "Não foi possível carregar a verificação de pagamentos.",
+    "ai": "Configure um modelo de IA nas Definições para ler as capturas.",
+    "media": "Esse ficheiro não é uma imagem que este navegador consiga ler.",
+    "scan": "Não foi possível ler essa captura.",
+    "generic": "Ocorreu um erro."
+  }
+}

@@ -133,6 +133,8 @@ app.use((req, res, next) => (
         // whole scanned ticket with its own, larger limit INSIDE its router
         // (routes/ai.ts), after the login check.
         || req.path.replace(/\/+$/, '').toLowerCase() === '/api/ai/extract-receipt'
+        // Same again for the payment screenshots (routes/expenseCheck.custom.ts).
+        || req.path.replace(/\/+$/, '').toLowerCase() === '/api/expense-check/scan'
         // FORK-END: budget-custom
         ? next()
         : defaultJsonParser(req, res, next)

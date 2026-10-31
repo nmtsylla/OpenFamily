@@ -1,0 +1,42 @@
+{
+  "nav": {
+    "expenseCheck": "Control de pagos"
+  },
+  "page": {
+    "title": "Control de pagos",
+    "subtitle": "Capturas de tu app de pago o de tu banco, comparadas con el presupuesto. Cada pago sin gasto correspondiente aparece aquí, listo para añadir.",
+    "back": "Presupuesto",
+    "refresh": "Actualizar",
+    "scan": "Escanear capturas",
+    "scanning": "Leyendo…",
+    "scanHint": "Hasta 6 capturas de tu app de pago o de tu banco. El dinero añadido a la cuenta no es un pago.",
+    "scanned": "Pagos nuevos encontrados: {{count}}",
+    "duplicates": "Ya conocidos: {{count}}",
+    "missingTitle": "fuera del presupuesto",
+    "accountedTitle": "contabilizados",
+    "window": "Un gasto del mismo importe, a {{days}} días del pago, cuenta como contabilizado.",
+    "missingTab": "Fuera del presupuesto",
+    "accountedTab": "Contabilizados",
+    "ignoredTab": "Ignorados",
+    "emptyMissing": "Todos los pagos están en el presupuesto.",
+    "emptyAccounted": "Ningún pago está contabilizado todavía.",
+    "emptyIgnored": "Nada ignorado.",
+    "add": "Añadir",
+    "ignore": "Ignorar",
+    "restore": "Restaurar",
+    "delete": "Eliminar este pago",
+    "matchedWith": "en el presupuesto: {{description}}",
+    "unnamedEntry": "sin descripción",
+    "added": "Añadido al presupuesto",
+    "ignored": "Pago ignorado",
+    "restored": "Pago restaurado",
+    "deleted": "Pago eliminado"
+  },
+  "errors": {
+    "load": "No se pudo cargar el control de pagos.",
+    "ai": "Configura un modelo de IA en Ajustes para leer las capturas.",
+    "media": "Ese archivo no es una imagen que este navegador pueda leer.",
+    "scan": "No se pudo leer esa captura.",
+    "generic": "Algo ha fallado."
+  }
+}

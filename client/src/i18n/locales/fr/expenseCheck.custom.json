@@ -1,0 +1,42 @@
+{
+  "nav": {
+    "expenseCheck": "Vérif. des paiements"
+  },
+  "page": {
+    "title": "Vérification des paiements",
+    "subtitle": "Captures de votre app de paiement ou de banque, comparées au budget. Chaque paiement sans dépense correspondante apparaît ici, prêt à être ajouté.",
+    "back": "Budget",
+    "refresh": "Actualiser",
+    "scan": "Scanner des captures",
+    "scanning": "Lecture…",
+    "scanHint": "Jusqu'à 6 captures de votre app de paiement ou de banque. L'argent ajouté au compte n'est pas un paiement.",
+    "scanned": "Nouveaux paiements trouvés : {{count}}",
+    "duplicates": "Déjà connus : {{count}}",
+    "missingTitle": "absents du budget",
+    "accountedTitle": "comptabilisés",
+    "window": "Une dépense du même montant, à {{days}} jours du paiement, compte comme comptabilisée.",
+    "missingTab": "Absents du budget",
+    "accountedTab": "Comptabilisés",
+    "ignoredTab": "Ignorés",
+    "emptyMissing": "Tous les paiements sont dans le budget.",
+    "emptyAccounted": "Aucun paiement n'est encore comptabilisé.",
+    "emptyIgnored": "Aucun paiement ignoré.",
+    "add": "Ajouter",
+    "ignore": "Ignorer",
+    "restore": "Rétablir",
+    "delete": "Supprimer ce paiement",
+    "matchedWith": "dans le budget : {{description}}",
+    "unnamedEntry": "sans description",
+    "added": "Ajouté au budget",
+    "ignored": "Paiement ignoré",
+    "restored": "Paiement rétabli",
+    "deleted": "Paiement supprimé"
+  },
+  "errors": {
+    "load": "Impossible de charger la vérification des paiements.",
+    "ai": "Configurez un modèle d'IA dans les Réglages pour lire les captures.",
+    "media": "Ce fichier n'est pas une image lisible par ce navigateur.",
+    "scan": "Impossible de lire cette capture.",
+    "generic": "Une erreur est survenue."
+  }
+}

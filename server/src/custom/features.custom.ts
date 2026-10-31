@@ -20,7 +20,8 @@ export type CustomFeature =
     | 'aiWidgets'
     | 'productScan'
     | 'marketPlan'
-    | 'board';
+    | 'board'
+    | 'expenseCheck';
 
 const FLAGS: Record<CustomFeature, string> = {
     weather: 'CUSTOM_FEATURE_WEATHER_ENABLED',
@@ -34,6 +35,7 @@ const FLAGS: Record<CustomFeature, string> = {
     productScan: 'CUSTOM_FEATURE_SCANNER_ENABLED',
     marketPlan: 'CUSTOM_FEATURE_MARKET_PLAN_ENABLED',
     board: 'CUSTOM_FEATURE_BOARD_ENABLED',
+    expenseCheck: 'CUSTOM_FEATURE_EXPENSE_CHECK_ENABLED',
 };
 
 // Module keys the client understands (client/src/contexts/AuthContext.tsx,
@@ -51,6 +53,7 @@ const MODULE_KEYS: Record<CustomFeature, readonly string[]> = {
     productScan: ['productScan'],
     marketPlan: ['marketPlan'],
     board: ['board'],
+    expenseCheck: ['expenseCheck'],
 };
 
 // Every key above, in one tuple. It is spread into upstream's TOGGLEABLE_MODULES
@@ -65,7 +68,7 @@ const MODULE_KEYS: Record<CustomFeature, readonly string[]> = {
 // (which reports the key as disabled), not through a checkbox. Listing them
 // there would mean fork-owned label keys in six locales for a switch the env
 // flag already provides.
-export const CUSTOM_MODULE_KEYS = ['weather', 'activities', 'budgetReceipts', 'budgetAnalytics', 'lunchbox', 'pantry', 'outings', 'productScan', 'marketPlan', 'board'] as const;
+export const CUSTOM_MODULE_KEYS = ['weather', 'activities', 'budgetReceipts', 'budgetAnalytics', 'lunchbox', 'pantry', 'outings', 'productScan', 'marketPlan', 'board', 'expenseCheck'] as const;
 
 // Dashboard widgets this fork adds. The server's own DASHBOARD_WIDGETS list
 // (routes/userSettings.ts) sanitises what a member may store, so a widget that

@@ -50,6 +50,7 @@
     "contentLabel": "Combien en tout ?",
     "unitLabel": "Unité",
     "contentHint": "Absent du ticket. Renseignez-le, ou le garde-manger le demandera.",
-    "contentNeedsUnit": "Donnez l'unité de ce montant, ou effacez-le."
+    "contentNeedsUnit": "Donnez l'unité de ce montant, ou effacez-le.",
+    "checkPayments": "Vérifier les paiements"
   }
 }

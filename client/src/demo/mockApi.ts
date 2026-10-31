@@ -23,6 +23,42 @@ const ok = <T,>(data: T) => ({ success: true, data });
 // demo has no backend to keep them, so they live here for the session.
 let demoReceipts: Json[] = [];
 // FORK-END: budget-custom
+// FORK-START: expense-check
+// Payments the payment-check page shows in the demo: one the seeded budget
+// already accounts for, one it does not. Fixed dates, so the verdict does not
+// drift with the day the demo is opened.
+let demoPayments: Array<{
+    id: string;
+    source: string;
+    date: string;
+    label: string;
+    amount: number;
+    currency: string;
+    status: string;
+    entry: { id: string; date: string; description: string; amount: number } | null;
+}> = [
+    {
+        id: 'demo-payment-1',
+        source: 'Bunq',
+        date: '2026-10-20',
+        label: 'Albert Heijn',
+        amount: 10.08,
+        currency: 'EUR',
+        status: 'pending',
+        entry: { id: 'demo-payment-entry-1', date: '2026-10-20', description: 'Albert Heijn', amount: 10.08 },
+    },
+    {
+        id: 'demo-payment-2',
+        source: 'Edenred Meal',
+        date: '2026-10-26',
+        label: 'BAKKERIJ CHEF FARINI',
+        amount: 1.5,
+        currency: 'EUR',
+        status: 'pending',
+        entry: null,
+    },
+];
+// FORK-END: expense-check
 // FORK-START: lunchbox
 // Same for the lunchboxes (see the /api/lunchbox handlers below).
 let demoLunchboxes: Json[] = [];
@@ -1269,6 +1305,66 @@ async function route(method: string, path: string, q: Record<string, string>, bo
             pace,
         });
     }
+
+    // FORK-START: expense-check
+    // The payment check: fixed fixtures, one payment the demo budget accounts for
+    // and one it does not, so the page shows both verdicts. The scan pretends the
+    // AI read one more payment off the screenshot.
+    if (seg[1] === 'expense-check') {
+        if (seg.length === 2 && method === 'GET') {
+            const round2 = (n: number) => Math.round(n * 100) / 100;
+            const total = (list: typeof demoPayments) =>
+                round2(list.reduce((sum, payment) => sum + Number(payment.amount), 0));
+            const accounted = demoPayments.filter((payment) => payment.entry);
+            const missing = demoPayments.filter((payment) => !payment.entry && payment.status === 'pending');
+            return ok({
+                transactions: demoPayments,
+                windowDays: 4,
+                summary: {
+                    missingCount: missing.length,
+                    missingTotal: total(missing),
+                    accountedCount: accounted.length,
+                    accountedTotal: total(accounted),
+                    ignoredCount: demoPayments.filter((payment) => !payment.entry && payment.status === 'ignored').length,
+                },
+            });
+        }
+        if (seg[2] === 'scan' && method === 'POST') {
+            if (!demoPayments.some((payment) => payment.label === 'Apotheek Truweel')) {
+                demoPayments.push({
+                    id: uid(),
+                    source: 'Bunq',
+                    date: new Date().toISOString().slice(0, 10),
+                    label: 'Apotheek Truweel',
+                    amount: 12.8,
+                    currency: 'EUR',
+                    status: 'pending',
+                    entry: null,
+                });
+                return ok({ added: 1, duplicates: 0, skipped: 2 });
+            }
+            return ok({ added: 0, duplicates: 1, skipped: 0 });
+        }
+        const payment = demoPayments.find((item) => item.id === seg[2]);
+        if (payment && seg[3] === 'add' && method === 'POST') {
+            payment.entry = {
+                id: uid(),
+                date: payment.date,
+                description: payment.label,
+                amount: payment.amount,
+            };
+            return ok({ entry: payment.entry });
+        }
+        if (payment && seg[3] === 'status' && method === 'POST') {
+            payment.status = body.status === 'ignored' ? 'ignored' : 'pending';
+            return ok({});
+        }
+        if (payment && seg.length === 3 && method === 'DELETE') {
+            demoPayments.splice(demoPayments.indexOf(payment), 1);
+            return ok({});
+        }
+    }
+    // FORK-END: expense-check
     // FORK-END: budget-custom
 
     // ── AI assistant ────────────────────────────────────────────────────────────

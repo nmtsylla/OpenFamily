@@ -5,7 +5,7 @@
 // key: the family-level module setting and the CUSTOM_FEATURE_*_ENABLED flag
 // (reported as disabled through /api/auth/me) hide it without any extra work.
 
-import { BarChart3, LayoutGrid, Package, Sandwich, ScanLine, Tag } from 'lucide-react';
+import { BarChart3, LayoutGrid, Package, ReceiptText, Sandwich, ScanLine, Tag } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 export interface CustomNavEntry {
@@ -24,6 +24,9 @@ export const customNavigation: CustomNavEntry[] = [
     // Same reason for /lunchboxes: the upstream Meals entry matches /meals.
     { labelKey: 'lunchbox.custom:nav.lunchboxes', href: '/lunchboxes', icon: Sandwich, module: 'lunchbox' },
     { labelKey: 'pantry.custom:nav.pantry', href: '/pantry', icon: Package, module: 'pantry' },
+    // The payment check: did every card payment reach the budget? Its chunk is
+    // fetched on the first visit, like the pages above.
+    { labelKey: 'expenseCheck.custom:nav.expenseCheck', href: '/expense-check', icon: ReceiptText, module: 'expenseCheck' },
     { labelKey: 'scan.custom:nav.scanner', href: '/scanner', icon: ScanLine, module: 'productScan' },
     { labelKey: 'scan.custom:nav.promoWatchlist', href: '/promo-watchlist', icon: Tag, module: 'productScan' },
     // The board: a full-screen display, reached from here once (it is then opened
